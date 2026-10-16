@@ -79,6 +79,7 @@ docs/
   architecture.md    reference layout, NOC data flow, single points of failure
   telegram.md        alerts, bot commands, pairing, WAN groups
   openwrt.md         router and mwan3 editing, apply-with-rollback
+  daily-publish-task.md  the scheduled task that publishes the live NOC here each morning
 ```
 
 ## API
