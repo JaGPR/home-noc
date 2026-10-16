@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NOC</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --text:#16181d; --muted:#667085; --border:#e3e6ec; --accent:#2f6fde;
+          --ok:#1f8a4c; --ok-bg:#e6f4ec; --bad:#c2372f; --bad-bg:#fbe9e7; --warn:#a86500; --warn-bg:#fdf1dc; --chip:#eef1f6; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f1115; --card:#171a21; --text:#e7e9ee; --muted:#8b93a3; --border:#262b35;
+          --accent:#5b8ff0; --ok:#4cc37f; --ok-bg:#15291e; --bad:#ef6a62; --bad-bg:#331a19; --warn:#e0a541; --warn-bg:#33270f; --chip:#222733; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { position:sticky; top:0; z-index:5; background:var(--card); border-bottom:1px solid var(--border); padding:10px 16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  header h1 { font-size:16px; margin:0; font-weight:650; }
+  nav { display:flex; gap:4px; flex-wrap:wrap; }
+  nav button { border:0; background:transparent; color:var(--muted); padding:6px 10px; border-radius:8px; cursor:pointer; font:inherit; }
+  nav button.on { background:var(--chip); color:var(--text); font-weight:600; }
+  .spacer { flex:1; }
+  .meta { color:var(--muted); font-size:12px; }
+  a { color:var(--accent); }
+  main { padding:16px; max-width:1300px; margin:0 auto; }
+  .grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px; min-width:0; }
+  .card h2 { font-size:14px; margin:0 0 10px; font-weight:650; display:flex; gap:8px; align-items:center; }
+  .wide { grid-column:1 / -1; }
+  .kv { display:grid; grid-template-columns:auto 1fr; gap:2px 12px; font-size:13px; }
+  .kv dt { color:var(--muted); } .kv dd { margin:0; text-align:right; font-variant-numeric:tabular-nums; }
+  .big { font-size:26px; font-weight:650; font-variant-numeric:tabular-nums; }
+  .pill { display:inline-block; padding:1px 8px; border-radius:999px; font-size:12px; font-weight:600; white-space:nowrap; }
+  .ok { background:var(--ok-bg); color:var(--ok); } .bad { background:var(--bad-bg); color:var(--bad); } .warn { background:var(--warn-bg); color:var(--warn); }
+  .mut { background:var(--chip); color:var(--muted); }
+  .scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; color:var(--muted); font-weight:500; padding:6px 8px; border-bottom:1px solid var(--border); white-space:nowrap; }
+  td { padding:6px 8px; border-bottom:1px solid var(--border); vertical-align:top; font-variant-numeric:tabular-nums; }
+  tr:last-child td { border-bottom:0; }
+  .dot { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:6px; }
+  .dot.ok { background:var(--ok); } .dot.bad { background:var(--bad); }
+  button.act, select, input[type=number], input[type=text] { font:inherit; border:1px solid var(--border); background:var(--card); color:var(--text); border-radius:8px; padding:5px 10px; }
+  button.act { cursor:pointer; } button.act:hover { border-color:var(--accent); }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button.danger { background:var(--bad); color:#fff; border-color:var(--bad); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .err { color:var(--bad); font-size:13px; }
+  .small { font-size:12px; color:var(--muted); }
+  dialog { border:1px solid var(--border); border-radius:12px; background:var(--card); color:var(--text); max-width:460px; width:calc(100% - 32px); padding:20px; }
+  dialog::backdrop { background:rgba(0,0,0,.45); }
+  dialog ul { padding-left:18px; margin:8px 0 14px; }
+  .hidden { display:none; }
+  .bar { height:6px; background:var(--chip); border-radius:3px; overflow:hidden; min-width:60px; }
+  .bar > i { display:block; height:100%; background:var(--accent); }
+  .bar > i.hi { background:var(--bad); }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="site-name">NOC</h1>
+  <nav id="tabs">
+    <button data-t="overview" class="on">Overview</button><button data-t="dns">DNS</button>
+    <button data-t="switch">Switch</button><button data-t="router">Router</button>
+    <button data-t="wifi">Wi-Fi</button><button data-t="proxmox">Proxmox</button><button data-t="audit">Audit log</button>
+  </nav>
+  <span class="spacer"></span>
+  <span class="meta" id="updated">loading…</span>
+  <a class="meta" href="/logout">Sign out</a>
+</header>
+<main id="view"></main>
+
+<dialog id="dlg">
+  <h2 id="dlg-title" style="margin:0 0 4px;font-size:16px"></h2>
+  <div class="small">Review exactly what will change.</div>
+  <ul id="dlg-detail"></ul>
+  <div id="dlg-word" class="hidden" style="margin-bottom:12px">
+    <label class="small" for="dlg-input">Protected item. Type <b id="dlg-wordtext"></b> to confirm:</label><br>
+    <input type="text" id="dlg-input" style="width:100%;margin-top:4px" autocomplete="off">
+  </div>
+  <div id="dlg-err" class="err"></div>
+  <div class="row" style="justify-content:flex-end;margin-top:8px">
+    <button class="act" id="dlg-cancel">Cancel</button><button class="act primary" id="dlg-ok">Confirm</button>
+  </div>
+</dialog>
+
+<style>
+  .seg { display:inline-flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+  .seg label { padding:3px 10px; font-size:12px; cursor:pointer; color:var(--muted); border-left:1px solid var(--border); user-select:none; }
+  .seg label:first-child { border-left:0; }
+  .seg input { position:absolute; opacity:0; width:0; height:0; }
+  .seg label:has(input:checked)[data-s="none"] { background:var(--chip); color:var(--text); font-weight:600; }
+  .seg label:has(input:checked)[data-s="untag"] { background:var(--ok-bg); color:var(--ok); font-weight:600; }
+  .seg label:has(input:checked)[data-s="tag"] { background:#e7eefc; color:var(--accent); font-weight:600; }
+  @media (prefers-color-scheme: dark) { .seg label:has(input:checked)[data-s="tag"] { background:#1b2a47; } }
+  .seg label:has(input:focus-visible) { outline:2px solid var(--accent); outline-offset:-2px; }
+  #vdlg-table td { vertical-align:middle; }
+  #vdlg-table tr.native-row td { background:var(--ok-bg); }
+  .chg { color:var(--warn); font-size:12px; font-weight:600; white-space:nowrap; }
+  .legend span { margin-right:10px; }
+</style>
+<dialog id="vdlg" style="max-width:720px">
+  <h2 id="vdlg-title" style="margin:0 0 4px;font-size:16px"></h2>
+  <div class="small" id="vdlg-sub"></div>
+  <div class="small legend" style="margin:10px 0 6px">
+    <span><b>Native</b> = untagged traffic arriving on this link joins this VLAN (one only)</span><br>
+    <span><span class="pill ok">Untagged</span> sent without a VLAN tag</span>
+    <span><span class="pill" style="background:#e7eefc;color:var(--accent)">Tagged</span> sent with an 802.1Q tag</span>
+    <span><span class="pill mut">Off</span> not carried</span>
+  </div>
+  <div class="scroll"><table id="vdlg-table"></table></div>
+  <div id="vdlg-summary" class="small" style="margin-top:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px"></div>
+  <div id="vdlg-err" class="err" style="margin-top:8px"></div>
+  <div class="row" style="justify-content:flex-end;margin-top:12px">
+    <button class="act" id="vdlg-cancel">Cancel</button><button class="act primary" id="vdlg-ok">Preview change</button>
+  </div>
+</dialog>
+
+<style>
+  .frm { display:grid; grid-template-columns:150px 1fr; gap:10px 12px; align-items:center; }
+  .frm > label { font-size:13px; color:var(--muted); }
+  .frm input[type=text], .frm input[type=number], .frm select { width:100%; }
+  .frm .ip { display:flex; gap:6px; align-items:center; }
+  .frm h3 { grid-column:1 / -1; margin:8px 0 0; font-size:13px; font-weight:650; }
+  @media (max-width:520px) { .frm { grid-template-columns:1fr; } }
+</style>
+<dialog id="ndlg" style="max-width:600px">
+  <h2 id="ndlg-title" style="margin:0 0 12px;font-size:16px"></h2>
+  <div class="frm">
+    <h3>Basic configuration</h3>
+    <label for="ndlg-name">Name</label><input type="text" id="ndlg-name" maxlength="128" autocomplete="off">
+    <label for="ndlg-vlan">VLAN ID</label><input type="number" id="ndlg-vlan" min="2" max="4090" placeholder="2–4090">
+    <label for="ndlg-igmp">IGMP snooping</label><label style="color:var(--text);font-size:13px"><input type="checkbox" id="ndlg-igmp"> only for multicast (e.g. IPTV)</label>
+    <h3>DHCP</h3>
+    <label for="ndlg-dev">DHCP server device</label>
+    <select id="ndlg-dev">
+      <option value="openwrt">OpenWrt router</option>
+      <option value="upstream">Upstream device / ISP box</option>
+      <option value="none">None (static IPs only)</option>
+      <option value="omada_gateway" disabled>Omada gateway (none adopted)</option>
+      <option value="switch" disabled>Switch (SG2210P has no DHCP server)</option>
+    </select>
+    <label class="d-up" for="ndlg-prov">Provided by</label><input class="d-up" type="text" id="ndlg-prov" maxlength="64" placeholder="e.g. ISP fibre box">
+    <label class="d-ow" for="ndlg-gw">Gateway / subnet</label>
+    <div class="d-ow ip"><input type="text" id="ndlg-gw" placeholder="10.0.20.1" style="flex:1"><span>/</span><input type="number" id="ndlg-prefix" min="16" max="30" value="24" style="width:70px" aria-label="Prefix length"></div>
+    <label class="d-ow" for="ndlg-en">DHCP server</label><label class="d-ow" style="color:var(--text);font-size:13px"><input type="checkbox" id="ndlg-en" checked> Enable</label>
+    <label class="d-ow d-en" for="ndlg-start">DHCP range</label>
+    <div class="d-ow d-en ip"><input type="text" id="ndlg-start" placeholder="10.0.20.100" style="flex:1"><span>–</span><input type="text" id="ndlg-end" placeholder="10.0.20.200" style="flex:1" aria-label="DHCP range end"></div>
+    <label class="d-ow d-en" for="ndlg-lease">Lease time (hours)</label><input class="d-ow d-en" type="number" id="ndlg-lease" min="1" max="168" value="12">
+    <label class="d-ow d-en" for="ndlg-dns">DNS server</label><input class="d-ow d-en" type="text" id="ndlg-dns" value="">
+  </div>
+  <div id="ndlg-note" class="small" style="margin-top:12px"></div>
+  <div id="ndlg-err" class="err" style="margin-top:8px"></div>
+  <div class="row" style="justify-content:flex-end;margin-top:12px">
+    <button class="act" id="ndlg-cancel">Cancel</button><button class="act primary" id="ndlg-ok">Preview</button>
+  </div>
+</dialog>
+
+<script>
+const $ = s => document.querySelector(s);
+let SW = null;
+// Non-secret UI settings from config.json (filled by /api/meta before the first view loads).
+let META = {site_name: 'NOC', dns_vip: null, new_network: {subnet_template: '', range_start: 100, range_end: 200, lease_h: 12, dns: ''}};
+
+function editNetwork(id) {
+  const n = id ? SW.networks.find(x => x.id === id) : null;
+  const dlg = $('#ndlg');
+  $('#ndlg-title').textContent = n ? `Edit network ${n.name}` : 'New network (VLAN)';
+  const plan = n ? n.dhcp_plan : null;
+  $('#ndlg-name').value = n ? n.name : '';
+  $('#ndlg-vlan').value = n ? n.vlan : '';
+  $('#ndlg-igmp').checked = n ? !!n.igmp : false;
+  $('#ndlg-dev').value = plan ? plan.device : (n ? 'none' : 'openwrt');
+  $('#ndlg-prov').value = plan?.provider || '';
+  $('#ndlg-gw').value = plan?.gateway || '';
+  $('#ndlg-prefix').value = plan?.prefix || 24;
+  $('#ndlg-en').checked = plan ? !!plan.enabled : true;
+  $('#ndlg-start').value = plan?.range_start || '';
+  $('#ndlg-end').value = plan?.range_end || '';
+  $('#ndlg-lease').value = plan?.lease_h || 12;
+  $('#ndlg-dns').value = plan?.dns || META.new_network.dns || '';
+  let touched = !!plan;  // only auto-suggest addresses until the user types their own
+  const showDev = () => {
+    const dev = $('#ndlg-dev').value, en = $('#ndlg-en').checked;
+    document.querySelectorAll('#ndlg .d-ow').forEach(e => e.classList.toggle('hidden', dev !== 'openwrt'));
+    document.querySelectorAll('#ndlg .d-en').forEach(e => e.classList.toggle('hidden', dev !== 'openwrt' || !en));
+    document.querySelectorAll('#ndlg .d-up').forEach(e => e.classList.toggle('hidden', dev !== 'upstream'));
+    $('#ndlg-note').textContent = dev === 'openwrt'
+      ? 'The VLAN is created in Omada. This DHCP setup is saved in the NOC as a plan; the OpenWrt router is not changed (router changes not enabled yet).'
+      : (n && n.used_by.length ? `Carried by: ${n.used_by.join(', ')}. Changing the VLAN ID changes it on all of them.` : 'After saving, use Edit VLANs on a port or the LAG to carry it.');
+  };
+  const suggest = () => {
+    if (touched || n) return;
+    const v = parseInt($('#ndlg-vlan').value, 10);
+    if (!(v >= 2 && v <= 4090)) return;
+    // subnet_template from config, e.g. "10.0.{n}.1/24" -> VLAN 200 = 10.0.200.1/24
+    const nn = META.new_network, m = (nn.subnet_template || '').replace('{n}', v % 256).match(/^(\d+\.\d+\.\d+)\.(\d+)\/(\d+)$/);
+    if (!m) return;
+    $('#ndlg-gw').value = `${m[1]}.${m[2]}`; $('#ndlg-prefix').value = m[3];
+    if (m[3] === '24') { $('#ndlg-start').value = `${m[1]}.${nn.range_start}`; $('#ndlg-end').value = `${m[1]}.${nn.range_end}`; }
+    $('#ndlg-lease').value = nn.lease_h || 12;
+  };
+  $('#ndlg-err').textContent = '';
+  // Assign (not addEventListener) so reopening the dialog replaces handlers instead of stacking stale ones.
+  const addrFields = ['ndlg-gw', 'ndlg-start', 'ndlg-end', 'ndlg-prefix'];
+  dlg.querySelectorAll('input, select').forEach(e => e.oninput = () => {
+    $('#ndlg-err').textContent = '';
+    if (addrFields.includes(e.id)) touched = true;
+    if (e.id === 'ndlg-vlan') suggest();
+  });
+  $('#ndlg-dev').onchange = showDev; $('#ndlg-en').onchange = showDev;
+  showDev();
+  dlg.showModal();
+  $('#ndlg-cancel').onclick = () => dlg.close();
+  const ipv4 = s => /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/.test(s);
+  $('#ndlg-ok').onclick = () => {
+    const err = m => { $('#ndlg-err').textContent = m; };
+    const name = $('#ndlg-name').value.trim(), vlan = parseInt($('#ndlg-vlan').value, 10);
+    if (!name) return err('Enter a name.');
+    if (!/^[\w .\-]+$/.test(name)) return err('Name: letters, digits, space, _ . - only.');
+    if (!(vlan >= 2 && vlan <= 4090)) return err('VLAN ID must be between 2 and 4090.');
+    const clash = SW.networks.find(x => x.vlan === vlan && x.id !== id);
+    if (clash) return err(`VLAN ${vlan} is already used by ${clash.name}.`);
+    const dev = $('#ndlg-dev').value, dhcp = {device: dev};
+    if (dev === 'upstream') {
+      dhcp.provider = $('#ndlg-prov').value.trim();
+      if (!dhcp.provider) return err('Say which device provides DHCP.');
+    }
+    if (dev === 'openwrt') {
+      Object.assign(dhcp, {gateway: $('#ndlg-gw').value.trim(), prefix: parseInt($('#ndlg-prefix').value, 10), enabled: $('#ndlg-en').checked});
+      if (!ipv4(dhcp.gateway)) return err('Gateway must be an IPv4 address, e.g. 10.0.20.1');
+      if (!(dhcp.prefix >= 16 && dhcp.prefix <= 30)) return err('Subnet prefix must be 16–30.');
+      if (dhcp.enabled) {
+        Object.assign(dhcp, {range_start: $('#ndlg-start').value.trim(), range_end: $('#ndlg-end').value.trim(),
+                             lease_h: parseInt($('#ndlg-lease').value, 10), dns: $('#ndlg-dns').value.trim()});
+        if (!ipv4(dhcp.range_start) || !ipv4(dhcp.range_end)) return err('DHCP range needs a start and end IPv4 address.');
+        if (!(dhcp.lease_h >= 1 && dhcp.lease_h <= 168)) return err('Lease time must be 1–168 hours.');
+        if (!ipv4(dhcp.dns)) return err('DNS server must be an IPv4 address.');
+      }
+    }
+    dlg.close();
+    const params = {name, vlan, igmp: $('#ndlg-igmp').checked, dhcp};
+    if (n) act('net_edit', {id, ...params}); else act('net_create', params);
+  };
+}
+
+function editVlans(kind, id) {
+  const isLag = kind === 'lag';
+  const p = isLag ? SW.lags.find(x => x.lag === id) : SW.ports.find(x => x.port === id);
+  const dlg = $('#vdlg');
+  $('#vdlg-title').textContent = isLag ? `LAG ${id} VLANs (ports ${p.ports.join(' + ')})` : `Port ${id} VLANs`;
+  $('#vdlg-sub').textContent = isLag
+    ? `🔒 ${p.protected}. Native VLAN is locked here (it carries the switch's management). Removing a VLAN cuts the router connection that uses it; the preview will name it.`
+    : `Profile: ${p.profile}. VLANs below are this port's live settings.` + (p.protected ? ` 🔒 ${p.protected}` : '');
+  const LABEL = {none: 'Off', untag: 'Untagged', tag: 'Tagged'};
+  const was = id => id === p.native_id ? 'native' : p.untag_ids.includes(id) ? 'untag' : p.tag_ids.includes(id) ? 'tag' : 'none';
+  const wasText = id => was(id) === 'native' ? 'Native' : LABEL[was(id)];
+  const nativeNow = () => document.querySelector('input[name="vnative"]:checked')?.value;
+  const stateNow = id => id === nativeNow() ? 'native' : (document.querySelector(`input[name="v-${id}"]:checked`)?.value || 'none');
+  const seg = n => `<span class="seg" role="radiogroup" aria-label="${esc(n.name)} membership">${['none', 'untag', 'tag'].map(s =>
+      `<label data-s="${s}"><input type="radio" name="v-${n.id}" value="${s}" ${was(n.id) === s ? 'checked' : ''}>${LABEL[s]}</label>`).join('')}</span>`;
+  $('#vdlg-table').innerHTML = `<tr><th>Network</th><th>VLAN</th><th>Native</th><th>Membership</th><th>Change</th></tr>` + SW.networks.map(n => `<tr data-net="${n.id}">
+      <td><b>${esc(n.name)}</b></td><td>${n.vlan}</td>
+      <td>${isLag
+        ? (n.id === p.native_id ? `<input type="radio" name="vnative" value="${n.id}" checked hidden><span class="pill ok">native 🔒</span>` : '<span class="small">—</span>')
+        : `<input type="radio" name="vnative" value="${n.id}" ${n.id === p.native_id ? 'checked' : ''} aria-label="Make ${esc(n.name)} native">`}</td>
+      <td class="memb">${seg(n)}</td><td class="chg"></td></tr>`).join('');
+
+  const render = () => {
+    const nid = nativeNow();
+    SW.networks.forEach(n => {
+      const row = document.querySelector(`#vdlg-table tr[data-net="${n.id}"]`);
+      const isNative = n.id === nid;
+      row.classList.toggle('native-row', isNative);
+      // The native VLAN is always untagged: show that explicitly instead of a greyed-out control.
+      // Only rebuild a cell when its role changes, so the user's selections are never reset.
+      const memb = row.querySelector('.memb');
+      if (isNative) {
+        if (!memb.querySelector('.pill')) memb.innerHTML = `<span class="pill ok">Native · untagged</span>`;
+      } else if (!memb.querySelector('.seg')) {
+        memb.innerHTML = seg(n);  // was native a moment ago: keep it carried untagged by default
+        memb.querySelector('input[value="untag"]').checked = true;
+      }
+      const now = stateNow(n.id);
+      const nowText = now === 'native' ? 'Native' : LABEL[now];
+      row.querySelector('.chg').textContent = nowText === wasText(n.id) ? '' : `${wasText(n.id)} → ${nowText}`;
+    });
+    const names = s => SW.networks.filter(n => stateNow(n.id) === s).map(n => `${esc(n.name)} (${n.vlan})`).join(', ') || 'none';
+    const nn = SW.networks.find(n => n.id === nid);
+    $('#vdlg-summary').innerHTML = `<b>Result</b> · Native: <b>${nn ? esc(nn.name) + ' (' + nn.vlan + ')' : 'none'}</b>
+      · Untagged: ${nn ? esc(nn.name) + ' (' + nn.vlan + ')' + (names('untag') !== 'none' ? ', ' + names('untag') : '') : names('untag')}
+      · Tagged: ${names('tag')}`;
+  };
+  $('#vdlg-table').onchange = () => { $('#vdlg-err').textContent = ''; render(); };
+  render();
+  $('#vdlg-err').textContent = '';
+  dlg.showModal();
+  $('#vdlg-cancel').onclick = () => dlg.close();
+  $('#vdlg-ok').onclick = () => {
+    const native_id = nativeNow();
+    if (!native_id) { $('#vdlg-err').textContent = 'Pick a native VLAN first.'; return; }
+    const pick = s => SW.networks.filter(n => n.id !== native_id && stateNow(n.id) === s).map(n => n.id);
+    const untag_ids = [native_id, ...pick('untag')], tag_ids = pick('tag');
+    const same = (a, b) => a.length === b.length && a.every(x => b.includes(x));
+    if (native_id === p.native_id && same(untag_ids, p.untag_ids) && same(tag_ids, p.tag_ids)) { $('#vdlg-err').textContent = 'Nothing changed yet.'; return; }
+    dlg.close();
+    if (isLag) act('switch_lag', {lag: id, vlans: {native_id, untag_ids, tag_ids}});
+    else act('switch_port', {port: id, vlans: {native_id, untag_ids, tag_ids}});
+  };
+}
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pill = (ok, yes='up', no='down') => `<span class="pill ${ok ? 'ok' : 'bad'}">${ok ? yes : no}</span>`;
+const dur = s => { if (s == null) return '–'; s = +s; const d = Math.floor(s/86400), h = Math.floor(s%86400/3600), m = Math.floor(s%3600/60);
+  return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`; };
+const bytes = b => { if (b == null) return '–'; const u = ['B','KB','MB','GB','TB']; let i = 0; b = +b; while (b >= 1024 && i < 4) { b /= 1024; i++; } return b.toFixed(i ? 1 : 0) + ' ' + u[i]; };
+const bar = p => p == null ? '–' : `<div class="row" style="gap:6px;flex-wrap:nowrap"><div class="bar" style="flex:1"><i class="${p>=90?'hi':''}" style="width:${Math.min(p,100)}%"></i></div><span>${p}%</span></div>`;
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (r.status === 401) { location.href = '/login'; throw new Error('login'); }
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error || r.statusText);
+  return d;
+}
+
+let tab = 'overview', timer = null;
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { tab = b.dataset.t;
+  document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b)); load(); });
+
+async function load() {
+  clearTimeout(timer);
+  try { await VIEWS[tab](); $('#updated').textContent = 'updated ' + new Date().toLocaleTimeString(); }
+  catch (e) { if (e.message !== 'login') $('#view').innerHTML = `<div class="card err">Failed to load: ${esc(e.message)}</div>`; }
+  if (tab !== 'audit') timer = setTimeout(load, tab === 'overview' ? 15000 : 30000);
+}
+
+// ---------- preview -> confirm flow
+async function act(kind, params) {
+  let p;
+  try { p = await api('/api/actions/preview', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({kind, params})}); }
+  catch (e) { alert('Cannot do that: ' + e.message); return; }
+  $('#dlg-title').textContent = p.summary;
+  $('#dlg-detail').innerHTML = p.detail.map(d => `<li>${esc(d)}</li>`).join('');
+  $('#dlg-word').classList.toggle('hidden', !p.confirm_word);
+  $('#dlg-wordtext').textContent = p.confirm_word || '';
+  $('#dlg-input').value = ''; $('#dlg-err').textContent = '';
+  $('#dlg-ok').className = 'act ' + (p.confirm_word ? 'danger' : 'primary');
+  const dlg = $('#dlg'); dlg.showModal();
+  $('#dlg-cancel').onclick = () => dlg.close();
+  $('#dlg-input').oninput = () => { $('#dlg-err').textContent = ''; };
+  $('#dlg-ok').onclick = async () => {
+    if (p.confirm_word && $('#dlg-input').value.trim().toLowerCase() !== p.confirm_word) { $('#dlg-err').textContent = `Type "${p.confirm_word}" exactly.`; return; }
+    $('#dlg-ok').disabled = true;
+    try { await api('/api/actions/confirm', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:p.id, confirm_text:$('#dlg-input').value})});
+          dlg.close(); load(); }
+    catch (e) { $('#dlg-err').textContent = e.message; }
+    finally { $('#dlg-ok').disabled = false; }
+  };
+}
+
+const errBox = errs => { const e = Object.entries(errs || {}); return e.length ? `<div class="card wide err">Some sources failed: ${e.map(([k,v]) => `<b>${esc(k)}</b>: ${esc(v)}`).join(' · ')}</div>` : ''; };
+
+const VIEWS = {
+  async overview() {
+    const d = await api('/api/overview');
+    const down = d.devices.filter(x => !x.up);
+    const wansUp = d.wans.filter(w => w.status === 'online' || (w.up && !w.status)).length;
+    const px = d.proxmox || {}, dns = d.dns || {};
+    const blocking = (dns.nodes || []).map(n => n.blocking).filter(Boolean);
+    $('#view').innerHTML = `<div class="grid">
+      ${errBox(d.errors)}
+      <div class="card"><h2>Devices</h2><div class="big">${d.devices.length - down.length}/${d.devices.length}</div>
+        <div class="small">${down.length ? 'Down: ' + down.map(x => esc(x.name)).join(', ') : 'All responding'}</div></div>
+      <div class="card"><h2>Internet links</h2><div class="big">${wansUp}/${d.wans.length}</div>
+        <div class="small">${d.wans.filter(w => !(w.status === 'online' || (w.up && !w.status))).map(w => esc(w.name)).join(', ') || 'All online'}</div></div>
+      <div class="card"><h2>DNS</h2><div class="big">${esc(dns.vip_owner || '–')}</div>
+        <div class="small">holds VIP ${esc(dns.vip || '–')} · blocking ${blocking.every(b => b === 'enabled') ? pill(true,'on') : pill(false,'','paused/off')}</div></div>
+      ${(d.onts || []).map(v => `<div class="card"><h2>Fibre (${esc(v.name)})</h2><div class="big">${v.rx_dbm ?? '–'} dBm</div>
+        <div class="small">${esc(v.state || '')} · ${v.temp_c ?? '–'} °C · up ${esc(v.uptime || '–')}</div>
+        ${v.age_s > 300 ? `<div style="margin-top:6px"><span class="pill warn">stale: router poller last updated ${dur(v.age_s)} ago</span></div>` : ''}</div>`).join('')}
+      <div class="card"><h2>Proxmox</h2><div class="kv"><dt>CPU</dt><dd>${px.cpu_pct ?? '–'}%</dd><dt>RAM</dt><dd>${px.mem_pct ?? '–'}%</dd>
+        <dt>Guests running</dt><dd>${(px.guests || []).filter(g => g.status === 'running').length}/${(px.guests || []).length}</dd><dt>Uptime</dt><dd>${dur(px.uptime)}</dd></div></div>
+      <div class="card"><h2>Router</h2><div class="kv"><dt>Model</dt><dd>${esc(d.router_system?.model || '–')}</dd><dt>Uptime</dt><dd>${dur(d.router_system?.uptime)}</dd>
+        <dt>Load</dt><dd>${(d.router_system?.load || []).join(' / ')}</dd><dt>RAM</dt><dd>${d.router_system?.mem_used_pct ?? '–'}%</dd><dt>Switch ports up</dt><dd>${d.switch_ports_up ?? '–'}</dd></div></div>
+      <div class="card wide"><h2>Device health</h2><div class="scroll"><table><tr><th>Device</th><th>IP</th><th>Group</th><th>Status</th><th>Ping</th></tr>
+        ${d.devices.map(x => `<tr><td><span class="dot ${x.up ? 'ok' : 'bad'}"></span>${esc(x.name)}</td><td>${esc(x.ip)}</td><td>${esc(x.group)}</td><td>${pill(x.up)}</td><td>${x.ms != null ? x.ms + ' ms' : '–'}</td></tr>`).join('')}
+      </table></div></div>
+      <div class="card wide"><h2>Internet links</h2><div class="scroll"><table><tr><th>Link</th><th>State</th><th>IP</th><th>mwan3</th><th>Latency</th><th>Loss</th><th>Up for</th></tr>
+        ${d.wans.map(w => `<tr><td>${esc(w.name)}</td><td>${pill(w.up)}</td><td>${esc(w.ip || '–')}</td><td>${w.status ? `<span class="pill ${w.status === 'online' ? 'ok' : 'bad'}">${esc(w.status)}</span>` : '<span class="pill mut">not tracked</span>'}</td><td>${w.latency ?? '–'}</td><td>${w.loss != null ? w.loss + '%' : '–'}</td><td>${dur(w.uptime)}</td></tr>`).join('')}
+      </table></div></div></div>`;
+  },
+
+  async dns() {
+    const d = await api('/api/dns');
+    $('#view').innerHTML = `<div class="grid">
+      <div class="card wide"><h2>Control</h2><div class="row">
+        <span>VIP <b>${esc(d.vip || '–')}</b> is on <b>${esc(d.vip_owner)}</b></span><span class="spacer"></span>
+        <label class="small">Pause for</label><select id="mins"><option value="5">5 min</option><option value="15">15 min</option><option value="30">30 min</option><option value="60">1 hour</option><option value="0">until resumed</option></select>
+        <button class="act" id="pause">Pause blocking</button><button class="act primary" id="resume">Resume blocking</button></div>
+        <div class="small" style="margin-top:6px">Applies to both Pi-holes so blocking stays consistent whichever one holds the VIP.</div></div>
+      ${d.nodes.map(n => n.ok ? `<div class="card"><h2>${esc(n.name)} ${n.blocking === 'enabled' ? pill(true,'blocking') : pill(false,'','not blocking')}</h2>
+        <div class="kv"><dt>Queries today</dt><dd>${(n.queries ?? 0).toLocaleString()}</dd><dt>Blocked</dt><dd>${(n.blocked ?? 0).toLocaleString()} (${n.percent}%)</dd>
+        <dt>Domains on blocklist</dt><dd>${(n.gravity ?? 0).toLocaleString()}</dd><dt>Active clients</dt><dd>${n.clients ?? '–'}</dd>${n.timer ? `<dt>Resumes in</dt><dd>${dur(n.timer)}</dd>` : ''}</div>
+        <h2 style="margin-top:12px">Top blocked</h2><table>${(n.top_blocked || []).map(x => `<tr><td>${esc(x.domain)}</td><td style="text-align:right">${x.count}</td></tr>`).join('') || '<tr><td class="small">none</td></tr>'}</table>
+        <h2 style="margin-top:12px">Top clients</h2><table>${(n.top_clients || []).map(x => `<tr><td>${esc(x.name || x.ip)}</td><td class="small">${esc(x.ip)}</td><td style="text-align:right">${x.count}</td></tr>`).join('')}</table></div>`
+        : `<div class="card"><h2>${esc(n.name)} ${pill(false,'','error')}</h2><div class="err">${esc(n.error)}</div></div>`).join('')}
+    </div>`;
+    $('#pause').onclick = () => act('dns_blocking', {enable:false, minutes:+$('#mins').value});
+    $('#resume').onclick = () => act('dns_blocking', {enable:true});
+  },
+
+  async switch() {
+    const d = await api('/api/switch');
+    const dev = (d.devices || [])[0] || {};
+    SW = d;
+    const profOpts = sel => d.profiles.map(p => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+    const chips = (list, cls) => list.length ? list.map(x => `<span class="pill ${cls}" style="margin:1px">${esc(x)}</span>`).join('') : '<span class="small">none</span>';
+    const TAG = 'background:#e7eefc;color:var(--accent)';
+    const vlanCell = x => {
+      const others = x.untagged.filter(u => u !== x.native);
+      return `<div class="small">Native (untagged): <span class="pill ok" style="margin:1px">${esc(x.native)}</span></div>
+        ${others.length ? `<div class="small">Also untagged: ${chips(others, 'ok')}</div>` : ''}
+        <div class="small">Tagged: ${x.tagged.length ? x.tagged.map(t => `<span class="pill" style="margin:1px;${TAG}">${esc(t)}</span>`).join('') : '<span class="small">none</span>'}</div>`;
+    };
+    $('#view').innerHTML = `<div class="grid">
+      <div class="card wide"><h2>${esc(dev.name || 'Switch')} <span class="pill mut">${esc(dev.model || '')}</span></h2>
+        <div class="row small"><span>IP ${esc(dev.ip || '–')}</span><span>firmware ${esc(dev.firmware || '–')}</span><span>CPU ${dev.cpu ?? '–'}%</span><span>RAM ${dev.mem ?? '–'}%</span></div></div>
+      <div class="card wide"><h2>Ports</h2><div class="scroll"><table>
+        <tr><th>Port</th><th>Link</th><th>Speed</th><th>PoE</th><th>Profile</th><th>VLANs</th><th>Traffic</th><th>Change</th></tr>
+        ${d.ports.map(p => `<tr>
+          <td><b>${p.port}</b> ${p.sfp ? '<span class="pill mut">SFP</span>' : ''} ${p.lag ? `<span class="pill warn">LAG ${p.lag}</span>` : ''} ${p.protected ? `<div class="small">🔒 ${esc(p.protected)}</div>` : ''} ${p.disabled ? '<span class="pill bad">disabled</span>' : ''}</td>
+          <td>${pill(p.link)}</td><td>${esc(p.link ? p.speed : '–')}</td><td>${p.poe_w ? p.poe_w + ' W' : '–'}</td>
+          <td>${esc(p.profile)}${p.override ? ' <span class="pill warn">override</span>' : ''}</td>
+          <td style="min-width:240px">${vlanCell(p)}<div class="small" style="opacity:.8">from ${esc(p.vlan_source)}</div></td>
+          <td class="small">↓${bytes(p.rx)} ↑${bytes(p.tx)}</td>
+          <td>${p.lag ? `<span class="small">Member of LAG ${p.lag}: edit in the LAGs card below</span>` : `<div class="row">
+            <button class="act" data-editvlan="${p.port}">Edit VLANs</button>
+            <select data-profile="${p.port}">${profOpts(p.profile_id)}</select><button class="act" data-setprofile="${p.port}">Set profile</button>
+            <button class="act" data-toggle="${p.port}" data-disabled="${p.disabled ? 1 : 0}">${p.disabled ? 'Enable' : 'Disable'}</button></div>`}</td></tr>`).join('')}
+      </table></div><div class="small" style="margin-top:6px">Every change opens a preview first. Ports marked 🔒 need you to type the port name to confirm.</div></div>
+      <div class="card wide"><h2>LAGs (link aggregation)</h2><div class="scroll"><table>
+        <tr><th>LAG</th><th>Members</th><th>Type</th><th>State</th><th>VLANs</th><th></th></tr>
+        ${(d.lags || []).map(l => `<tr><td><b>${esc(l.name)}</b><div class="small">🔒 ${esc(l.protected)}</div></td>
+          <td>ports ${l.ports.join(' + ')}</td><td>${esc(l.type)}</td>
+          <td><span class="pill ${l.members_up === l.ports.length ? 'ok' : l.members_up ? 'warn' : 'bad'}">${l.members_up}/${l.ports.length} links up</span>${l.disabled ? ' <span class="pill bad">disabled</span>' : ''}</td>
+          <td style="min-width:240px">${vlanCell(l)}</td>
+          <td><button class="act" data-editlag="${l.lag}">Edit VLANs</button></td></tr>`).join('') || '<tr><td class="small">No LAGs configured.</td></tr>'}
+      </table></div><div class="small" style="margin-top:6px">Member ports and LACP mode are read-only here: changing them also needs matching changes on the router's bond.</div></div>
+      <div class="card wide"><h2>Networks (VLANs) <span class="spacer"></span><button class="act primary" id="net-new">+ New network</button></h2>
+        <div class="scroll"><table><tr><th>Name</th><th>VLAN ID</th><th>Type</th><th>DHCP</th><th>IGMP</th><th>Carried by</th><th></th></tr>
+        ${d.networks.map(n => `<tr><td><b>${esc(n.name)}</b></td><td>${n.vlan}</td><td class="small">${esc(n.kind)}</td>
+          <td style="min-width:200px"><b>${esc(n.dhcp.device)}</b>${n.dhcp.status === 'planned' ? ' <span class="pill warn">planned</span>' : n.dhcp.status === 'live' ? ' <span class="pill ok">live</span>' : ''}
+            ${n.dhcp.detail ? `<div class="small">${esc(n.dhcp.detail)}</div>` : ''}${n.dhcp.note ? `<div class="small" style="opacity:.8">${esc(n.dhcp.note)}</div>` : ''}</td>
+          <td>${n.igmp ? '<span class="pill ok">on</span>' : '<span class="pill mut">off</span>'}</td>
+          <td class="small">${n.used_by.length ? n.used_by.map(esc).join(', ') : '<span class="pill warn">not on any port</span>'}</td>
+          <td>${n.editable ? `<div class="row"><button class="act" data-netedit="${n.id}">Edit</button><button class="act" data-netdel="${n.id}">Delete</button></div>` : '<span class="small">🔒 built-in</span>'}</td></tr>`).join('')}
+        </table></div></div>
+      <div class="card"><h2>Port profiles</h2><table><tr><th>Profile</th><th>Native</th><th>Tagged</th></tr>${d.profiles.map(p => `<tr><td>${esc(p.name)}</td><td class="small">${esc(p.native)}</td><td>${chips(p.tagged, 'mut')}</td></tr>`).join('')}</table></div>
+    </div>`;
+    document.querySelectorAll('[data-editvlan]').forEach(b => b.onclick = () => editVlans('port', +b.dataset.editvlan));
+    document.querySelectorAll('[data-editlag]').forEach(b => b.onclick = () => editVlans('lag', +b.dataset.editlag));
+    $('#net-new').onclick = () => editNetwork(null);
+    document.querySelectorAll('[data-netedit]').forEach(b => b.onclick = () => editNetwork(b.dataset.netedit));
+    document.querySelectorAll('[data-netdel]').forEach(b => b.onclick = () => act('net_delete', {id: b.dataset.netdel}));
+    document.querySelectorAll('[data-setprofile]').forEach(b => b.onclick = () => act('switch_port', {port:+b.dataset.setprofile, profile_id:$(`[data-profile="${b.dataset.setprofile}"]`).value}));
+    document.querySelectorAll('[data-toggle]').forEach(b => b.onclick = () => act('switch_port', {port:+b.dataset.toggle, disable:b.dataset.disabled !== '1'}));
+  },
+
+  async router() {
+    const d = await api('/api/router');
+    const s = d.system || {};
+    $('#view').innerHTML = `<div class="grid">
+      <div class="card"><h2>System</h2><div class="kv"><dt>Model</dt><dd>${esc(s.model)}</dd><dt>Firmware</dt><dd>${esc(s.release)}</dd>
+        <dt>Uptime</dt><dd>${dur(s.uptime)}</dd><dt>Load</dt><dd>${(s.load || []).join(' / ')}</dd><dt>RAM used</dt><dd>${s.mem_used_pct}%</dd></div></div>
+      ${(d.onts || []).map(v => `<div class="card"><h2>${esc(v.name)} ${pill(v.connected, 'reporting', 'no data')}</h2><div class="kv"><dt>Rx power</dt><dd>${v.rx_dbm} dBm</dd><dt>Tx power</dt><dd>${v.tx_dbm} dBm</dd>
+        <dt>Temperature</dt><dd>${v.temp_c} °C</dd><dt>State</dt><dd>${esc(v.state)}</dd><dt>Uptime</dt><dd>${esc(v.uptime)}</dd><dt>FEC uncorrectable</dt><dd>${v.fec_uncorrectable}</dd>
+        <dt>Data age</dt><dd>${v.age_s > 300 ? `<span class="pill warn">${dur(v.age_s)} old</span>` : dur(v.age_s)}</dd>
+        ${Object.entries(v.alarms || {}).map(([k, x]) => `<dt>Alarm ${esc(k.toUpperCase())}</dt><dd>${/clear/i.test(x) ? pill(true,'clear') : pill(false,'',esc(x))}</dd>`).join('')}</div></div>`).join('')}
+      <div class="card"><h2>Physical ports</h2><table><tr><th>Port</th><th>Link</th><th>Speed</th><th>Rx</th><th>Tx</th><th>Errors</th></tr>
+        ${(d.ports || []).map(p => `<tr><td>${esc(p.name)}</td><td>${pill(p.carrier)}</td><td>${esc(p.speed || '–')}</td><td>${bytes(p.rx_bytes)}</td><td>${bytes(p.tx_bytes)}</td><td>${(p.rx_errors || 0) + (p.tx_errors || 0)}</td></tr>`).join('')}</table></div>
+      <div class="card wide"><h2>Interfaces</h2><div class="scroll"><table><tr><th>Name</th><th>State</th><th>Proto</th><th>Device</th><th>IP</th><th>Gateway</th><th>mwan3</th><th>Up for</th><th></th></tr>
+        ${d.interfaces.map(i => { const m = d.mwan[i.name]; return `<tr><td><b>${esc(i.name)}</b></td><td>${pill(i.up)}</td><td>${esc(i.proto)}</td><td>${esc(i.device)}</td><td>${esc(i.ip || '–')}</td><td>${esc(i.gateway || '–')}</td>
+          <td>${m ? `<span class="pill ${m.status === 'online' ? 'ok' : 'bad'}">${esc(m.status)}</span> <span class="small">${m.latency ?? '–'} ms · ${m.loss ?? '–'}%</span>` : '–'}</td><td>${dur(i.uptime)}</td>
+          <td>${i.restartable ? `<button class="act" data-restart="${esc(i.name)}">Restart</button>` : ''}</td></tr>`; }).join('')}</table></div></div>
+      <div class="card wide"><h2>DHCP clients (${d.leases.length})</h2><div class="scroll"><table><tr><th>IP</th><th>Name</th><th>MAC</th><th>Lease ends</th></tr>
+        ${d.leases.map(l => `<tr><td>${esc(l.ip)}</td><td>${esc(l.name || '–')}</td><td class="small">${esc(l.mac)}</td><td class="small">${new Date(l.expires * 1000).toLocaleString()}</td></tr>`).join('')}</table></div></div>
+    </div>`;
+    document.querySelectorAll('[data-restart]').forEach(b => b.onclick = () => act('wan_restart', {iface:b.dataset.restart}));
+  },
+
+  async wifi() {
+    const [r, ap] = await Promise.all([api('/api/router'), api('/api/ap').catch(e => ({error:e.message}))]);
+    const radios = [...(r.wifi || []).map(x => ({...x, host:'Router'})), ...((ap.wifi) || []).map(x => ({...x, host:'Access point'}))];
+    $('#view').innerHTML = `<div class="grid">${ap.error ? `<div class="card wide err">Access point: ${esc(ap.error)}</div>` : ''}
+      ${radios.map(x => `<div class="card wide"><h2>${esc(x.host)} · ${esc(x.ssid)} <span class="pill mut">${esc(x.band)} ch ${x.channel} ${esc(x.htmode || '')}</span> <span class="pill ok">${x.clients.length} clients</span></h2>
+        <div class="scroll"><table><tr><th>Client</th><th>IP</th><th>MAC</th><th>Signal</th><th>Rx / Tx rate</th><th>Idle</th></tr>
+        ${x.clients.map(c => `<tr><td>${esc(c.name || '–')}</td><td>${esc(c.ip || '–')}</td><td class="small">${esc(c.mac)}</td>
+          <td><span class="pill ${c.signal > -60 ? 'ok' : c.signal > -72 ? 'warn' : 'bad'}">${c.signal} dBm</span></td><td>${c.rx_mbps} / ${c.tx_mbps} Mbps</td><td class="small">${Math.round(c.inactive_ms / 1000)} s</td></tr>`).join('') || '<tr><td class="small">no clients</td></tr>'}</table></div></div>`).join('')}</div>`;
+  },
+
+  async proxmox() {
+    const d = await api('/api/proxmox');
+    $('#view').innerHTML = `<div class="grid">
+      <div class="card"><h2>${esc(d.node)}</h2><div class="kv"><dt>CPU</dt><dd>${d.cpu_pct}%</dd><dt>RAM</dt><dd>${d.mem_pct}%</dd><dt>Uptime</dt><dd>${dur(d.uptime)}</dd><dt>Version</dt><dd class="small">${esc(d.version)}</dd></div></div>
+      <div class="card"><h2>Storage</h2><table>${d.storage.map(s => `<tr><td>${esc(s.name)}</td><td class="small">${s.total_gb} GB</td><td style="width:45%">${bar(s.used_pct)}</td></tr>`).join('')}</table></div>
+      <div class="card wide"><h2>Guests</h2><div class="scroll"><table><tr><th>ID</th><th>Name</th><th>Type</th><th>Status</th><th>CPU</th><th>RAM</th><th>Disk</th><th>Uptime</th></tr>
+        ${d.guests.map(g => `<tr><td>${g.vmid}</td><td>${esc(g.name)}</td><td>${g.type === 'lxc' ? 'container' : 'VM'}</td><td>${pill(g.status === 'running', 'running', esc(g.status))}</td>
+          <td>${g.cpu_pct}%</td><td style="min-width:110px">${bar(g.mem_pct)}</td><td style="min-width:110px">${bar(g.disk_pct)}</td><td>${dur(g.uptime)}</td></tr>`).join('')}</table></div>
+        <div class="small" style="margin-top:6px">Read-only for now (Proxmox token has the Auditor role).</div></div>
+    </div>`;
+  },
+
+  async audit() {
+    const d = await api('/api/audit');
+    $('#view').innerHTML = `<div class="card"><h2>Audit log (last 100 changes)</h2><div class="scroll"><table><tr><th>Time</th><th>From</th><th>Action</th><th>Result</th></tr>
+      ${d.map(a => `<tr><td class="small">${esc(a.ts)}</td><td class="small">${esc(a.via || a.ip)}</td><td>${esc(a.summary)}</td>
+        <td>${a.result && a.result.ok ? pill(true,'ok') : `<span class="pill bad">failed</span> <span class="small">${esc(a.result?.error || a.result)}</span>`}</td></tr>`).join('') || '<tr><td class="small">No changes yet.</td></tr>'}</table></div></div>`;
+  },
+};
+api('/api/meta').then(m => { META = m; document.title = m.site_name; $('#site-name').textContent = m.site_name; })
+  .catch(() => {}).finally(load);
+</script>
+</body>
+</html>

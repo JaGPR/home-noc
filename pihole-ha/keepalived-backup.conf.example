@@ -1,0 +1,41 @@
+# /etc/keepalived/keepalived.conf on the BACKUP Pi-hole.
+# Identical to the primary except: state BACKUP, lower priority, swapped unicast IPs.
+
+global_defs {
+  enable_script_security
+  script_user root
+}
+
+vrrp_script chk_pihole {
+  script "/etc/keepalived/check_pihole.sh"
+  interval 2
+  timeout 2
+  fall 2
+  rise 2
+}
+
+vrrp_instance VI_1 {
+  state BACKUP
+  interface eth0
+  virtual_router_id 198
+  priority 253
+  advert_int 1
+
+  unicast_src_ip 192.0.2.12
+  unicast_peer {
+    192.0.2.11
+  }
+
+  authentication {
+    auth_type PASS
+    auth_pass CHANGEME
+  }
+
+  track_script {
+    chk_pihole
+  }
+
+  virtual_ipaddress {
+    192.0.2.10/24
+  }
+}

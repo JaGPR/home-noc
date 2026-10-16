@@ -1,0 +1,3 @@
+# /etc/cron.d/pihole-nightly-gravity on the REPLICA: rebuild blocklists once a night,
+# so lists added on the primary (and synced over) get their domains downloaded.
+45 4 * * * root PATH=/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/bin pihole -g >/var/log/pihole-nightly-gravity.log 2>&1

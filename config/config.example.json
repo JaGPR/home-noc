@@ -1,0 +1,39 @@
+{
+  "site_name": "Home NOC",
+  "devices": [
+    {"name": "Router", "target": "192.0.2.1", "group": "core"},
+    {"name": "Access point", "target": "192.0.2.2", "group": "core"},
+    {"name": "Switch", "target": "192.0.2.3", "group": "core"},
+    {"name": "ONT (web port)", "target": "198.51.100.1:80", "group": "isp"},
+    {"name": "DNS VIP", "target": "192.0.2.10", "group": "dns"},
+    {"name": "Pi-hole A", "target": "192.0.2.11", "group": "dns"},
+    {"name": "Pi-hole B", "target": "192.0.2.12", "group": "dns"},
+    {"name": "Proxmox", "target": "192.0.2.20", "group": "server"}
+  ],
+  "dns": {
+    "vip": "192.0.2.10",
+    "piholes": [
+      {"name": "Pi-hole A", "url": "http://192.0.2.11", "password_env": "PIHOLE_A_PASS", "mac": "00:00:5e:00:53:01"},
+      {"name": "Pi-hole B", "url": "http://192.0.2.12:8080", "password_env": "PIHOLE_B_PASS", "mac": "00:00:5e:00:53:02"}
+    ]
+  },
+  "router": {
+    "host": "192.0.2.1",
+    "lan_interface": "lan",
+    "trunk_device": "bond",
+    "wan_interfaces": ["wan", "wan2"],
+    "ports": ["wan", "lan1", "lan2", "lan3", "lan4", "br-lan"],
+    "ont_caches": [
+      {"name": "Fibre ONT", "path": "/tmp/vsol_ddm_cache.json"}
+    ]
+  },
+  "access_point": {"host": "192.0.2.2"},
+  "switch": {
+    "mac": "00-00-5E-00-53-00",
+    "ports": 10,
+    "protected_ports": {"1": "Uplink to router"}
+  },
+  "omada": {"url": "https://192.0.2.30:8043", "omadac_id": "YOUR_OMADAC_ID", "site_id": "YOUR_SITE_ID"},
+  "proxmox": {"url": "https://192.0.2.20:8006", "node": "pve"},
+  "new_network_defaults": {"subnet_template": "10.0.{n}.1/24", "range_start": 100, "range_end": 200, "lease_h": 12, "dns": "192.0.2.10"}
+}

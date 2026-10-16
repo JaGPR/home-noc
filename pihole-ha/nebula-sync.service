@@ -1,0 +1,16 @@
+# /etc/systemd/system/nebula-sync.service on the REPLICA.
+# Binary from https://github.com/lovelaze/nebula-sync/releases installed to /usr/local/bin/nebula-sync
+[Unit]
+Description=nebula-sync: replicate Pi-hole config from the primary to this replica
+After=network-online.target pihole-FTL.service
+Wants=network-online.target
+
+[Service]
+EnvironmentFile=/etc/nebula-sync.env
+ExecStart=/usr/local/bin/nebula-sync run
+DynamicUser=yes
+Restart=on-failure
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target

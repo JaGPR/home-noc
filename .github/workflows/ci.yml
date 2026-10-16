@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  app:
+    name: App smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install dependencies
+        run: pip install fastapi uvicorn requests python-multipart httpx
+      - name: Compile
+        run: python -m py_compile app/app.py
+      - name: Smoke test (offline, example config)
+        run: python tests/smoke_test.py
+
+  ui:
+    name: UI JavaScript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Parse the inline script of every page
+        run: |
+          for f in app/static/*.html; do
+            node -e "
+              const html = require('fs').readFileSync('$f', 'utf8');
+              const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+              scripts.forEach(s => new Function(s));
+              console.log('ok: $f (' + scripts.length + ' script blocks)');
+            "
+          done
+
+  config-and-scripts:
+    name: Configs and shell scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck and dash
+        run: sudo apt-get update && sudo apt-get install -y shellcheck dash
+      - name: Example config is valid JSON
+        run: python3 -m json.tool config/config.example.json > /dev/null
+      - name: Shell syntax
+        run: |
+          for f in deploy/*.sh pihole-ha/*.sh; do sh -n "$f"; dash -n "$f"; echo "ok: $f"; done
+      - name: ShellCheck (advisory)
+        run: shellcheck -S warning deploy/*.sh pihole-ha/*.sh || true
+      - name: No real secrets or private addresses committed
+        run: |
+          set -eu
+          ! git ls-files | grep -E '(^|/)(secrets\.env|config\.json)$'
+          # Example files must only use documentation ranges (RFC 5737) or placeholders.
+          ! grep -nE '\b(10\.10\.|192\.168\.)' config/ pihole-ha/ deploy/ -r
+          echo "ok: no secrets or private addresses"

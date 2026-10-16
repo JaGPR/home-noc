@@ -1,0 +1,13 @@
+# Real configuration and secrets never belong in the repo
+secrets.env
+config.json
+!config/config.example.json
+*.pem
+id_ed25519*
+known_hosts
+audit.jsonl
+networks.json
+__pycache__/
+*.pyc
+.venv/
+.claude/

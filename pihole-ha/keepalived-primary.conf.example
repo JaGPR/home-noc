@@ -1,0 +1,41 @@
+# /etc/keepalived/keepalived.conf on the PRIMARY Pi-hole (normally holds the VIP).
+# Replace: interface name, the two Pi-hole IPs, the VIP, and auth_pass (same on both, max 8 chars).
+
+global_defs {
+  enable_script_security
+  script_user root
+}
+
+vrrp_script chk_pihole {
+  script "/etc/keepalived/check_pihole.sh"
+  interval 2      # check every 2 s
+  timeout 2
+  fall 2          # 2 failures (~4 s) -> FAULT, VIP released
+  rise 2          # 2 successes -> healthy again
+}
+
+vrrp_instance VI_1 {
+  state MASTER
+  interface eth0                  # e.g. ens18 on a Proxmox VM
+  virtual_router_id 198           # same on both, unique on the LAN
+  priority 254                    # higher than the backup
+  advert_int 1
+
+  unicast_src_ip 192.0.2.11       # this Pi-hole
+  unicast_peer {
+    192.0.2.12                    # the other Pi-hole
+  }
+
+  authentication {
+    auth_type PASS
+    auth_pass CHANGEME
+  }
+
+  track_script {
+    chk_pihole
+  }
+
+  virtual_ipaddress {
+    192.0.2.10/24                 # the DNS address your DHCP hands out
+  }
+}
