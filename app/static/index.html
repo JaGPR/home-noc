@@ -5,67 +5,244 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NOC</title>
 <style>
-  :root { --bg:#f6f7f9; --card:#fff; --text:#16181d; --muted:#667085; --border:#e3e6ec; --accent:#2f6fde;
-          --ok:#1f8a4c; --ok-bg:#e6f4ec; --bad:#c2372f; --bad-bg:#fbe9e7; --warn:#a86500; --warn-bg:#fdf1dc; --chip:#eef1f6; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#0f1115; --card:#171a21; --text:#e7e9ee; --muted:#8b93a3; --border:#262b35;
-          --accent:#5b8ff0; --ok:#4cc37f; --ok-bg:#15291e; --bad:#ef6a62; --bad-bg:#331a19; --warn:#e0a541; --warn-bg:#33270f; --chip:#222733; } }
+  :root { color-scheme: light dark;
+    --bg:#f3f5f9; --card:#ffffff; --card-2:#f7f9fc; --text:#0f172a; --muted:#64748b; --border:#e3e8f0; --border-2:#cfd7e3;
+    --accent:#2563eb; --accent-bg:#e9f0ff; --ok:#15803d; --ok-bg:#e6f5eb; --bad:#dc2626; --bad-bg:#fdecec; --warn:#b45309; --warn-bg:#fdf2df;
+    --chip:#eef2f7; --shadow:0 1px 2px rgba(15,23,42,.05), 0 6px 20px rgba(15,23,42,.05); --glass:rgba(255,255,255,.78);
+    --radius:14px; --mono:ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg:#0a0e16; --card:#111827; --card-2:#151e2e; --text:#e6ebf5; --muted:#8b97ac; --border:#1e2838; --border-2:#2a374c;
+    --accent:#5b8dff; --accent-bg:#152447; --ok:#3ddc97; --ok-bg:#0f2b22; --bad:#ff6b6b; --bad-bg:#371719; --warn:#fbbf24; --warn-bg:#352a0d;
+    --chip:#1a2436; --shadow:0 1px 0 rgba(255,255,255,.03) inset, 0 10px 30px rgba(0,0,0,.35); --glass:rgba(10,14,22,.75); } }
+  :root[data-theme="dark"] {
+    --bg:#0a0e16; --card:#111827; --card-2:#151e2e; --text:#e6ebf5; --muted:#8b97ac; --border:#1e2838; --border-2:#2a374c;
+    --accent:#5b8dff; --accent-bg:#152447; --ok:#3ddc97; --ok-bg:#0f2b22; --bad:#ff6b6b; --bad-bg:#371719; --warn:#fbbf24; --warn-bg:#352a0d;
+    --chip:#1a2436; --shadow:0 1px 0 rgba(255,255,255,.03) inset, 0 10px 30px rgba(0,0,0,.35); --glass:rgba(10,14,22,.75); }
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  header { position:sticky; top:0; z-index:5; background:var(--card); border-bottom:1px solid var(--border); padding:10px 16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
-  header h1 { font-size:16px; margin:0; font-weight:650; }
-  nav { display:flex; gap:4px; flex-wrap:wrap; }
-  nav button { border:0; background:transparent; color:var(--muted); padding:6px 10px; border-radius:8px; cursor:pointer; font:inherit; }
-  nav button.on { background:var(--chip); color:var(--text); font-weight:600; }
+  html, body { margin:0; background:var(--bg); color:var(--text); }
+  body { font:14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing:antialiased; }
+  a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+  code, .mono { font-family:var(--mono); font-size:.92em; }
+  svg { flex:none; }
+
+  /* app shell: sidebar + content */
+  .shell { display:grid; grid-template-columns:232px minmax(0, 1fr); min-height:100vh; }
+  .side { position:sticky; top:0; height:100vh; background:var(--card); border-right:1px solid var(--border); display:flex; flex-direction:column; padding:16px 12px; gap:14px; }
+  .brand { display:flex; align-items:center; gap:10px; padding:4px 8px 10px; }
+  .brand-logo { width:34px; height:34px; border-radius:10px; display:grid; place-items:center; color:#fff;
+    background:linear-gradient(135deg, var(--accent), #7c3aed); box-shadow:0 6px 16px rgba(37,99,235,.35); }
+  .brand-logo svg { width:20px; height:20px; }
+  .brand h1 { font-size:15px; margin:0; font-weight:700; letter-spacing:-.01em; }
+  .brand small { display:block; color:var(--muted); font-size:11.5px; font-weight:500; }
+  nav#tabs { display:flex; flex-direction:column; gap:2px; overflow:auto; }
+  nav#tabs button { all:unset; display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:10px; color:var(--muted); cursor:pointer; font-weight:500; position:relative; }
+  nav#tabs button svg { width:18px; height:18px; }
+  nav#tabs button:hover { background:var(--chip); color:var(--text); }
+  nav#tabs button.on { background:var(--accent-bg); color:var(--accent); font-weight:650; }
+  nav#tabs button.on::before { content:""; position:absolute; left:-12px; top:8px; bottom:8px; width:3px; border-radius:0 3px 3px 0; background:var(--accent); }
+  nav#tabs button:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  .navh { font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); opacity:.75; padding:12px 10px 4px; }
+  .nb { margin-left:auto; min-width:20px; height:20px; padding:0 6px; border-radius:999px; background:var(--bad); color:#fff; font:700 11px/20px system-ui; text-align:center; font-style:normal; }
+  .side-foot { margin-top:auto; display:flex; flex-direction:column; gap:2px; border-top:1px solid var(--border); padding-top:10px; }
+  .side-foot a, .side-foot button { all:unset; display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:10px; color:var(--muted); cursor:pointer; font-weight:500; }
+  .side-foot a:hover, .side-foot button:hover { background:var(--chip); color:var(--text); text-decoration:none; }
+  .side-foot svg { width:18px; height:18px; }
+  .content { min-width:0; display:flex; flex-direction:column; }
+  .top { position:sticky; top:0; z-index:5; display:flex; align-items:center; gap:12px; padding:14px 28px; background:var(--glass);
+    backdrop-filter:saturate(1.4) blur(12px); -webkit-backdrop-filter:saturate(1.4) blur(12px); border-bottom:1px solid var(--border); }
+  .top h2 { margin:0; font-size:19px; font-weight:700; letter-spacing:-.015em; }
+  .health { display:inline-flex; align-items:center; gap:7px; padding:4px 11px; border-radius:999px; font-size:12.5px; font-weight:600; background:var(--chip); color:var(--muted); }
+  .health.ok { background:var(--ok-bg); color:var(--ok); } .health.bad { background:var(--bad-bg); color:var(--bad); cursor:pointer; }
+  .health i { width:8px; height:8px; border-radius:50%; background:currentColor; box-shadow:0 0 0 3px color-mix(in srgb, currentColor 22%, transparent); }
+  .health.bad i { animation:pulse 1.6s infinite; }
+  .iconbtn { all:unset; width:34px; height:34px; display:grid; place-items:center; border-radius:10px; color:var(--muted); cursor:pointer; border:1px solid var(--border); background:var(--card); }
+  .iconbtn:hover { color:var(--text); border-color:var(--border-2); } .iconbtn svg { width:17px; height:17px; }
+  .iconbtn.spin svg { animation:spin .8s linear infinite; }
   .spacer { flex:1; }
   .meta { color:var(--muted); font-size:12px; }
-  a { color:var(--accent); }
-  main { padding:16px; max-width:1300px; margin:0 auto; }
-  .grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); }
-  .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px; min-width:0; }
-  .card h2 { font-size:14px; margin:0 0 10px; font-weight:650; display:flex; gap:8px; align-items:center; }
+  main#view { padding:24px 28px 40px; max-width:1440px; width:100%; animation:rise .25s ease-out; }
+
+  /* cards and layout */
+  .grid { display:grid; gap:16px; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:18px; min-width:0; box-shadow:var(--shadow); }
+  .card h2 { font-size:14.5px; margin:0 0 12px; font-weight:650; display:flex; gap:8px; align-items:center; letter-spacing:-.005em; }
+  .card-h { display:flex; align-items:center; gap:10px; margin-bottom:12px; } .card-h h2 { margin:0; }
+  .card h2 svg { width:17px; height:17px; color:var(--muted); }
   .wide { grid-column:1 / -1; }
-  .kv { display:grid; grid-template-columns:auto 1fr; gap:2px 12px; font-size:13px; }
+  .kv { display:grid; grid-template-columns:auto 1fr; gap:4px 14px; font-size:13px; }
   .kv dt { color:var(--muted); } .kv dd { margin:0; text-align:right; font-variant-numeric:tabular-nums; }
-  .big { font-size:26px; font-weight:650; font-variant-numeric:tabular-nums; }
-  .pill { display:inline-block; padding:1px 8px; border-radius:999px; font-size:12px; font-weight:600; white-space:nowrap; }
+  .big { font-size:28px; font-weight:750; letter-spacing:-.02em; font-variant-numeric:tabular-nums; line-height:1.15; }
+  .big span { color:var(--muted); font-weight:600; font-size:.62em; }
+  .small { font-size:12.5px; color:var(--muted); }
+  .err { color:var(--bad); font-size:13px; }
+  .card.err { background:var(--bad-bg); border-color:color-mix(in srgb, var(--bad) 30%, transparent); }
+  .hidden { display:none !important; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .scroll { overflow-x:auto; }
+
+  /* pills, dots, bars */
+  .pill { display:inline-flex; align-items:center; gap:5px; padding:2px 9px; border-radius:999px; font-size:12px; font-weight:600; white-space:nowrap; line-height:1.55; }
   .ok { background:var(--ok-bg); color:var(--ok); } .bad { background:var(--bad-bg); color:var(--bad); } .warn { background:var(--warn-bg); color:var(--warn); }
   .mut { background:var(--chip); color:var(--muted); }
-  .scroll { overflow-x:auto; }
-  table { width:100%; border-collapse:collapse; font-size:13px; }
-  th { text-align:left; color:var(--muted); font-weight:500; padding:6px 8px; border-bottom:1px solid var(--border); white-space:nowrap; }
-  td { padding:6px 8px; border-bottom:1px solid var(--border); vertical-align:top; font-variant-numeric:tabular-nums; }
-  tr:last-child td { border-bottom:0; }
-  .dot { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:6px; }
-  .dot.ok { background:var(--ok); } .dot.bad { background:var(--bad); }
-  button.act, select, input[type=number], input[type=text], input[type=password] { font:inherit; border:1px solid var(--border); background:var(--card); color:var(--text); border-radius:8px; padding:5px 10px; }
-  button.act { cursor:pointer; } button.act:hover { border-color:var(--accent); }
-  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
-  button.danger { background:var(--bad); color:#fff; border-color:var(--bad); }
-  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-  .err { color:var(--bad); font-size:13px; }
-  .small { font-size:12px; color:var(--muted); }
-  dialog { border:1px solid var(--border); border-radius:12px; background:var(--card); color:var(--text); max-width:460px; width:calc(100% - 32px); padding:20px; }
-  dialog::backdrop { background:rgba(0,0,0,.45); }
-  dialog ul { padding-left:18px; margin:8px 0 14px; }
-  .hidden { display:none; }
+  .dot { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:7px; background:var(--muted); flex:none; }
+  .dot.ok { background:var(--ok); box-shadow:0 0 0 3px var(--ok-bg); } .dot.bad { background:var(--bad); box-shadow:0 0 0 3px var(--bad-bg); }
   .bar { height:6px; background:var(--chip); border-radius:3px; overflow:hidden; min-width:60px; }
-  .bar > i { display:block; height:100%; background:var(--accent); }
-  .bar > i.hi { background:var(--bad); }
+  .bar > i { display:block; height:100%; background:var(--accent); border-radius:3px; } .bar > i.hi { background:var(--bad); }
+
+  /* tables */
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; color:var(--muted); font-weight:600; font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; padding:8px 10px; border-bottom:1px solid var(--border); white-space:nowrap; }
+  td { padding:9px 10px; border-bottom:1px solid var(--border); vertical-align:top; font-variant-numeric:tabular-nums; }
+  tr:last-child td { border-bottom:0; } tr:hover td { background:var(--card-2); }
+  td { overflow-wrap:anywhere; }
+  td[style*="text-align:right"], td.num, td .pill, td .mono { white-space:nowrap; overflow-wrap:normal; }
+  td b { overflow-wrap:normal; }
+  .span2 { grid-column:span 2; }
+  #progress { position:fixed; top:0; left:0; right:0; height:2px; z-index:60; pointer-events:none; opacity:0; transition:opacity .25s;
+    background:linear-gradient(90deg, transparent, var(--accent), transparent) no-repeat; background-size:40% 100%; }
+  body.busy #progress { opacity:1; animation:slide 1s linear infinite; }
+  body.busy #refresh svg { animation:spin .8s linear infinite; }
+  main#view.enter { animation:rise .18s ease-out; }
+  @keyframes slide { from { background-position:-40% 0; } to { background-position:140% 0; } }
+
+  /* controls */
+  button.act, select, input[type=number], input[type=text], input[type=password] { font:inherit; border:1px solid var(--border); background:var(--card); color:var(--text); border-radius:9px; padding:6px 11px; transition:border-color .12s, box-shadow .12s; }
+  input:focus, select:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-bg); }
+  button, .act { white-space:nowrap; overflow-wrap:normal; }
+  button.act { cursor:pointer; font-weight:550; } button.act:hover { border-color:var(--border-2); background:var(--card-2); }
+  button.act:disabled { opacity:.5; cursor:not-allowed; }
+  button.act.sm { padding:3px 9px; font-size:12px; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); } button.primary:hover { background:color-mix(in srgb, var(--accent) 88%, #000); border-color:transparent; }
+  button.danger { background:var(--bad); color:#fff; border-color:var(--bad); } button.danger:hover { background:color-mix(in srgb, var(--bad) 88%, #000); }
+  button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+
+  /* dialogs and toasts */
+  dialog { border:1px solid var(--border); border-radius:18px; background:var(--card); color:var(--text); max-width:480px; width:calc(100% - 32px); padding:22px;
+    box-shadow:0 30px 80px rgba(0,0,0,.35); }
+  dialog[open] { animation:pop .16s ease-out; }
+  dialog::backdrop { background:rgba(8,12,20,.55); backdrop-filter:blur(3px); }
+  dialog ul { padding-left:18px; margin:8px 0 14px; } dialog li { margin:3px 0; }
+  #toasts { position:fixed; right:18px; bottom:18px; z-index:50; display:flex; flex-direction:column; gap:8px; max-width:min(420px, calc(100vw - 36px)); }
+  .toast { display:flex; gap:10px; align-items:flex-start; padding:11px 14px; border-radius:12px; background:var(--card); border:1px solid var(--border); box-shadow:0 12px 32px rgba(0,0,0,.25); animation:pop .18s ease-out; font-size:13.5px; }
+  .toast svg { width:18px; height:18px; margin-top:1px; } .toast.ok svg { color:var(--ok); } .toast.bad svg { color:var(--bad); }
+  .toast.ok, .toast.bad { background:var(--card); color:var(--text); }
+
+  /* overview */
+  .ov { display:flex; flex-direction:column; gap:16px; }
+  .hero { display:flex; gap:16px; align-items:flex-start; padding:20px 22px; border-radius:var(--radius); border:1px solid var(--border); background:var(--card); box-shadow:var(--shadow); position:relative; overflow:hidden; }
+  .hero::after { content:""; position:absolute; inset:0; pointer-events:none; opacity:.55; }
+  .hero.is-ok::after { background:radial-gradient(600px 160px at 0% 0%, var(--ok-bg), transparent 70%); }
+  .hero.is-bad::after { background:radial-gradient(700px 200px at 0% 0%, var(--bad-bg), transparent 70%); }
+  .hero > * { position:relative; z-index:1; }
+  .hero-mark { width:46px; height:46px; border-radius:14px; display:grid; place-items:center; color:#fff; flex:none; }
+  .hero.is-ok .hero-mark { background:var(--ok); box-shadow:0 8px 20px color-mix(in srgb, var(--ok) 35%, transparent); }
+  .hero.is-bad .hero-mark { background:var(--bad); box-shadow:0 8px 20px color-mix(in srgb, var(--bad) 35%, transparent); }
+  .hero-mark svg { width:24px; height:24px; }
+  .hero h2 { margin:2px 0 2px; font-size:20px; letter-spacing:-.02em; } .hero p { margin:0; color:var(--muted); }
+  .hero-list { list-style:none; margin:12px 0 0; padding:0; display:flex; flex-direction:column; gap:8px; }
+  .hero-list li { display:flex; align-items:flex-start; gap:4px; padding:9px 12px; border-radius:11px; background:var(--card-2); border:1px solid var(--border); }
+  .hero-list li > div { flex:1; } .hero-list .dot { margin-top:6px; } .cause { color:var(--warn); margin-top:2px; }
+  .kpis { display:grid; gap:16px; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); }
+  .kpi { display:flex; flex-direction:column; gap:6px; }
+  .kpi-l { font-size:11.5px; font-weight:650; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; display:flex; align-items:center; gap:7px; }
+  .kpi-l svg { width:15px; height:15px; }
+  .kpi-row { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+  .segbar { display:flex; gap:3px; margin-top:4px; } .segbar i { flex:1; height:8px; border-radius:3px; background:var(--ok); }
+  .segbar i.bad { background:var(--bad); }
+  .dots { display:flex; flex-wrap:wrap; gap:5px; margin-top:4px; } .dots i { width:9px; height:9px; border-radius:3px; background:var(--ok); } .dots i.bad { background:var(--bad); }
+  .ring { width:56px; height:56px; } .ring-t { font:700 13px system-ui; fill:var(--text); }
+  .rings { display:flex; gap:8px; } .rings figure { margin:0; text-align:center; } .rings figcaption { font-size:11px; color:var(--muted); margin-top:-2px; }
+  .fibre { display:grid; gap:16px; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); }
+  .gauge { position:relative; height:10px; border-radius:6px; background:var(--chip); margin:12px 0 6px; overflow:visible; }
+  .gz { position:absolute; top:0; bottom:0; } .gz.ok { background:color-mix(in srgb, var(--ok) 55%, transparent); } .gz.warn { background:color-mix(in srgb, var(--warn) 40%, transparent); }
+  .gz.bad { background:color-mix(in srgb, var(--bad) 40%, transparent); } .gz:first-child { border-radius:6px 0 0 6px; } .gz:last-of-type { border-radius:0 6px 6px 0; }
+  .gm { position:absolute; top:-5px; width:4px; height:20px; margin-left:-2px; border-radius:2px; background:var(--text); box-shadow:0 0 0 2px var(--card); }
+  .fstats { display:flex; gap:18px; flex-wrap:wrap; margin-top:10px; font-size:12.5px; color:var(--muted); } .fstats b { color:var(--text); font-variant-numeric:tabular-nums; }
+  .tgroup + .tgroup { margin-top:16px; }
+  .tgroup-h { display:flex; align-items:baseline; gap:10px; margin-bottom:8px; font-weight:650; text-transform:capitalize; }
+  .tiles { display:grid; gap:10px; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); }
+  .tile { all:unset; box-sizing:border-box; display:flex; flex-direction:column; gap:4px; padding:12px 14px; border-radius:12px; background:var(--card-2); border:1px solid var(--border); cursor:pointer;
+    box-shadow:inset 3px 0 0 var(--ok); transition:transform .12s, border-color .12s; }
+  .tile.down { box-shadow:inset 3px 0 0 var(--bad); background:color-mix(in srgb, var(--bad-bg) 55%, var(--card-2)); }
+  .tile:hover { transform:translateY(-1px); border-color:var(--border-2); } .tile:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .tile-h { display:flex; align-items:center; gap:2px; } .tile-h b { flex:1; }
+  .tile-m { display:flex; gap:10px; font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; }
+  .chip { display:inline-flex; align-items:center; gap:2px; padding:6px 11px; border-radius:10px; background:var(--card-2); border:1px solid var(--border); font-size:13px; }
+  .chip.down { border-color:color-mix(in srgb, var(--bad) 45%, transparent); background:color-mix(in srgb, var(--bad-bg) 60%, var(--card-2)); }
+  .chip .mono { color:var(--muted); margin-left:6px; font-size:11.5px; }
+
+
+  /* form dialog (router editors) */
+  #fdlg { max-width:680px; max-height:88vh; overflow:auto; }
+  .fsec { margin-top:16px; padding-top:14px; border-top:1px solid var(--border); }
+  .fsec:first-child { margin-top:6px; padding-top:0; border-top:0; }
+  .fsec h3 { font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:0 0 10px; font-weight:650; }
+  .fsec .frm { grid-template-columns:190px 1fr; }
+  .fcheck { display:flex; align-items:center; gap:8px; } .fcheck input { width:16px; height:16px; accent-color:var(--accent); }
+  .fhelp { grid-column:2; font-size:12px; color:var(--muted); margin-top:-6px; }
+  .fmulti { display:flex; flex-wrap:wrap; gap:6px; }
+  .frows { grid-column:1 / -1; overflow-x:auto; } .frows td { padding:4px 6px; } .frows input { padding:4px 8px; }
+  @media (max-width: 600px) { .fsec .frm { grid-template-columns:1fr; } .fhelp { grid-column:1; } }
+  @keyframes rise { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
+  @keyframes pop { from { opacity:0; transform:scale(.97); } to { opacity:1; transform:none; } }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  @keyframes pulse { 50% { box-shadow:0 0 0 6px transparent; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation:none !important; transition:none !important; } }
+
+  /* phones and small tablets: sidebar becomes a top bar with a scrolling tab strip */
+  @media (max-width: 900px) {
+    .shell { grid-template-columns:minmax(0, 1fr); }
+    .side { position:sticky; top:0; z-index:6; height:auto; flex-direction:row; align-items:center; padding:8px 16px; gap:10px; border-right:0; border-bottom:1px solid var(--border); }
+    .brand { padding:0; } .brand small { display:none; }
+    nav#tabs { flex-direction:row; flex:1; overflow-x:auto; scrollbar-width:none; } nav#tabs::-webkit-scrollbar { display:none; }
+    nav#tabs button { padding:7px 10px; white-space:nowrap; } nav#tabs button.on::before { display:none; }
+    nav#tabs button:not(.on) span { display:none; } nav#tabs button { padding:7px 8px; } .navh { display:none; }
+    .side-foot { margin:0; border:0; padding:0; flex-direction:row; } .side-foot span { display:none; }
+    .top { position:static; padding:12px 16px; flex-wrap:wrap; }
+    main#view { padding:16px 16px 32px; }
+    .grid, .fibre { grid-template-columns:minmax(0, 1fr); } .span2 { grid-column:auto; }
+    .card h2 { flex-wrap:wrap; row-gap:8px; }
+    .card > table { display:block; overflow-x:auto; }
+    .kpis { grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; }
+    .hero { padding:16px; } .hero h2 { font-size:17px; }
+  }
 </style>
+<script>
+  // Apply the saved theme before first paint (no flash). Storage may be unavailable: ignore.
+  try { const t = localStorage.getItem('noc-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
 </head>
 <body>
-<header>
-  <h1 id="site-name">NOC</h1>
-  <nav id="tabs">
+<div class="shell">
+<aside class="side">
+  <div class="brand"><div class="brand-logo" id="brand-logo"></div><div><h1 id="site-name">NOC</h1><small>Network operations</small></div></div>
+  <nav id="tabs" aria-label="Sections">
     <button data-t="overview" class="on">Overview</button><button data-t="dns">DNS</button>
     <button data-t="switch">Switch</button><button data-t="router">Router</button>
+    <div class="navh">Router (OpenWrt)</div><button data-t="interfaces">Interfaces</button><button data-t="netdevs">Network devices</button><button data-t="mwan">MultiWAN</button>
+    <div class="navh">More</div>
     <button data-t="wifi">Wi-Fi</button><button data-t="devices">Devices</button><button data-t="proxmox">Proxmox</button><button data-t="alerts">Alerts</button><button data-t="settings">Settings</button><button data-t="audit">Audit log</button>
   </nav>
+  <div class="side-foot">
+    <button id="theme" type="button" title="Theme"></button>
+    <a href="/logout" id="signout"></a>
+  </div>
+</aside>
+<div class="content">
+<header class="top">
+  <h2 id="page-title">Overview</h2>
+  <span class="health" id="health"><i></i><span>checking…</span></span>
   <span class="spacer"></span>
   <span class="meta" id="updated">loading…</span>
-  <a class="meta" href="/logout">Sign out</a>
+  <button class="iconbtn" id="refresh" type="button" title="Refresh now" aria-label="Refresh now"></button>
 </header>
 <main id="view"></main>
+</div>
+</div>
+<div id="toasts" role="status" aria-live="polite"></div>
+<div id="progress" aria-hidden="true"></div>
+
 
 <dialog id="dlg">
   <h2 id="dlg-title" style="margin:0 0 4px;font-size:16px"></h2>
@@ -159,6 +336,16 @@
   <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="act" id="xdlg-close">Close</button></div>
 </dialog>
 
+<dialog id="fdlg">
+  <h2 id="fdlg-title" style="margin:0 0 4px;font-size:16px"></h2>
+  <div id="fdlg-intro" class="small" style="margin-bottom:6px"></div>
+  <div id="fdlg-body"></div>
+  <div id="fdlg-err" class="err" style="margin-top:10px"></div>
+  <div class="row" style="justify-content:flex-end;margin-top:14px">
+    <button class="act" id="fdlg-cancel" type="button">Cancel</button><button class="act primary" id="fdlg-ok" type="button">Preview</button>
+  </div>
+</dialog>
+
 <dialog id="ddlg" style="max-width:520px">
   <h2 id="ddlg-title" style="margin:0 0 12px;font-size:16px"></h2>
   <div class="frm">
@@ -182,6 +369,62 @@
 
 <script>
 const $ = s => document.querySelector(s);
+const svg = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const ICON = {
+  overview: svg('<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>'),
+  dns: svg('<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/>'),
+  switch: svg('<rect x="2" y="7" width="20" height="10" rx="2"/><path d="M6 12h1M9.5 12h1M13 12h1M16.5 12h1"/>'),
+  router: svg('<rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 16.5h.01M11 16.5h.01M8.5 9.5a5 5 0 0 1 7 0M6 7a8.5 8.5 0 0 1 12 0"/>'),
+  wifi: svg('<path d="M2 8.5a15 15 0 0 1 20 0M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0"/><circle cx="12" cy="19" r="1"/>'),
+  devices: svg('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>'),
+  proxmox: svg('<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>'),
+  alerts: svg('<path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 20a2 2 0 0 0 4 0"/>'),
+  settings: svg('<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>'),
+  audit: svg('<path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/>'),
+  check: svg('<path d="M20 6L9 17l-5-5"/>'),
+  alert: svg('<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>'),
+  refresh: svg('<path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/>'),
+  moon: svg('<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>'),
+  sun: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
+  auto: svg('<circle cx="12" cy="12" r="9"/><path d="M12 3v18" /><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/>'),
+  logout: svg('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>'),
+  logo: svg('<circle cx="12" cy="5" r="2.4"/><circle cx="5" cy="19" r="2.4"/><circle cx="19" cy="19" r="2.4"/><path d="M12 7.4v4.1M12 11.5l-5.3 5.6M12 11.5l5.3 5.6"/>'),
+  interfaces: svg('<path d="M4 6h16M4 12h16M4 18h10"/><circle cx="19" cy="18" r="2"/>'),
+  netdevs: svg('<rect x="3" y="8" width="7" height="8" rx="1.5"/><rect x="14" y="8" width="7" height="8" rx="1.5"/><path d="M10 12h4M6.5 8V5M17.5 8V5"/>'),
+  mwan: svg('<path d="M4 7h10l3-3M4 7l3 3M4 17h10l3 3M4 17l3-3"/><circle cx="19" cy="7" r="2"/><circle cx="19" cy="17" r="2"/>'),
+  internet: svg('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>'),
+  fibre: svg('<path d="M3 12c3-6 6-6 9 0s6 6 9 0"/><circle cx="3" cy="12" r="1"/><circle cx="21" cy="12" r="1"/>'),
+};
+const GROUP_LABEL = {core: 'Core', isp: 'ISP boxes', dns: 'DNS', server: 'Servers', iot: 'IoT', client: 'Clients', other: 'Other'};
+const TITLES = {interfaces: 'Interfaces', netdevs: 'Network devices', mwan: 'MultiWAN', overview: 'Overview', dns: 'DNS', switch: 'Switch', router: 'Router', wifi: 'Wi-Fi', devices: 'Devices',
+                proxmox: 'Proxmox', alerts: 'Alerts', settings: 'Settings', audit: 'Audit log'};
+
+function toast(msg, kind = 'ok') {
+  const el = document.createElement('div');
+  el.className = `toast ${kind}`;
+  el.innerHTML = (kind === 'bad' ? ICON.alert : ICON.check) + `<div>${esc(msg)}</div>`;
+  $('#toasts').append(el);
+  setTimeout(() => el.remove(), kind === 'bad' ? 7000 : 3500);
+}
+
+const THEMES = ['auto', 'light', 'dark'];
+function applyTheme(t) {
+  if (t === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
+  $('#theme').innerHTML = ICON[t === 'auto' ? 'auto' : t === 'light' ? 'sun' : 'moon'] + `<span>Theme: ${t}</span>`;
+  try { localStorage.setItem('noc-theme', t); } catch (e) {}
+}
+
+let HEALTH = null;
+function setHealth(al) {
+  HEALTH = al;
+  const n = (al.problems || []).length, h = $('#health');
+  h.className = 'health ' + (n ? 'bad' : 'ok');
+  h.innerHTML = `<i></i><span>${n ? `${n} problem${n > 1 ? 's' : ''}` : 'All systems normal'}</span>`;
+  h.title = n ? al.problems.map(p => p.text).join('\n') : 'Every check is OK';
+  h.onclick = n ? () => document.querySelector('#tabs [data-t="overview"]').click() : null;
+  const nb = $('#nb-alerts');
+  if (nb) { nb.textContent = n; nb.hidden = !n; }
+}
 let DV = null;
 
 function editDevice(name, prefill) {
@@ -243,7 +486,7 @@ function editNetwork(id) {
     document.querySelectorAll('#ndlg .d-en').forEach(e => e.classList.toggle('hidden', dev !== 'openwrt' || !en));
     document.querySelectorAll('#ndlg .d-up').forEach(e => e.classList.toggle('hidden', dev !== 'upstream'));
     $('#ndlg-note').textContent = dev === 'openwrt'
-      ? 'The VLAN is created in Omada. This DHCP setup is saved in the NOC as a plan; the OpenWrt router is not changed (router changes not enabled yet).'
+      ? 'The VLAN is created in Omada first; then the NOC offers to create the matching device, interface, DHCP server and firewall zone on the router.'
       : (n && n.used_by.length ? `Carried by: ${n.used_by.join(', ')}. Changing the VLAN ID changes it on all of them.` : 'After saving, use Edit VLANs on a port or the LAG to carry it.');
   };
   const suggest = () => {
@@ -369,33 +612,73 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const pill = (ok, yes='up', no='down') => `<span class="pill ${ok ? 'ok' : 'bad'}">${ok ? yes : no}</span>`;
 const dur = s => { if (s == null) return '–'; s = +s; const d = Math.floor(s/86400), h = Math.floor(s%86400/3600), m = Math.floor(s%3600/60);
   return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`; };
-const bytes = b => { if (b == null) return '–'; const u = ['B','KB','MB','GB','TB']; let i = 0; b = +b; while (b >= 1024 && i < 4) { b /= 1024; i++; } return b.toFixed(i ? 1 : 0) + ' ' + u[i]; };
+const bytes = b => { if (b == null) return '–'; const u = ['B','KB','MB','GB','TB']; let i = 0; b = +b; while (b >= 1024 && i < 4) { b /= 1024; i++; } return b.toFixed(i ? 1 : 0) + '\u00a0' + u[i]; };
 const bar = p => p == null ? '–' : `<div class="row" style="gap:6px;flex-wrap:nowrap"><div class="bar" style="flex:1"><i class="${p>=90?'hi':''}" style="width:${Math.min(p,100)}%"></i></div><span>${p}%</span></div>`;
 
+// Last response of every plain GET, so switching tabs draws at once and then refreshes.
+const CACHE = new Map();
+let LOADSEQ = 0, FROM_CACHE = false, SERVED_CACHE = false;
 async function api(path, opts) {
+  const get = !opts || !opts.method || opts.method === 'GET', cacheable = get && !path.includes('?');
+  if (cacheable && FROM_CACHE && CACHE.has(path)) { SERVED_CACHE = true; return CACHE.get(path); }
+  const seq = LOADSEQ, own = opts && opts.noseq;
   const r = await fetch(path, opts);
   if (r.status === 401) { location.href = '/login'; throw new Error('login'); }
   const d = await r.json();
   if (!r.ok) throw new Error(d.error || r.statusText);
+  if (cacheable) CACHE.set(path, d);
+  // A newer load started meanwhile (tab switch or refresh): don't draw an old tab over it.
+  if (get && !own && seq !== LOADSEQ) throw new Error('superseded');
   return d;
 }
 
-let tab = 'overview', timer = null;
-document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { tab = b.dataset.t;
-  document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b)); load(); });
+let PREFETCHED = false;
+async function prefetch() {
+  if (PREFETCHED) return;
+  PREFETCHED = true;
+  for (const p of ['/api/alerts', '/api/openwrt', '/api/dns', '/api/router', '/api/switch', '/api/devices', '/api/proxmox', '/api/settings', '/api/audit', '/api/ap']) {
+    if (CACHE.has(p)) continue;
+    try { const r = await fetch(p); if (r.ok) CACHE.set(p, await r.json()); } catch (e) { /* best effort */ }
+  }
+}
 
-async function load() {
+let tab = 'overview', timer = null;
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => {
+  if (tab === b.dataset.t) return load();
+  tab = b.dataset.t;
+  document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b));
+  const v = $('#view'); v.classList.remove('enter'); void v.offsetWidth; v.classList.add('enter');
+  window.scrollTo({top: 0});
+  load(tab !== 'settings');  // draw from memory first (Settings always fresh: it holds edits)
+});
+
+async function load(fromCache = false) {
   clearTimeout(timer);
-  try { await VIEWS[tab](); $('#updated').textContent = 'updated ' + new Date().toLocaleTimeString(); }
-  catch (e) { if (e.message !== 'login') $('#view').innerHTML = `<div class="card err">Failed to load: ${esc(e.message)}</div>`; }
-  if (tab !== 'audit' && tab !== 'settings') timer = setTimeout(load, tab === 'overview' ? 15000 : 30000);
+  const seq = ++LOADSEQ;
+  $('#page-title').textContent = TITLES[tab] || tab;
+  document.body.classList.add('busy');
+  if (tab !== 'overview' && !fromCache) api('/api/alerts', {noseq: true}).then(setHealth).catch(() => {});
+  FROM_CACHE = fromCache; SERVED_CACHE = false;
+  let ok = false;
+  try { await VIEWS[tab](); ok = true; }
+  catch (e) {
+    if (e.message === 'superseded') return;
+    if (e.message !== 'login' && seq === LOADSEQ) $('#view').innerHTML = `<div class="card err">Failed to load: ${esc(e.message)}</div>`;
+  } finally { FROM_CACHE = false; }
+  if (seq !== LOADSEQ) return;
+  if (ok && SERVED_CACHE) { $('#updated').textContent = 'refreshing…'; return load(false); }  // drawn from memory: now fetch fresh
+  if (ok) { $('#updated').textContent = 'updated ' + new Date().toLocaleTimeString(); setTimeout(prefetch, 1200); }
+  document.body.classList.remove('busy');
+  if (tab !== 'audit' && tab !== 'settings') timer = setTimeout(() => load(), tab === 'overview' ? 15000 : 30000);
 }
 
 // ---------- preview -> confirm flow
-async function act(kind, params) {
+let FORM_CTX = null, LAST_ACT_ERR = '';  // a form dialog waiting for its preview/confirm to finish
+async function act(kind, params, onDone) {
   let p;
+  const form = FORM_CTX; FORM_CTX = null;
   try { p = await api('/api/actions/preview', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({kind, params})}); }
-  catch (e) { alert('Cannot do that: ' + e.message); return; }
+  catch (e) { LAST_ACT_ERR = e.message; if (!form) toast('Cannot do that: ' + e.message, 'bad'); return false; }
   $('#dlg-title').textContent = p.summary;
   $('#dlg-detail').innerHTML = p.detail.map(d => `<li>${esc(d)}</li>`).join('');
   $('#dlg-word').classList.toggle('hidden', !p.confirm_word);
@@ -407,12 +690,15 @@ async function act(kind, params) {
   $('#dlg-input').oninput = () => { $('#dlg-err').textContent = ''; };
   $('#dlg-ok').onclick = async () => {
     if (p.confirm_word && $('#dlg-input').value.trim().toLowerCase() !== p.confirm_word) { $('#dlg-err').textContent = `Type "${p.confirm_word}" exactly.`; return; }
-    $('#dlg-ok').disabled = true;
-    try { await api('/api/actions/confirm', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:p.id, confirm_text:$('#dlg-input').value})});
-          dlg.close(); load(); }
+    $('#dlg-ok').disabled = true; $('#dlg-cancel').disabled = true;
+    const label = $('#dlg-ok').textContent;
+    if (kind.startsWith('ow_')) $('#dlg-ok').textContent = 'Applying… router is verifying (up to a minute)';
+    try { const r = await api('/api/actions/confirm', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:p.id, confirm_text:$('#dlg-input').value})});
+          dlg.close(); if (form) form.close(); toast('Done: ' + p.summary); load(); if (onDone) onDone(r); }
     catch (e) { $('#dlg-err').textContent = e.message; }
-    finally { $('#dlg-ok').disabled = false; }
+    finally { $('#dlg-ok').disabled = false; $('#dlg-cancel').disabled = false; $('#dlg-ok').textContent = label; }
   };
+  return true;
 }
 
 const errBox = errs => { const e = Object.entries(errs || {}); return e.length ? `<div class="card wide err">Some sources failed: ${e.map(([k,v]) => `<b>${esc(k)}</b>: ${esc(v)}`).join(' · ')}</div>` : ''; };
@@ -424,7 +710,7 @@ async function diagnoseWan(target) {
   $('#xdlg-close').onclick = () => dlg.close();
   dlg.showModal();
   try {
-    const r = await api('/api/diagnose?target=' + encodeURIComponent(target));
+    const r = await api('/api/diagnose?target=' + encodeURIComponent(target), {noseq: true});
     const icon = s => s.ok ? '<span class="pill ok">OK</span>' : s.ok === null ? '<span class="pill mut">not checked</span>'
       : s.consequence ? '<span class="pill mut">follows</span>' : '<span class="pill bad">FAULT</span>';
     $('#xdlg-title').textContent = `Diagnosis: ${target}`;
@@ -432,6 +718,523 @@ async function diagnoseWan(target) {
       <div class="${d.layer ? 'err' : 'small'}" style="margin:4px 0 6px">${d.layer ? 'Cause: ' : ''}${esc(d.verdict)}</div>
       <table>${d.steps.map(s => `<tr><td style="white-space:nowrap">${icon(s)}</td><td style="white-space:nowrap"><b>${esc(s.layer)}</b></td><td class="small">${esc(s.detail)}</td></tr>`).join('')}</table></div>`).join('');
   } catch (e) { $('#xdlg-body').innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+}
+
+
+// ---------- generic form dialog (router editors and the interface wizard)
+// spec: {title, intro, values, sections: [{title, when(v), fields: [{key, label, type, options, placeholder,
+//        help, when(v), min, max, readonly}]}], submit, onSubmit(v)}. Types: text, password, number,
+// select, checkbox, list (comma separated), multi (checkbox chips).
+function formDialog(spec) {
+  const dlg = $('#fdlg'), v = JSON.parse(JSON.stringify(spec.values || {}));
+  const opts = f => (typeof f.options === 'function' ? f.options(v) : f.options || []).map(o => typeof o === 'object' ? o : {value: o, label: o});
+  const field = f => {
+    const id = 'f-' + f.key, val = v[f.key];
+    const attrs = `id="${id}" data-fk="${f.key}" ${f.readonly ? 'disabled' : ''} ${f.placeholder ? `placeholder="${esc(f.placeholder)}"` : ''}`;
+    let input;
+    if (f.type === 'select') input = `<select ${attrs}>${opts(f).map(o => `<option value="${esc(o.value)}" ${String(o.value) === String(val ?? '') ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select>`;
+    else if (f.type === 'checkbox') input = `<span class="fcheck"><input type="checkbox" ${attrs} ${val ? 'checked' : ''}></span>`;
+    else if (f.type === 'rows') return `<div class="frows" data-fw="${f.key}"><div class="small" style="margin-bottom:6px">${esc(f.label)}</div><div id="${id}"></div></div>`;
+    else if (f.type === 'multi') input = `<div class="fmulti" id="${id}">${opts(f).map(o => `<label class="pill ${(val || []).includes(o.value) ? 'ok' : 'mut'}" style="cursor:pointer">
+        <input type="checkbox" data-fk="${f.key}" data-mv="${esc(o.value)}" ${(val || []).includes(o.value) ? 'checked' : ''} style="margin:0 4px 0 0">${esc(o.label)}</label>`).join('') || '<span class="small">none available</span>'}</div>`;
+    else input = `<input type="${f.type === 'password' ? 'password' : f.type === 'number' ? 'number' : 'text'}" ${attrs}
+        ${f.type === 'password' ? 'autocomplete="new-password"' : 'autocomplete="off"'} ${f.min != null ? `min="${f.min}"` : ''} ${f.max != null ? `max="${f.max}"` : ''}
+        value="${esc(f.type === 'list' ? (val || []).join(', ') : (val ?? ''))}">`;
+    return `<label for="${id}" data-fw="${f.key}">${esc(f.label)}</label><div data-fw="${f.key}">${input}</div>${f.help ? `<div class="fhelp" data-fw="${f.key}">${f.help}</div>` : ''}`;
+  };
+  const all = spec.sections.flatMap((sec, si) => sec.fields.map(f => ({...f, si})));
+  $('#fdlg-title').textContent = spec.title;
+  $('#fdlg-intro').innerHTML = spec.intro || '';
+  $('#fdlg-body').innerHTML = spec.sections.map((sec, si) => `<div class="fsec" data-sec="${si}">${sec.title ? `<h3>${esc(sec.title)}</h3>` : ''}
+    <div class="frm">${sec.fields.map(field).join('')}</div></div>`).join('');
+  $('#fdlg-ok').textContent = spec.submit || 'Preview';
+  $('#fdlg-err').textContent = '';
+  // rows fields: keep one entry per item; cells the user hasn't typed in follow their defaults
+  const touched = {};
+  const renderRows = () => all.filter(f => f.type === 'rows').forEach(f => {
+    const n = Math.max(0, Math.min(f.max || 16, +f.count(v) || 0));
+    const rows = (v[f.key] = (v[f.key] || []).slice(0, n));
+    const cols = f.columns.filter(col => !col.when || col.when(v));
+    for (let i = 0; i < n; i++) {
+      rows[i] = rows[i] || {};
+      f.columns.forEach(col => { if (!touched[`${f.key}.${i}.${col.key}`] && col.default) rows[i][col.key] = col.default(i, v); });
+    }
+    dlg.querySelector('#f-' + f.key).innerHTML = n ? `<table><tr><th>#</th>${cols.map(col => `<th>${esc(col.label)}</th>`).join('')}</tr>${rows.map((r, i) => `<tr><td>${i + 1}</td>${cols.map(col =>
+      `<td><input type="${col.type === 'number' ? 'number' : 'text'}" data-rk="${f.key}" data-ri="${i}" data-rc="${col.key}" value="${esc(r[col.key] ?? '')}"
+        ${col.placeholder ? `placeholder="${esc(col.placeholder)}"` : ''} style="width:${col.width || 120}px" aria-label="${esc(col.label)} ${i + 1}"></td>`).join('')}</tr>`).join('')}</table>`
+      : '<div class="small">Set how many above.</div>';
+  });
+  const sync = () => {
+    renderRows();
+    spec.sections.forEach((sec, si) => dlg.querySelector(`[data-sec="${si}"]`).classList.toggle('hidden', !!sec.when && !sec.when(v)));
+    all.forEach(f => dlg.querySelectorAll(`[data-fw="${f.key}"]`).forEach(e => e.classList.toggle('hidden', !!f.when && !f.when(v))));
+  };
+  const read = el => {
+    if (el.dataset.rk) {  // a cell in a rows table: store it and don't redraw (keeps the cursor)
+      const col = all.find(x => x.key === el.dataset.rk).columns.find(c2 => c2.key === el.dataset.rc);
+      v[el.dataset.rk][+el.dataset.ri][el.dataset.rc] = col.type === 'number' && el.value !== '' ? +el.value : el.value;
+      touched[`${el.dataset.rk}.${el.dataset.ri}.${el.dataset.rc}`] = true;
+      return;
+    }
+    const f = all.find(x => x.key === el.dataset.fk);
+    if (!f) return;
+    if (f.type === 'multi') {
+      v[f.key] = [...dlg.querySelectorAll(`[data-fk="${f.key}"][data-mv]`)].filter(x => x.checked).map(x => x.dataset.mv);
+      dlg.querySelectorAll(`[data-fk="${f.key}"][data-mv]`).forEach(x => x.parentElement.className = 'pill ' + (x.checked ? 'ok' : 'mut'));
+    } else if (f.type === 'checkbox') v[f.key] = el.checked;
+    else if (f.type === 'number') v[f.key] = el.value === '' ? '' : +el.value;
+    else if (f.type === 'list') v[f.key] = el.value.split(/[\s,]+/).filter(Boolean);
+    else v[f.key] = el.value;
+    if (spec.onChange) spec.onChange(f.key, v, (k, val) => { v[k] = val; const e2 = dlg.querySelector(`#f-${k}`); if (e2) { if (e2.type === 'checkbox') e2.checked = !!val; else e2.value = Array.isArray(val) ? val.join(', ') : val; } });
+    sync();
+  };
+  dlg.querySelector('#fdlg-body').oninput = ev => { $('#fdlg-err').textContent = ''; read(ev.target); };
+  dlg.querySelector('#fdlg-body').onchange = ev => read(ev.target);
+  sync();
+  dlg.showModal();
+  $('#fdlg-cancel').onclick = () => dlg.close();
+  // The form stays open behind the preview: a refused preview shows its reason here, Cancel on the
+  // confirm step returns to the form, and the form closes only once the change is applied.
+  $('#fdlg-ok').onclick = async () => {
+    FORM_CTX = {close: () => dlg.close()};
+    try { if (await spec.onSubmit(v) === false) $('#fdlg-err').textContent = LAST_ACT_ERR || 'Check the fields above.'; }
+    catch (e) { $('#fdlg-err').textContent = e.message; }
+    finally { FORM_CTX = null; }
+  };
+}
+
+// ---------- router: devices, interfaces (wizard), mwan3
+const uniq = a => [...new Set(a.filter(Boolean))];
+function deviceDialog(c, dev) {
+  const bases = uniq([c.trunk, 'wan', ...c.devices.filter(d => ['bonding', 'bridge', 'ethernet', '8021q'].includes(d.type)).map(d => d.name), 'lan1', 'lan2', 'lan3', 'lan4']);
+  formDialog({
+    title: dev ? `Edit device ${dev.name}` : 'New network device',
+    intro: dev ? `${esc(dev.type)}${dev.base ? ' on ' + esc(dev.base) : ''}${dev.vid ? ', VLAN ' + esc(dev.vid) : ''}. Name, type and VLAN can't change; delete and recreate instead.` : 'Like LuCI → Network → Devices → Add device configuration.',
+    values: dev ? {macaddr: dev.macaddr, ipv6: dev.ipv6, mtu: dev.mtu} : {type: '8021q', base: c.trunk, ipv6: false, vid: ''},
+    sections: [{fields: [
+      ...(dev ? [] : [
+        {key: 'type', label: 'Device type', type: 'select', options: [{value: '8021q', label: 'VLAN (802.1q)'}, {value: 'macvlan', label: 'MAC VLAN'}]},
+        {key: 'base', label: 'Base device', type: 'select', options: bases},
+        {key: 'vid', label: 'VLAN ID', type: 'number', min: 1, max: 4094, when: v => v.type === '8021q'},
+        {key: 'name', label: 'Device name', type: 'text', placeholder: 'automatic (base.VLAN)', help: 'Up to 15 characters.'}]),
+      {key: 'macaddr', label: 'MAC address', type: 'text', placeholder: 'hardware default', help: 'Set one to make the ISP see a fixed MAC.'},
+      {key: 'ipv6', label: 'Enable IPv6', type: 'checkbox'},
+      {key: 'mtu', label: 'MTU', type: 'number', min: 576, max: 9000, placeholder: 'default (1500)'}]}],
+    onSubmit: v => act(dev ? 'ow_device_edit' : 'ow_device_create', dev ? {id: dev.id, ...v} : v)});
+}
+
+function ifaceDialog(c, iface, prefill = {}, intro = '') {
+  const editing = !!iface;
+  const devNames = uniq([...c.devices.map(d => d.name), 'wan', 'lan1', 'lan2', 'lan3', 'lan4']);
+  const bases = uniq([c.trunk, 'wan', ...c.devices.filter(d => ['bonding', 'bridge', 'ethernet', '8021q'].includes(d.type)).map(d => d.name)]);
+  const dh = iface && c.dhcp.find(d => d.interface === iface.name);
+  const pols = c.mwan.policies.map(p => p.name);
+  const v0 = editing ? {name: iface.name, device: iface.device, proto: iface.proto, ipaddr: (iface.ipaddr || [])[0] || '', gateway: iface.gateway || '',
+      dns: iface.dns || [], hostname: iface.hostname || '', clientid: iface.clientid || '', username: iface.username || '', metric: iface.metric ?? '',
+      defaultroute: iface.defaultroute !== '0', peerdns: iface.peerdns !== '0', ipv6: iface.ipv6 !== '0', auto: iface.auto !== '0', zone: iface.zone || '',
+      dhcp_on: !!dh && !dh.ignore, dhcp_start: dh?.start || 100, dhcp_limit: dh?.limit || 150, dhcp_lease: dh?.leasetime || '12h'}
+    : {dev_mode: 'new8021q', base: c.trunk, vid: '', dev_name: '', dev_mac: '', dev_ipv6: false, device: devNames[0], name: '', proto: 'static',
+       ipaddr: '', gateway: '', dns: [], defaultroute: true, peerdns: true, ipv6: false, auto: true, metric: '', zone: 'lan',
+       dhcp_on: true, dhcp_start: 100, dhcp_limit: 150, dhcp_lease: '12h', mw_on: true, track_ip: ['8.8.8.8'], reliability: 1, count: 1, timeout: 4,
+       interval: 10, failure_interval: 5, recovery_interval: 5, down: 5, up: 5, mw_metric: 1, mw_weight: 1, mw_policies: pols.includes('balanced') ? ['balanced'] : [], ...prefill};
+  const isWan = v => v.zone === 'wan';
+  formDialog({
+    title: editing ? `Edit interface ${iface.name}` : 'New interface',
+    intro: intro || (editing ? 'Changes apply with automatic rollback.' : 'Device → interface → firewall and DHCP → MultiWAN, like setting it up in LuCI. Everything is applied together, with automatic rollback.'),
+    values: v0,
+    sections: [
+      {title: 'Device', fields: editing ? [{key: 'device', label: 'Device', type: 'select', options: devNames}] : [
+        {key: 'dev_mode', label: 'Device', type: 'select', options: [{value: 'new8021q', label: 'Create a VLAN device (802.1q)'}, {value: 'newmacvlan', label: 'Create a MAC VLAN device'}, {value: 'existing', label: 'Use an existing device'}]},
+        {key: 'device', label: 'Existing device', type: 'select', options: devNames, when: v => v.dev_mode === 'existing'},
+        {key: 'base', label: 'Base device', type: 'select', options: bases, when: v => v.dev_mode !== 'existing', help: `VLANs from the switch arrive on <code>${esc(c.trunk)}</code>.`},
+        {key: 'vid', label: 'VLAN ID', type: 'number', min: 1, max: 4094, when: v => v.dev_mode === 'new8021q'},
+        {key: 'dev_name', label: 'Device name', type: 'text', placeholder: 'automatic (base.VLAN)', when: v => v.dev_mode !== 'existing'},
+        {key: 'dev_mac', label: 'MAC address', type: 'text', placeholder: 'hardware default', when: v => v.dev_mode !== 'existing'},
+        {key: 'dev_ipv6', label: 'Enable IPv6 on device', type: 'checkbox', when: v => v.dev_mode !== 'existing'}]},
+      {title: 'Interface', fields: [
+        {key: 'name', label: 'Interface name', type: 'text', readonly: editing, placeholder: 'e.g. guest, isp4', help: editing ? '' : 'Letters, digits, _; up to 15.'},
+        {key: 'proto', label: 'Protocol', type: 'select', options: [{value: 'static', label: 'Static address'}, {value: 'dhcp', label: 'DHCP client'}, {value: 'pppoe', label: 'PPPoE'}, {value: 'none', label: 'Unmanaged (no IP)'}]},
+        {key: 'ipaddr', label: 'IPv4 address / prefix', type: 'text', placeholder: '10.0.20.1/24', when: v => v.proto === 'static'},
+        {key: 'gateway', label: 'Gateway', type: 'text', placeholder: 'none (LAN-type network)', when: v => v.proto === 'static'},
+        {key: 'hostname', label: 'Hostname to send', type: 'text', placeholder: 'router default', when: v => v.proto === 'dhcp'},
+        {key: 'clientid', label: 'Client ID', type: 'text', placeholder: 'none', when: v => v.proto === 'dhcp'},
+        {key: 'username', label: 'PPPoE username', type: 'text', when: v => v.proto === 'pppoe'},
+        {key: 'password', label: 'PPPoE password', type: 'password', placeholder: editing && iface.password_set ? 'set: leave empty to keep' : 'required', when: v => v.proto === 'pppoe'},
+        {key: 'defaultroute', label: 'Use default gateway', type: 'checkbox', when: v => ['dhcp', 'pppoe'].includes(v.proto), help: 'Off for management links to an ONT/modem.'},
+        {key: 'metric', label: 'Use gateway metric', type: 'number', min: 0, max: 9999, placeholder: '0 (none)', when: v => v.proto !== 'none',
+         help: 'Lower metric = preferred default route when several links have a gateway.'},
+        {key: 'peerdns', label: 'Use DNS servers advertised by peer', type: 'checkbox', when: v => ['dhcp', 'pppoe'].includes(v.proto)},
+        {key: 'dns', label: 'Use custom DNS servers', type: 'list', placeholder: 'none, e.g. 1.1.1.1, 8.8.8.8',
+         when: v => v.proto === 'static' || (['dhcp', 'pppoe'].includes(v.proto) && !v.peerdns)},
+        {key: 'ipv6', label: 'Enable IPv6', type: 'checkbox'},
+        {key: 'auto', label: 'Bring up on boot', type: 'checkbox'}]},
+      {title: 'Firewall and DHCP', fields: [
+        {key: 'zone', label: 'Firewall zone', type: 'select', options: [{value: '', label: 'none'}, ...c.zones.map(z => ({value: z.name, label: `${z.name} (input ${z.input}, forward ${z.forward}${z.masq ? ', NAT' : ''})`}))],
+         help: '<b>lan</b> for local networks, <b>wan</b> for internet links and ISP management.'},
+        {key: 'dhcp_on', label: 'Run a DHCP server', type: 'checkbox', when: v => v.proto === 'static'},
+        {key: 'dhcp_start', label: 'DHCP start (last octet)', type: 'number', min: 2, max: 254, when: v => v.proto === 'static' && v.dhcp_on},
+        {key: 'dhcp_limit', label: 'Number of addresses', type: 'number', min: 1, max: 65000, when: v => v.proto === 'static' && v.dhcp_on},
+        {key: 'dhcp_lease', label: 'Lease time', type: 'text', placeholder: '12h', when: v => v.proto === 'static' && v.dhcp_on}]},
+      {title: 'MultiWAN (mwan3)', when: v => !editing && isWan(v), fields: [
+        {key: 'mw_on', label: 'Add to mwan3', type: 'checkbox', help: 'Health tracking plus load balancing / failover.'},
+        {key: 'track_ip', label: 'Tracking IPs', type: 'list', when: v => v.mw_on, help: 'Pinged through this link to decide if it is up.'},
+        {key: 'reliability', label: 'Reliability', type: 'number', min: 1, max: 10, when: v => v.mw_on, help: 'How many tracking IPs must answer.'},
+        {key: 'interval', label: 'Ping interval (s)', type: 'number', min: 1, when: v => v.mw_on},
+        {key: 'timeout', label: 'Ping timeout (s)', type: 'number', min: 1, max: 10, when: v => v.mw_on},
+        {key: 'down', label: 'Failures until down', type: 'number', min: 1, when: v => v.mw_on},
+        {key: 'up', label: 'Successes until up', type: 'number', min: 1, when: v => v.mw_on},
+        {key: 'mw_metric', label: 'Member metric', type: 'number', min: 1, max: 256, when: v => v.mw_on, help: 'Lower is preferred; equal metrics share load.'},
+        {key: 'mw_weight', label: 'Member weight', type: 'number', min: 1, max: 1000, when: v => v.mw_on, help: 'Share of traffic among equal metrics.'},
+        {key: 'mw_policies', label: 'Use in policies', type: 'multi', options: pols, when: v => v.mw_on}]}],
+    onChange: (k, v, set) => {
+      if (k === 'zone' && v.zone === 'wan' && v.proto === 'static' && !editing) set('dhcp_on', false);
+      if (k === 'proto' && ['dhcp', 'pppoe'].includes(v.proto) && !editing) { set('zone', 'wan'); set('dhcp_on', false); }
+    },
+    onSubmit: v => {
+      const i = {name: (v.name || '').trim(), proto: v.proto, ipv6: v.ipv6, auto: v.auto};
+      if (editing || v.dev_mode === 'existing') i.device = v.device;
+      // Like LuCI: custom DNS only applies when peer DNS is off (or on static interfaces).
+      if (v.proto !== 'none') Object.assign(i, {dns: (['dhcp', 'pppoe'].includes(v.proto) && v.peerdns) ? [] : v.dns, metric: v.metric});
+      if (v.proto === 'static') Object.assign(i, {ipaddr: (v.ipaddr || '').trim(), gateway: (v.gateway || '').trim()});
+      if (v.proto === 'dhcp') { i.hostname = v.hostname; if (v.clientid || (editing && iface.clientid)) i.clientid = v.clientid; }
+      if (v.proto === 'pppoe') Object.assign(i, {username: v.username, password: v.password || ''});
+      if (['dhcp', 'pppoe'].includes(v.proto)) Object.assign(i, {defaultroute: v.defaultroute, peerdns: v.peerdns});
+      if (!editing && !i.name) throw new Error('Give the interface a name.');
+      const params = {interface: i, zone: v.zone || null};
+      if (v.proto === 'static') params.dhcp_server = {enabled: !!v.dhcp_on, start: v.dhcp_start, limit: v.dhcp_limit, leasetime: v.dhcp_lease};
+      if (!editing && v.dev_mode !== 'existing') {
+        if (v.dev_mode === 'new8021q' && !v.vid) throw new Error('Enter the VLAN ID.');
+        params.device = {mode: 'new', type: v.dev_mode === 'new8021q' ? '8021q' : 'macvlan', base: v.base, vid: v.vid, name: v.dev_name, macaddr: v.dev_mac, ipv6: v.dev_ipv6};
+        if (v.dev_mode === 'newmacvlan' && !v.dev_name) throw new Error('Give the MAC VLAN device a name (e.g. wanmac6).');
+      }
+      if (!editing && isWan(v) && v.mw_on) params.mwan = {enabled: true, track_ip: v.track_ip, reliability: v.reliability, count: 1, timeout: v.timeout, interval: v.interval,
+        failure_interval: v.failure_interval, recovery_interval: v.recovery_interval, down: v.down, up: v.up, metric: v.mw_metric, weight: v.mw_weight, policies: v.mw_policies};
+      return act(editing ? 'ow_iface_edit' : 'ow_setup', params);
+    }});
+}
+
+function mwIfaceDialog(c, mi) {
+  // mi = existing mwan3 interface to edit, or null to add one (like LuCI MultiWAN → Interfaces → Add)
+  const tracked = new Set(c.mwan.interfaces.map(x => x.name));
+  const free = c.interfaces.filter(i => !tracked.has(i.name) && i.name !== 'lan');
+  const pols = c.mwan.policies.map(x => x.name);
+  const v = mi ? {...mi, enabled: mi.enabled !== '0'} : {name: (free.find(i => i.zone === 'wan') || free[0] || {}).name || '', enabled: true,
+    track_ip: ['8.8.8.8'], reliability: 1, count: 1, timeout: 4, interval: 10, failure_interval: 5, recovery_interval: 5, down: 5, up: 5,
+    initial_state: 'online', mk_member: true, member_name: '', metric: 1, weight: 1, policies: []};
+  formDialog({title: mi ? `mwan3 interface ${mi.name}` : 'Add mwan3 interface',
+    intro: mi ? '' : 'Pick a router interface for mwan3 to health-track. Optionally give it a member right away so policies can use it.',
+    values: v, sections: [
+      {title: mi ? '' : 'Interface', fields: [
+        ...(mi ? [] : [{key: 'name', label: 'Router interface', type: 'select',
+          options: free.map(i => ({value: i.name, label: `${i.name} (${i.proto}${i.zone ? ', zone ' + i.zone : ''})`})),
+          help: free.length ? '' : 'Every router interface is already tracked.'}]),
+        {key: 'enabled', label: 'Enabled', type: 'checkbox'},
+        {key: 'track_ip', label: 'Tracking IPs', type: 'list', help: 'Pinged through this link.'},
+        {key: 'reliability', label: 'Reliability', type: 'number', min: 1, help: 'Tracking IPs that must answer.'},
+        {key: 'count', label: 'Pings per check', type: 'number', min: 1, max: 5},
+        {key: 'timeout', label: 'Ping timeout (s)', type: 'number', min: 1, max: 10},
+        {key: 'interval', label: 'Check interval (s)', type: 'number', min: 1},
+        {key: 'failure_interval', label: 'Interval while failing (s)', type: 'number', min: 1},
+        {key: 'recovery_interval', label: 'Interval while recovering (s)', type: 'number', min: 1},
+        {key: 'down', label: 'Failures until offline', type: 'number', min: 1},
+        {key: 'up', label: 'Successes until online', type: 'number', min: 1},
+        {key: 'initial_state', label: 'State at boot', type: 'select', options: ['online', 'offline']}]},
+      ...(mi ? [] : [{title: 'Member', fields: [
+        {key: 'mk_member', label: 'Create a member for it', type: 'checkbox', help: 'Policies use members, not interfaces.'},
+        {key: 'member_name', label: 'Member name', type: 'text', placeholder: 'm_<interface>', when: x => x.mk_member},
+        {key: 'metric', label: 'Metric', type: 'number', min: 1, max: 256, when: x => x.mk_member, help: 'Lower is used first; equal metrics share traffic.'},
+        {key: 'weight', label: 'Weight', type: 'number', min: 1, max: 1000, when: x => x.mk_member},
+        {key: 'policies', label: 'Add to policies', type: 'multi', options: pols, when: x => x.mk_member}]}])],
+    onSubmit: x => {
+      if (mi) return act('ow_mwan_iface', {...x, name: mi.name});
+      if (!x.name) throw new Error('Pick a router interface.');
+      const params = {name: x.name, enabled: x.enabled, track_ip: x.track_ip, reliability: x.reliability, count: x.count, timeout: x.timeout,
+        interval: x.interval, failure_interval: x.failure_interval, recovery_interval: x.recovery_interval, down: x.down, up: x.up, initial_state: x.initial_state};
+      if (x.mk_member) params.member = {name: (x.member_name || '').trim() || `m_${x.name}`, metric: x.metric, weight: x.weight, policies: x.policies};
+      return act('ow_mwan_iface', params);
+    }});
+}
+function memberDialog(c, m) {
+  formDialog({title: m ? `Member ${m.name}` : 'New mwan3 member', values: m || {name: '', interface: c.mwan.interfaces[0]?.name, metric: 1, weight: 1},
+    sections: [{fields: [
+      {key: 'name', label: 'Name', type: 'text', readonly: !!m, placeholder: 'e.g. m_isp4'},
+      {key: 'interface', label: 'Interface', type: 'select', options: c.mwan.interfaces.map(x => x.name)},
+      {key: 'metric', label: 'Metric', type: 'number', min: 1, max: 256, help: 'Lower is used first; equal metrics share traffic.'},
+      {key: 'weight', label: 'Weight', type: 'number', min: 1, max: 1000, help: 'Traffic share among equal metrics.'}]}],
+    onSubmit: x => act('ow_mwan_member', {...x, original_name: m ? m.name : null})});
+}
+function policyDialog(c, pol) {
+  formDialog({title: pol ? `Policy ${pol.name}` : 'New mwan3 policy', values: pol || {name: '', use_member: [], last_resort: 'unreachable'},
+    sections: [{fields: [
+      {key: 'name', label: 'Name', type: 'text', readonly: !!pol},
+      {key: 'use_member', label: 'Members', type: 'multi', options: c.mwan.members.map(m => ({value: m.name, label: `${m.name} (${m.interface}, m${m.metric}/w${m.weight})`}))},
+      {key: 'last_resort', label: 'When all are down', type: 'select', options: [{value: 'unreachable', label: 'unreachable (reject)'}, {value: 'blackhole', label: 'blackhole (drop)'}, {value: 'default', label: 'default (main routing table)'}]}]}],
+    onSubmit: x => act('ow_mwan_policy', {...x, original_name: pol ? pol.name : null})});
+}
+function ruleDialog(c, r) {
+  formDialog({title: r ? `Rule ${r.name}` : 'New mwan3 rule',
+    intro: 'Rules are checked top to bottom; the first match decides which policy carries the traffic.',
+    values: r ? {...r, sticky: r.sticky === '1'} : {name: '', proto: 'all', src_ip: '', dest_ip: '', src_port: '', dest_port: '', sticky: false, timeout: 600, use_policy: c.mwan.policies[0]?.name},
+    sections: [{fields: [
+      {key: 'name', label: 'Name', type: 'text', readonly: !!r, placeholder: 'e.g. policy_tv'},
+      {key: 'src_ip', label: 'Source address', type: 'text', placeholder: 'any, or 192.0.2.5/32'},
+      {key: 'dest_ip', label: 'Destination address', type: 'text', placeholder: 'any, or 0.0.0.0/0'},
+      {key: 'proto', label: 'Protocol', type: 'select', options: ['all', 'tcp', 'udp', 'icmp', 'esp']},
+      {key: 'src_port', label: 'Source port', type: 'text', placeholder: 'any', when: v => ['tcp', 'udp'].includes(v.proto)},
+      {key: 'dest_port', label: 'Destination port', type: 'text', placeholder: 'any, e.g. 443 or 1000-2000', when: v => ['tcp', 'udp'].includes(v.proto)},
+      {key: 'sticky', label: 'Sticky', type: 'checkbox', help: 'Keep a client on the same link for a while (helps banking/login sites).'},
+      {key: 'timeout', label: 'Sticky timeout (s)', type: 'number', min: 1, when: v => v.sticky},
+      {key: 'use_policy', label: 'Policy', type: 'select', options: [...c.mwan.policies.map(p => p.name), 'default']}]}],
+    onSubmit: x => act('ow_mwan_rule', {...x, original_name: r ? r.name : null})});
+}
+
+
+
+// ---------- "New network" on the VLAN page: Omada + (optional) router steps, applied together
+async function newNetworkDialog() {
+  let c = null;
+  try { c = await api('/api/openwrt', {noseq: true}); } catch (e) { /* router not readable: switch-only form */ }
+  const nn = META.new_network, lags = (SW && SW.lags) || [];
+  const pols = c ? c.mwan.policies.map(x => x.name) : [];
+  const ifName = n => (n || '').replace(/[^A-Za-z0-9_]/g, '_').replace(/^[^A-Za-z]+/, '').slice(0, 15);
+  const v0 = {name: '', vlan: '', igmp: false, carry: lags.length > 0, lag: lags[0] ? String(lags[0].lag) : '',
+    dhcp_dev: 'openwrt', gateway: '', prefix: 24, dhcp_en: true, range_start: '', range_end: '', lease_h: nn.lease_h || 12, dns: nn.dns || '', provider: '',
+    r_dev: !!c, r_mac: '', r_ipv6: false,
+    r_if: !!c, r_device: '', r_ifname: '', r_proto: 'static', r_ipaddr: '', r_username: '', r_password: '', r_hostname: '', r_metric: '',
+    r_defaultroute: true, r_peerdns: true, r_dns: [], r_zone: 'lan',
+    r_mw: true, track_ip: ['8.8.8.8'], reliability: 1, interval: 10, timeout: 4, down: 5, up: 5, mw_metric: 1, mw_weight: 1, mw_policies: pols.includes('balanced') ? ['balanced'] : []};
+  let touchedAddr = false, touchedIf = false;
+  const trunk = c ? c.trunk : 'bond';
+  const routerNote = c ? '' : '<div class="small" style="color:var(--warn)">The router config could not be read, so only the switch part is available.</div>';
+  formDialog({
+    title: 'New network (VLAN)',
+    intro: 'Pick what to set up. Nothing is created until you confirm the preview, and then everything is applied together. Cancel at any point and nothing changes.' + routerNote,
+    values: v0,
+    sections: [
+      {title: 'Switch (Omada)', fields: [
+        {key: 'name', label: 'Name', type: 'text', placeholder: 'e.g. Guest'},
+        {key: 'vlan', label: 'VLAN ID', type: 'number', min: 2, max: 4090},
+        {key: 'igmp', label: 'IGMP snooping', type: 'checkbox'},
+        ...(lags.length ? [
+          {key: 'carry', label: 'Carry it to the router', type: 'checkbox', help: 'Tags the VLAN on the switch↔router LAG; needed for the router to see it.'},
+          {key: 'lag', label: 'LAG', type: 'select', options: lags.map(l => ({value: String(l.lag), label: `${l.name} (ports ${l.ports.join(' + ')})`})), when: v => v.carry && lags.length > 1}] : [])]},
+      {title: 'Who hands out addresses (DHCP)', fields: [
+        {key: 'dhcp_dev', label: 'DHCP server', type: 'select', options: [{value: 'openwrt', label: 'The router (OpenWrt)'}, {value: 'upstream', label: 'An upstream device (ISP box / modem)'}, {value: 'none', label: 'Nobody (static IPs)'}]},
+        {key: 'gateway', label: 'Router address (gateway)', type: 'text', placeholder: '10.0.20.1', when: v => v.dhcp_dev === 'openwrt'},
+        {key: 'prefix', label: 'Prefix', type: 'number', min: 16, max: 30, when: v => v.dhcp_dev === 'openwrt'},
+        {key: 'dhcp_en', label: 'Hand out addresses', type: 'checkbox', when: v => v.dhcp_dev === 'openwrt'},
+        {key: 'range_start', label: 'First address', type: 'text', when: v => v.dhcp_dev === 'openwrt' && v.dhcp_en},
+        {key: 'range_end', label: 'Last address', type: 'text', when: v => v.dhcp_dev === 'openwrt' && v.dhcp_en},
+        {key: 'lease_h', label: 'Lease (hours)', type: 'number', min: 1, max: 168, when: v => v.dhcp_dev === 'openwrt' && v.dhcp_en},
+        {key: 'dns', label: 'DNS for clients', type: 'text', when: v => v.dhcp_dev === 'openwrt' && v.dhcp_en},
+        {key: 'provider', label: 'Which device', type: 'text', placeholder: 'e.g. ISP fibre box', when: v => v.dhcp_dev === 'upstream'}]},
+      {title: 'Router step 1: device', when: () => !!c, fields: [
+        {key: 'r_dev', label: 'Create the VLAN device', type: 'checkbox', help: `Creates <code>${esc(trunk)}.&lt;VLAN&gt;</code> on the router, like Network → Devices → Add.`},
+        {key: 'r_mac', label: 'MAC address', type: 'text', placeholder: 'hardware default', when: v => v.r_dev},
+        {key: 'r_ipv6', label: 'Enable IPv6 on device', type: 'checkbox', when: v => v.r_dev}]},
+      {title: 'Router step 2: interface', when: () => !!c, fields: [
+        {key: 'r_if', label: 'Create an interface', type: 'checkbox'},
+        {key: 'r_device', label: 'On existing device', type: 'select', options: c ? c.devices.map(d => d.name) : [], when: v => v.r_if && !v.r_dev},
+        {key: 'r_ifname', label: 'Interface name', type: 'text', placeholder: 'from the network name', when: v => v.r_if},
+        {key: 'r_proto', label: 'Protocol', type: 'select', when: v => v.r_if, options: [{value: 'static', label: 'Static address'}, {value: 'dhcp', label: 'DHCP client'}, {value: 'pppoe', label: 'PPPoE'}, {value: 'none', label: 'Unmanaged (no IP)'}]},
+        {key: 'r_ipaddr', label: 'IPv4 address / prefix', type: 'text', placeholder: '10.0.20.1/24', when: v => v.r_if && v.r_proto === 'static' && v.dhcp_dev !== 'openwrt',
+         help: 'With the router as DHCP server, the address and DHCP range come from the section above.'},
+        {key: 'r_hostname', label: 'Hostname to send', type: 'text', placeholder: 'router default', when: v => v.r_if && v.r_proto === 'dhcp'},
+        {key: 'r_username', label: 'PPPoE username', type: 'text', when: v => v.r_if && v.r_proto === 'pppoe'},
+        {key: 'r_password', label: 'PPPoE password', type: 'password', when: v => v.r_if && v.r_proto === 'pppoe'},
+        {key: 'r_defaultroute', label: 'Use default gateway', type: 'checkbox', when: v => v.r_if && ['dhcp', 'pppoe'].includes(v.r_proto)},
+        {key: 'r_metric', label: 'Use gateway metric', type: 'number', min: 0, max: 9999, placeholder: '0 (none)', when: v => v.r_if && v.r_proto !== 'none',
+         help: 'Lower metric = preferred default route when several links have a gateway.'},
+        {key: 'r_peerdns', label: 'Use DNS servers advertised by peer', type: 'checkbox', when: v => v.r_if && ['dhcp', 'pppoe'].includes(v.r_proto)},
+        {key: 'r_dns', label: 'Use custom DNS servers', type: 'list', placeholder: 'none, e.g. 1.1.1.1, 8.8.8.8',
+         when: v => v.r_if && (v.r_proto === 'static' || (['dhcp', 'pppoe'].includes(v.r_proto) && !v.r_peerdns))},
+        {key: 'r_zone', label: 'Firewall zone', type: 'select', when: v => v.r_if, options: [{value: '', label: 'none'}, ...(c ? c.zones.map(z => ({value: z.name, label: z.name})) : [])]}]},
+      {title: 'Router step 3: MultiWAN', when: v => !!c && v.r_if && v.r_zone === 'wan', fields: [
+        {key: 'r_mw', label: 'Add to mwan3', type: 'checkbox', help: 'Health tracking plus load balancing / failover.'},
+        {key: 'track_ip', label: 'Tracking IPs', type: 'list', when: v => v.r_mw},
+        {key: 'reliability', label: 'Reliability', type: 'number', min: 1, when: v => v.r_mw},
+        {key: 'interval', label: 'Ping interval (s)', type: 'number', min: 1, when: v => v.r_mw},
+        {key: 'down', label: 'Failures until down', type: 'number', min: 1, when: v => v.r_mw},
+        {key: 'up', label: 'Successes until up', type: 'number', min: 1, when: v => v.r_mw},
+        {key: 'mw_metric', label: 'Member metric', type: 'number', min: 1, max: 256, when: v => v.r_mw},
+        {key: 'mw_weight', label: 'Member weight', type: 'number', min: 1, max: 1000, when: v => v.r_mw},
+        {key: 'mw_policies', label: 'Use in policies', type: 'multi', options: pols, when: v => v.r_mw}]}],
+    onChange: (k, v, set) => {
+      if (['gateway', 'prefix', 'range_start', 'range_end'].includes(k)) touchedAddr = true;
+      if (k === 'r_ifname') touchedIf = true;
+      if (k === 'name' && !touchedIf) set('r_ifname', ifName(v.name));
+      if (k === 'vlan' && !touchedAddr) {  // suggest addresses from the subnet template, e.g. 10.0.{n}.1/24
+        const m = (nn.subnet_template || '').replace('{n}', (+v.vlan || 0) % 256).match(/^(\d+\.\d+\.\d+)\.(\d+)\/(\d+)$/);
+        if (m && +v.vlan >= 2) { set('gateway', `${m[1]}.${m[2]}`); set('prefix', +m[3]);
+          if (m[3] === '24') { set('range_start', `${m[1]}.${nn.range_start}`); set('range_end', `${m[1]}.${nn.range_end}`); } }
+      }
+      if (k === 'dhcp_dev') { const map = {openwrt: ['static', 'lan'], upstream: ['dhcp', 'wan'], none: ['none', '']}[v.dhcp_dev]; set('r_proto', map[0]); set('r_zone', map[1]); }
+      if (k === 'r_proto' && ['dhcp', 'pppoe'].includes(v.r_proto)) set('r_zone', 'wan');
+      if (k === 'r_dev' && !v.r_dev) set('r_device', v.r_device || (c ? c.devices[0]?.name : ''));
+    },
+    onSubmit: v => {
+      const vlan = +v.vlan, name = (v.name || '').trim();
+      if (!name) throw new Error('Give the network a name.');
+      if (!(vlan >= 2 && vlan <= 4090)) throw new Error('VLAN ID must be 2-4090.');
+      const ipv4 = x => /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/.test(x || '');
+      const dhcp = {device: v.dhcp_dev};
+      if (v.dhcp_dev === 'openwrt') {
+        Object.assign(dhcp, {gateway: (v.gateway || '').trim(), prefix: +v.prefix, enabled: !!v.dhcp_en});
+        if (!ipv4(dhcp.gateway)) throw new Error('Router address must be an IPv4 address, e.g. 10.0.20.1');
+        if (dhcp.enabled) {
+          Object.assign(dhcp, {range_start: v.range_start.trim(), range_end: v.range_end.trim(), lease_h: +v.lease_h, dns: (v.dns || '').trim()});
+          if (!ipv4(dhcp.range_start) || !ipv4(dhcp.range_end)) throw new Error('DHCP needs a first and last IPv4 address.');
+          if (!ipv4(dhcp.dns)) throw new Error('DNS for clients must be an IPv4 address.');
+        }
+      }
+      if (v.dhcp_dev === 'upstream') { dhcp.provider = (v.provider || '').trim(); if (!dhcp.provider) throw new Error('Say which device hands out addresses.'); }
+      const params = {name, vlan, igmp: !!v.igmp, dhcp, carry_lag: v.carry ? (v.lag || (lags[0] && lags[0].lag)) : null};
+      if (c && (v.r_dev || v.r_if)) {
+        const device = v.r_dev ? {mode: 'new', type: '8021q', base: trunk, vid: vlan, macaddr: (v.r_mac || '').trim(), ipv6: !!v.r_ipv6} : null;
+        if (!v.r_if) params.router = {device};
+        else {
+          const i = {name: (v.r_ifname || ifName(name)).trim(), proto: v.r_proto, ipv6: false, auto: true};
+          if (!i.name) throw new Error('Give the router interface a name.');
+          if (!v.r_dev) { if (!v.r_device) throw new Error('Pick the device for the interface.'); i.device = v.r_device; }
+          if (v.r_proto !== 'none' && v.r_metric !== '') i.metric = v.r_metric;
+          if (v.r_proto !== 'none' && (v.r_dns || []).length) i.dns = v.r_dns;
+          if (v.r_proto === 'static') i.ipaddr = v.dhcp_dev === 'openwrt' ? `${dhcp.gateway}/${dhcp.prefix}` : (v.r_ipaddr || '').trim();
+          if (v.r_proto === 'dhcp') i.hostname = v.r_hostname;
+          if (v.r_proto === 'pppoe') Object.assign(i, {username: v.r_username, password: v.r_password || ''});
+          if (['dhcp', 'pppoe'].includes(v.r_proto)) Object.assign(i, {defaultroute: v.r_defaultroute, peerdns: v.r_peerdns});
+          const r = {interface: i, zone: v.r_zone || null};
+          if (device) r.device = device;
+          if (v.r_proto === 'static' && v.dhcp_dev === 'openwrt') {
+            const s0 = dhcp.enabled ? +dhcp.range_start.split('.').pop() : 100, e0 = dhcp.enabled ? +dhcp.range_end.split('.').pop() : 150;
+            r.dhcp_server = {enabled: dhcp.enabled, start: s0, limit: e0 - s0 + 1, leasetime: `${dhcp.lease_h || 12}h`, dns: dhcp.dns || ''};
+          }
+          if (v.r_zone === 'wan' && v.r_mw) r.mwan = {enabled: true, track_ip: v.track_ip, reliability: v.reliability, count: 1, timeout: 4, interval: v.interval,
+            failure_interval: 5, recovery_interval: 5, down: v.down, up: v.up, metric: v.mw_metric, weight: v.mw_weight, policies: v.mw_policies};
+          params.router = r;
+        }
+      }
+      return act('net_create', params);
+    }});
+}
+
+
+// ---------- deleting a VLAN: optionally also its router device / interface / mwan3 (each only if ticked)
+function relatedToVlan(c, vid) {
+  const base = c.devices.filter(d => d.type === '8021q' && d.base === c.trunk && String(d.vid) === String(vid));
+  const names = new Set(base.length ? base.map(d => d.name) : [`${c.trunk}.${vid}`]);
+  const devices = [...base];
+  c.devices.forEach(d => { if (names.has(d.base) && !devices.includes(d)) { devices.push(d); names.add(d.name); } });
+  const interfaces = c.interfaces.filter(i => names.has(i.device)).map(i => i.name);
+  const tracked = new Set(c.mwan.interfaces.map(m => m.name));
+  const mwan = interfaces.filter(n => tracked.has(n));
+  return {devices, interfaces, mwan, members: c.mwan.members.filter(m => mwan.includes(m.interface)).map(m => m.name)};
+}
+async function deleteNetworkDialog(id) {
+  const n = SW.networks.find(x => x.id === id);
+  let c = null;
+  try { c = await api('/api/openwrt', {noseq: true}); } catch (e) { /* router not readable: switch-only delete */ }
+  const rel = c ? relatedToVlan(c, n.vlan) : null;
+  if (!rel || (!rel.devices.length && !rel.interfaces.length)) return act('net_delete', {id});
+  const list = a => a.map(x => `<code>${esc(x)}</code>`).join(', ');
+  formDialog({
+    title: `Delete network ${n.name} (VLAN ${n.vlan})`,
+    intro: 'The switch VLAN is deleted. The router has setup on this VLAN too: tick what should also be removed. Anything not ticked stays on the router.',
+    values: {device: false, interface: false, mwan: false},
+    sections: [{title: 'Also remove on the router', fields: [
+      {key: 'device', label: rel.devices.length > 1 ? 'Devices' : 'Device', type: 'checkbox', when: () => rel.devices.length > 0,
+       help: list(rel.devices.map(d => d.name)) + (rel.interfaces.length ? '. Needs the interfaces removed too.' : '')},
+      {key: 'interface', label: rel.interfaces.length > 1 ? 'Interfaces' : 'Interface', type: 'checkbox', when: () => rel.interfaces.length > 0,
+       help: list(rel.interfaces) + ', with their firewall-zone and DHCP entries' + (rel.mwan.length ? '. Needs mwan3 removed too.' : '')},
+      {key: 'mwan', label: 'MultiWAN (mwan3)', type: 'checkbox', when: () => rel.mwan.length > 0,
+       help: 'stop tracking ' + list(rel.mwan) + (rel.members.length ? '; delete member ' + list(rel.members) + ' and its policy entries' : '')}]}],
+    onChange: (k, v, set) => {
+      // keep the choices consistent: device ⇒ interface ⇒ mwan3 (when tracked); unticking a lower one unticks those above it
+      if (k === 'device' && v.device && rel.interfaces.length) set('interface', true);
+      if ((k === 'device' || k === 'interface') && v.interface && rel.mwan.length) set('mwan', true);
+      if (k === 'interface' && !v.interface && rel.interfaces.length) set('device', false);
+      if (k === 'mwan' && !v.mwan) { set('interface', false); set('device', false); }
+    },
+    onSubmit: v => act('net_delete', {id, router: {device: !!v.device, interface: !!v.interface, mwan: !!v.mwan}})});
+}
+
+
+// ---------- several MAC VLAN devices on one device, each optionally with its own interface (e.g. one PPPoE session each)
+function macvlanDialog(c, base) {
+  const bases = uniq([...c.devices.filter(d => d.type !== 'macvlan').map(d => d.name), 'wan']);
+  const devNames = new Set(c.devices.map(d => d.name)), ifNames = new Set(c.interfaces.map(i => i.name));
+  const prefixFor = b => (b === 'wan' ? 'wanmac' : b.replace(/[^A-Za-z0-9]/g, '') + 'mac');
+  const firstFree = (prefix, used, from = 0) => { let n = from; while (used.has(prefix + n)) n++; return n; };
+  const maxMetric = Math.max(0, ...c.interfaces.map(i => +i.metric || 0));
+  const pols = c.mwan.policies.map(x => x.name);
+  const b0 = base || bases[0];
+  const v0 = {base: b0, count: 2, dev_prefix: prefixFor(b0), dev_start: firstFree(prefixFor(b0), devNames), mac: 'random', mode: 'vepa', ipv6: false,
+    make_if: true, proto: 'pppoe', if_prefix: 'wan', if_start: firstFree('wan', ifNames, 1), metric_start: maxMetric + 1,
+    username: '', password: '', hostname: '', defaultroute: true, peerdns: true, dns: [], zone: 'wan',
+    mw_on: true, track_ip: ['8.8.8.8'], reliability: 1, interval: 10, timeout: 4, down: 5, up: 5, mw_metric: 1, mw_weight: 1,
+    mw_policies: pols.includes('balanced') ? ['balanced'] : [], rows: []};
+  formDialog({
+    title: base ? `MAC VLAN devices on ${base}` : 'Add MAC VLAN devices',
+    intro: 'Creates several MAC VLAN devices on one device, each with its own MAC, and optionally an interface on each: for example one PPPoE session per device. Everything is applied together, with automatic rollback.',
+    values: v0,
+    sections: [
+      {title: 'Devices', fields: [
+        {key: 'base', label: 'On device', type: 'select', options: bases, readonly: !!base},
+        {key: 'count', label: 'How many', type: 'number', min: 1, max: 16},
+        {key: 'dev_prefix', label: 'Device name prefix', type: 'text', help: 'Devices are named prefix + number, e.g. wanmac6, wanmac7.'},
+        {key: 'dev_start', label: 'First number', type: 'number', min: 0},
+        {key: 'mac', label: 'MAC addresses', type: 'select', options: [{value: 'random', label: 'A fixed random MAC for each (recommended)'}, {value: 'kernel', label: 'Kernel default (changes on every boot)'}],
+         help: 'ISPs often bind a PPPoE session to the MAC, so a fixed one is safer.'},
+        {key: 'mode', label: 'MAC VLAN mode', type: 'select', options: ['vepa', 'bridge', 'private', 'passthru']},
+        {key: 'ipv6', label: 'Enable IPv6', type: 'checkbox'}]},
+      {title: 'Interfaces', fields: [
+        {key: 'make_if', label: 'Create an interface on each', type: 'checkbox'},
+        {key: 'proto', label: 'Protocol', type: 'select', when: v => v.make_if, options: [{value: 'pppoe', label: 'PPPoE'}, {value: 'dhcp', label: 'DHCP client'}, {value: 'static', label: 'Static address'}, {value: 'none', label: 'Unmanaged (no IP)'}]},
+        {key: 'if_prefix', label: 'Interface name prefix', type: 'text', when: v => v.make_if, help: 'e.g. wan → wan7, wan8.'},
+        {key: 'if_start', label: 'First number', type: 'number', min: 0, when: v => v.make_if},
+        {key: 'metric_start', label: 'Gateway metric of the first', type: 'number', min: 0, when: v => v.make_if && v.proto !== 'none', help: 'Each next interface gets +1; change any of them in the table below.'},
+        {key: 'username', label: 'PPPoE username', type: 'text', when: v => v.make_if && v.proto === 'pppoe', help: 'Used for every session.'},
+        {key: 'password', label: 'PPPoE password', type: 'password', when: v => v.make_if && v.proto === 'pppoe'},
+        {key: 'hostname', label: 'Hostname to send', type: 'text', placeholder: 'router default', when: v => v.make_if && v.proto === 'dhcp'},
+        {key: 'defaultroute', label: 'Use default gateway', type: 'checkbox', when: v => v.make_if && ['dhcp', 'pppoe'].includes(v.proto)},
+        {key: 'peerdns', label: 'Use DNS servers advertised by peer', type: 'checkbox', when: v => v.make_if && ['dhcp', 'pppoe'].includes(v.proto)},
+        {key: 'dns', label: 'Use custom DNS servers', type: 'list', placeholder: 'none', when: v => v.make_if && (v.proto === 'static' || (['dhcp', 'pppoe'].includes(v.proto) && !v.peerdns))},
+        {key: 'zone', label: 'Firewall zone', type: 'select', when: v => v.make_if, options: [{value: '', label: 'none'}, ...c.zones.map(z => ({value: z.name, label: z.name}))]}]},
+      {title: 'Each device', fields: [
+        {key: 'rows', label: 'Adjust names, gateway metrics and (for static) addresses and gateways per device:', type: 'rows', count: v => v.count, columns: [
+          {key: 'dev_name', label: 'Device', default: (i, v) => `${v.dev_prefix}${(+v.dev_start || 0) + i}`},
+          {key: 'ifname', label: 'Interface', when: v => v.make_if, default: (i, v) => `${v.if_prefix}${(+v.if_start || 0) + i}`},
+          {key: 'metric', label: 'Gateway metric', type: 'number', width: 90, when: v => v.make_if && v.proto !== 'none', default: (i, v) => v.metric_start === '' ? '' : (+v.metric_start || 0) + i},
+          {key: 'ipaddr', label: 'Address / prefix', placeholder: '10.0.0.2/24', width: 140, when: v => v.make_if && v.proto === 'static'},
+          {key: 'gateway', label: 'Gateway', placeholder: '10.0.0.1', width: 120, when: v => v.make_if && v.proto === 'static'}]}]},
+      {title: 'MultiWAN (mwan3)', when: v => v.make_if && v.zone === 'wan', fields: [
+        {key: 'mw_on', label: 'Add each to mwan3', type: 'checkbox', help: 'One tracked interface and one member per device.'},
+        {key: 'track_ip', label: 'Tracking IPs', type: 'list', when: v => v.mw_on},
+        {key: 'reliability', label: 'Reliability', type: 'number', min: 1, when: v => v.mw_on},
+        {key: 'interval', label: 'Ping interval (s)', type: 'number', min: 1, when: v => v.mw_on},
+        {key: 'down', label: 'Failures until down', type: 'number', min: 1, when: v => v.mw_on},
+        {key: 'up', label: 'Successes until up', type: 'number', min: 1, when: v => v.mw_on},
+        {key: 'mw_metric', label: 'Member metric', type: 'number', min: 1, max: 256, when: v => v.mw_on, help: 'Equal metrics share traffic (load balancing).'},
+        {key: 'mw_weight', label: 'Member weight', type: 'number', min: 1, max: 1000, when: v => v.mw_on},
+        {key: 'mw_policies', label: 'Use in policies', type: 'multi', options: pols, when: v => v.mw_on}]}],
+    onChange: (k, v, set) => {
+      if (k === 'base') { set('dev_prefix', prefixFor(v.base)); set('dev_start', firstFree(prefixFor(v.base), devNames)); }
+      if (k === 'dev_prefix') set('dev_start', firstFree(v.dev_prefix, devNames));
+      if (k === 'if_prefix') set('if_start', firstFree(v.if_prefix, ifNames, 1));
+      if (k === 'proto') set('zone', v.proto === 'static' || v.proto === 'none' ? v.zone : 'wan');
+    },
+    onSubmit: v => {
+      if (!(+v.count >= 1 && +v.count <= 16)) throw new Error('How many: 1 to 16.');
+      const params = {base: v.base, mode: v.mode, mac: v.mac, ipv6: v.ipv6, interfaces: v.make_if, rows: v.rows.map(r => ({...r}))};
+      if (v.make_if) {
+        Object.assign(params, {proto: v.proto, zone: v.zone || null, defaultroute: v.defaultroute, peerdns: v.peerdns,
+          dns: (['dhcp', 'pppoe'].includes(v.proto) && v.peerdns) ? [] : v.dns});
+        if (v.proto === 'pppoe') { if (!v.username) throw new Error('Enter the PPPoE username.'); Object.assign(params, {username: v.username, password: v.password || ''}); }
+        if (v.proto === 'dhcp') params.hostname = v.hostname;
+        if (v.zone === 'wan' && v.mw_on) params.mwan = {enabled: true, track_ip: v.track_ip, reliability: v.reliability, count: 1, timeout: v.timeout,
+          interval: v.interval, failure_interval: 5, recovery_interval: 5, down: v.down, up: v.up, metric: v.mw_metric, weight: v.mw_weight, policies: v.mw_policies};
+      }
+      return act('ow_macvlan_bulk', params);
+    }});
 }
 
 let PAIRBOX = null;  // {html, exp}: survives the 30 s auto-refresh
@@ -465,38 +1268,100 @@ function renderAlertStatus(d) {
       PAIRBOX = {html: $('#tg-pairbox').innerHTML, exp: Date.now() + r.expires_in * 1000, was_unpaired: !d.paired};
     } catch (e) { $('#tg-pairbox').innerHTML = `<div class="err">${esc(e.message)}</div>`; }
   };
-  if ($('#tg-test')) $('#tg-test').onclick = async () => { try { await post('/api/alerts/test'); alert('Sent. Check Telegram.'); } catch (e) { alert(e.message); } };
+  if ($('#tg-test')) $('#tg-test').onclick = async () => { try { await post('/api/alerts/test'); toast('Test message sent. Check Telegram.'); } catch (e) { toast(e.message, 'bad'); } };
   if ($('#tg-unpair')) $('#tg-unpair').onclick = async () => { if (confirm('Stop sending alerts to the paired chat?')) { await post('/api/alerts/unpair'); load(); } };
 }
 
 const VIEWS = {
   async overview() {
-    const d = await api('/api/overview');
-    const down = d.devices.filter(x => !x.up);
-    const wansUp = d.wans.filter(w => w.status === 'online' || (w.up && !w.status)).length;
-    const px = d.proxmox || {}, dns = d.dns || {};
-    const blocking = (dns.nodes || []).map(n => n.blocking).filter(Boolean);
-    $('#view').innerHTML = `<div class="grid">
+    const [d, al] = await Promise.all([api('/api/overview'), api('/api/alerts').catch(() => null)]);
+    if (al) setHealth(al);
+    const probs = al?.problems || [];
+    const wanOk = w => w.status === 'online' || (w.up && !w.status);
+    const down = d.devices.filter(x => !x.up), wUp = d.wans.filter(wanOk).length;
+    const dns = d.dns || {}, nodes = (dns.nodes || []).filter(n => n.ok);
+    const holder = nodes.find(n => n.name === dns.vip_owner) || nodes[0] || {};
+    const blockingOn = nodes.length && nodes.every(n => n.blocking === 'enabled');
+    const px = d.proxmox || {}, rs = d.router_system || {};
+    const groups = al?.groups || {};
+    const groupOf = n => Object.keys(groups).find(g => groups[g].includes(n)) || 'other links';
+    const byGroup = {}; d.wans.forEach(w => (byGroup[groupOf(w.name)] ||= []).push(w));
+    const devGroups = {}; d.devices.forEach(x => (devGroups[x.group || 'other'] ||= []).push(x));
+    const checked = al?.last_check ? Math.max(0, Math.round(Date.now() / 1000 - al.last_check)) : null;
+    const ring = (pct, label) => { const r = 26, c = 2 * Math.PI * r, v = Math.max(0, Math.min(100, +pct || 0));
+      const col = v >= 90 ? 'var(--bad)' : v >= 75 ? 'var(--warn)' : 'var(--accent)';
+      return `<figure><svg class="ring" viewBox="0 0 64 64" role="img" aria-label="${label} ${pct == null ? 'unknown' : Math.round(v) + '%'}">
+        <circle cx="32" cy="32" r="${r}" fill="none" stroke="var(--chip)" stroke-width="7"/>
+        <circle cx="32" cy="32" r="${r}" fill="none" stroke="${col}" stroke-width="7" stroke-linecap="round" stroke-dasharray="${(c * v / 100).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 32 32)"/>
+        <text x="32" y="36.5" text-anchor="middle" class="ring-t">${pct == null ? '–' : Math.round(v) + '%'}</text></svg><figcaption>${label}</figcaption></figure>`; };
+    const gauge = (v, lim) => { const lo = -32, hi = -4, pos = x => Math.max(0, Math.min(100, (x - lo) / (hi - lo) * 100));
+      const al_ = lim?.rx_pwr_low_alarm ?? -27, wl = lim?.rx_pwr_low_warn ?? -26, wh = lim?.rx_pwr_high_warn ?? -9;
+      return `<div class="gauge" role="img" aria-label="RX ${v} dBm, normal ${wl} to ${wh}">
+        <div class="gz bad" style="left:0;width:${pos(al_)}%"></div><div class="gz warn" style="left:${pos(al_)}%;width:${pos(wl) - pos(al_)}%"></div>
+        <div class="gz ok" style="left:${pos(wl)}%;width:${pos(wh) - pos(wl)}%"></div><div class="gz warn" style="left:${pos(wh)}%;width:${100 - pos(wh)}%"></div>
+        ${v != null ? `<div class="gm" style="left:${pos(v)}%"></div>` : ''}</div>
+        <div class="small">normal ${wl} to ${wh} dBm</div>`; };
+    const okState = o => o.connected && (!o.state_code || o.state_code === 'O5') && !Object.values(o.alarms || {}).some(x => x && !/clear/i.test(x));
+
+    $('#view').innerHTML = `<div class="ov">
       ${errBox(d.errors)}
-      <div class="card"><h2>Devices</h2><div class="big">${d.devices.length - down.length}/${d.devices.length}</div>
-        <div class="small">${down.length ? 'Down: ' + down.map(x => esc(x.name)).join(', ') : 'All responding'}</div></div>
-      <div class="card"><h2>Internet links</h2><div class="big">${wansUp}/${d.wans.length}</div>
-        <div class="small">${d.wans.filter(w => !(w.status === 'online' || (w.up && !w.status))).map(w => esc(w.name)).join(', ') || 'All online'}</div></div>
-      <div class="card"><h2>DNS</h2><div class="big">${esc(dns.vip_owner || '–')}</div>
-        <div class="small">holds VIP ${esc(dns.vip || '–')} · blocking ${blocking.every(b => b === 'enabled') ? pill(true,'on') : pill(false,'','paused/off')}</div></div>
-      ${(d.onts || []).map(v => `<div class="card"><h2>Fibre (${esc(v.name)})</h2><div class="big">${v.rx_dbm ?? '–'} dBm</div>
-        <div class="small">${esc(v.state || '')} · ${v.temp_c ?? '–'} °C · up ${esc(v.uptime || '–')}</div>
-        ${v.age_s > 300 ? `<div style="margin-top:6px"><span class="pill warn">stale: router poller last updated ${dur(v.age_s)} ago</span></div>` : ''}</div>`).join('')}
-      <div class="card"><h2>Proxmox</h2><div class="kv"><dt>CPU</dt><dd>${px.cpu_pct ?? '–'}%</dd><dt>RAM</dt><dd>${px.mem_pct ?? '–'}%</dd>
-        <dt>Guests running</dt><dd>${(px.guests || []).filter(g => g.status === 'running').length}/${(px.guests || []).length}</dd><dt>Uptime</dt><dd>${dur(px.uptime)}</dd></div></div>
-      <div class="card"><h2>Router</h2><div class="kv"><dt>Model</dt><dd>${esc(d.router_system?.model || '–')}</dd><dt>Uptime</dt><dd>${dur(d.router_system?.uptime)}</dd>
-        <dt>Load</dt><dd>${(d.router_system?.load || []).join(' / ')}</dd><dt>RAM</dt><dd>${d.router_system?.mem_used_pct ?? '–'}%</dd><dt>Switch ports up</dt><dd>${d.switch_ports_up ?? '–'}</dd></div></div>
-      <div class="card wide"><h2>Device health</h2><div class="scroll"><table><tr><th>Device</th><th>IP</th><th>Group</th><th>Status</th><th>Ping</th></tr>
-        ${d.devices.map(x => `<tr><td><span class="dot ${x.up ? 'ok' : 'bad'}"></span>${esc(x.name)}</td><td>${esc(x.ip)}</td><td>${esc(x.group)}</td><td>${pill(x.up)}</td><td>${x.ms != null ? x.ms + ' ms' : '–'}</td></tr>`).join('')}
-      </table></div></div>
-      <div class="card wide"><h2>Internet links</h2><div class="scroll"><table><tr><th>Link</th><th>State</th><th>IP</th><th>mwan3</th><th>Latency</th><th>Loss</th><th>Up for</th></tr>
-        ${d.wans.map(w => `<tr><td>${esc(w.name)}</td><td>${pill(w.up)}</td><td>${esc(w.ip || '–')}</td><td>${w.status ? `<span class="pill ${w.status === 'online' ? 'ok' : 'bad'}">${esc(w.status)}</span>` : '<span class="pill mut">not tracked</span>'}</td><td>${w.latency ?? '–'}</td><td>${w.loss != null ? w.loss + '%' : '–'}</td><td>${dur(w.uptime)}</td></tr>`).join('')}
-      </table></div></div></div>`;
+      <section class="hero ${probs.length ? 'is-bad' : 'is-ok'}">
+        <div class="hero-mark">${probs.length ? ICON.alert : ICON.check}</div>
+        <div style="flex:1;min-width:0">
+          <h2>${probs.length ? `${probs.length} ${probs.length === 1 ? 'problem needs' : 'problems need'} attention` : 'All systems operational'}</h2>
+          <p>${wUp}/${d.wans.length} internet links · ${d.devices.length - down.length}/${d.devices.length} devices · DNS on ${esc(dns.vip_owner || '–')}${checked != null ? ` · checked ${checked}s ago` : ''}</p>
+          ${probs.length ? `<ul class="hero-list">${probs.map(p => `<li><span class="dot bad"></span><div><b>${esc(p.text)}</b> <span class="small">· ${dur(p.for_s)}</span>
+            ${p.cause ? `<div class="small cause">↳ ${esc(p.cause)}</div>` : ''}</div>
+            ${p.key.startsWith('wan:') && p.key !== 'wan:ALL' ? `<button class="act sm" data-diag="${esc(p.key.slice(4))}">Diagnose</button>` : ''}</li>`).join('')}</ul>` : ''}
+        </div>
+      </section>
+
+      <div class="kpis">
+        <div class="card kpi"><div class="kpi-l">${ICON.internet} Internet</div>
+          <div class="big">${wUp}<span>/${d.wans.length} online</span></div>
+          <div class="segbar">${d.wans.map(w => `<i class="${wanOk(w) ? '' : 'bad'}" title="${esc(w.name)}: ${esc(w.status || (w.up ? 'up' : 'down'))}"></i>`).join('')}</div>
+          <div class="small">${d.wans.filter(w => !wanOk(w)).map(w => esc(w.name)).join(', ') || 'every link is up'}</div></div>
+        <div class="card kpi"><div class="kpi-l">${ICON.devices} Devices</div>
+          <div class="big">${d.devices.length - down.length}<span>/${d.devices.length} up</span></div>
+          <div class="dots">${d.devices.map(x => `<i class="${x.up ? '' : 'bad'}" title="${esc(x.name)}"></i>`).join('')}</div>
+          <div class="small">${down.length ? 'Down: ' + down.map(x => esc(x.name)).join(', ') : 'all responding'}</div></div>
+        <div class="card kpi"><div class="kpi-l">${ICON.dns} DNS</div>
+          <div class="kpi-row"><div><div class="big" style="font-size:20px">${esc(dns.vip_owner || '–')}</div>
+            <div class="small">holds ${esc(dns.vip || '–')}</div>
+            <div style="margin-top:6px">${blockingOn ? '<span class="pill ok">blocking on</span>' : '<span class="pill warn">blocking paused / off</span>'}</div></div>
+            <div class="rings">${ring(holder.percent, 'blocked')}</div></div></div>
+        <div class="card kpi"><div class="kpi-l">${ICON.router} Router</div>
+          <div class="kpi-row"><div><div class="big" style="font-size:20px">${dur(rs.uptime)}</div><div class="small">uptime · load ${(rs.load || []).slice(0, 1).join('') || '–'}</div>
+            <div class="small">${d.switch_ports_up ?? '–'} switch ports up</div></div>
+            <div class="rings">${ring(rs.mem_used_pct, 'RAM')}</div></div></div>
+        <div class="card kpi"><div class="kpi-l">${ICON.proxmox} Proxmox</div>
+          <div class="kpi-row"><div><div class="big" style="font-size:20px">${(px.guests || []).filter(g => g.status === 'running').length}<span>/${(px.guests || []).length} guests</span></div>
+            <div class="small">up ${dur(px.uptime)}</div></div>
+            <div class="rings">${ring(px.cpu_pct, 'CPU')}${ring(px.mem_pct, 'RAM')}</div></div></div>
+      </div>
+
+      ${(d.onts || []).length ? `<div class="fibre">${d.onts.map(o => `<div class="card">
+        <div class="card-h"><h2>${ICON.fibre} ${esc(o.name)}</h2><span class="spacer"></span>${okState(o) ? `<span class="pill ok">${esc(o.state || 'registered')}</span>` : `<span class="pill bad">${esc(o.state || 'no data')}</span>`}</div>
+        <div class="big">${o.rx_dbm ?? '–'}<span> dBm RX</span></div>
+        ${gauge(o.rx_dbm, o.limits)}
+        <div class="fstats"><span>TX <b>${o.tx_dbm ?? '–'} dBm</b></span><span>Temp <b>${o.temp_c ?? '–'} °C</b></span><span>Up <b>${esc(o.uptime || '–')}</b></span>
+          <span>Reading <b>${o.age_s != null ? dur(o.age_s) + ' old' : '–'}</b></span>${o.age_s > 300 ? '<span class="pill warn">stale</span>' : ''}</div></div>`).join('')}</div>` : ''}
+
+      <div class="card"><div class="card-h"><h2>${ICON.internet} Internet links</h2><span class="small">click a link to diagnose it</span></div>
+        ${Object.entries(byGroup).map(([g, ws]) => `<div class="tgroup"><div class="tgroup-h"><span>${esc(g)}</span><span class="small">${ws.filter(wanOk).length}/${ws.length} online</span></div>
+          <div class="tiles">${ws.map(w => { const ok = wanOk(w); return `<button class="tile ${ok ? '' : 'down'}" data-diag="${esc(w.name)}" title="Diagnose ${esc(w.name)}">
+            <div class="tile-h"><span class="dot ${ok ? 'ok' : 'bad'}"></span><b>${esc(w.name)}</b><span class="pill ${ok ? 'ok' : 'bad'}">${esc(w.status || (w.up ? 'up' : 'down'))}</span></div>
+            <div class="mono small">${esc((w.ip || '').split('/')[0] || 'no address')}</div>
+            <div class="tile-m"><span>${w.latency != null ? w.latency + ' ms' : '– ms'}</span><span>${w.loss != null ? w.loss + '% loss' : ''}</span><span>${w.uptime ? 'up ' + dur(w.uptime) : ''}</span></div></button>`; }).join('')}</div></div>`).join('')}
+      </div>
+
+      <div class="card"><div class="card-h"><h2>${ICON.devices} Devices</h2><span class="small">${d.devices.length - down.length} of ${d.devices.length} responding</span></div>
+        ${Object.entries(devGroups).map(([g, xs]) => `<div class="tgroup"><div class="tgroup-h"><span>${esc(GROUP_LABEL[g] || g)}</span></div><div class="chips">
+          ${xs.map(x => `<div class="chip ${x.up ? '' : 'down'}" title="${esc(x.ip)}"><span class="dot ${x.up ? 'ok' : 'bad'}"></span>${esc(x.name)}<span class="mono">${x.up ? (x.ms != null ? x.ms + ' ms' : 'up') : 'down'}</span></div>`).join('')}
+        </div></div>`).join('')}
+      </div>
+    </div>`;
+    document.querySelectorAll('[data-diag]').forEach(b => b.onclick = () => diagnoseWan(b.dataset.diag));
   },
 
   async dns() {
@@ -564,13 +1429,13 @@ const VIEWS = {
           <td class="small">${n.used_by.length ? n.used_by.map(esc).join(', ') : '<span class="pill warn">not on any port</span>'}</td>
           <td>${n.editable ? `<div class="row"><button class="act" data-netedit="${n.id}">Edit</button><button class="act" data-netdel="${n.id}">Delete</button></div>` : '<span class="small">🔒 built-in</span>'}</td></tr>`).join('')}
         </table></div></div>
-      <div class="card"><h2>Port profiles</h2><table><tr><th>Profile</th><th>Native</th><th>Tagged</th></tr>${d.profiles.map(p => `<tr><td>${esc(p.name)}</td><td class="small">${esc(p.native)}</td><td>${chips(p.tagged, 'mut')}</td></tr>`).join('')}</table></div>
+      <div class="card wide"><h2>Port profiles</h2><table><tr><th>Profile</th><th>Native</th><th>Tagged</th></tr>${d.profiles.map(p => `<tr><td>${esc(p.name)}</td><td class="small">${esc(p.native)}</td><td>${chips(p.tagged, 'mut')}</td></tr>`).join('')}</table></div>
     </div>`;
     document.querySelectorAll('[data-editvlan]').forEach(b => b.onclick = () => editVlans('port', +b.dataset.editvlan));
     document.querySelectorAll('[data-editlag]').forEach(b => b.onclick = () => editVlans('lag', +b.dataset.editlag));
-    $('#net-new').onclick = () => editNetwork(null);
+    $('#net-new').onclick = () => newNetworkDialog();
     document.querySelectorAll('[data-netedit]').forEach(b => b.onclick = () => editNetwork(b.dataset.netedit));
-    document.querySelectorAll('[data-netdel]').forEach(b => b.onclick = () => act('net_delete', {id: b.dataset.netdel}));
+    document.querySelectorAll('[data-netdel]').forEach(b => b.onclick = () => deleteNetworkDialog(b.dataset.netdel));
     document.querySelectorAll('[data-setprofile]').forEach(b => b.onclick = () => act('switch_port', {port:+b.dataset.setprofile, profile_id:$(`[data-profile="${b.dataset.setprofile}"]`).value}));
     document.querySelectorAll('[data-toggle]').forEach(b => b.onclick = () => act('switch_port', {port:+b.dataset.toggle, disable:b.dataset.disabled !== '1'}));
   },
@@ -585,17 +1450,104 @@ const VIEWS = {
         <dt>Temperature</dt><dd>${v.temp_c} °C</dd><dt>State</dt><dd>${esc(v.state)}</dd><dt>Uptime</dt><dd>${esc(v.uptime)}</dd><dt>FEC uncorrectable</dt><dd>${v.fec_uncorrectable}</dd>
         <dt>Data age</dt><dd>${v.age_s > 300 ? `<span class="pill warn">${dur(v.age_s)} old</span>` : dur(v.age_s)}</dd>
         ${Object.entries(v.alarms || {}).map(([k, x]) => `<dt>Alarm ${esc(k.toUpperCase())}</dt><dd>${/clear/i.test(x) ? pill(true,'clear') : pill(false,'',esc(x))}</dd>`).join('')}</div></div>`).join('')}
-      <div class="card"><h2>Physical ports</h2><table><tr><th>Port</th><th>Link</th><th>Speed</th><th>Rx</th><th>Tx</th><th>Errors</th></tr>
+      <div class="card span2"><h2>Physical ports</h2><table><tr><th>Port</th><th>Link</th><th>Speed</th><th>Rx</th><th>Tx</th><th>Errors</th></tr>
         ${(d.ports || []).map(p => `<tr><td>${esc(p.name)}</td><td>${pill(p.carrier)}</td><td>${esc(p.speed || '–')}</td><td>${bytes(p.rx_bytes)}</td><td>${bytes(p.tx_bytes)}</td><td>${(p.rx_errors || 0) + (p.tx_errors || 0)}</td></tr>`).join('')}</table></div>
-      <div class="card wide"><h2>Interfaces</h2><div class="scroll"><table><tr><th>Name</th><th>State</th><th>Proto</th><th>Device</th><th>IP</th><th>Gateway</th><th>mwan3</th><th>Up for</th><th></th></tr>
-        ${d.interfaces.map(i => { const m = d.mwan[i.name]; return `<tr><td><b>${esc(i.name)}</b></td><td>${pill(i.up)}</td><td>${esc(i.proto)}</td><td>${esc(i.device)}</td><td>${esc(i.ip || '–')}</td><td>${esc(i.gateway || '–')}</td>
-          <td>${m ? `<span class="pill ${m.status === 'online' ? 'ok' : 'bad'}">${esc(m.status)}</span> <span class="small">${m.latency ?? '–'} ms · ${m.loss ?? '–'}%</span>` : '–'}</td><td>${dur(i.uptime)}</td>
-          <td>${i.restartable ? `<div class="row"><button class="act" data-diag="${esc(i.name)}">Diagnose</button><button class="act" data-restart="${esc(i.name)}">Restart</button></div>` : ''}</td></tr>`; }).join('')}</table></div></div>
+      <div class="card"><h2>Configure</h2><div class="small" style="margin-bottom:10px">Interfaces, devices and MultiWAN have their own pages in the sidebar.</div>
+        <div class="row"><button class="act" data-goto="interfaces">Interfaces</button><button class="act" data-goto="netdevs">Network devices</button><button class="act" data-goto="mwan">MultiWAN</button></div></div>
       <div class="card wide"><h2>DHCP clients (${d.leases.length})</h2><div class="scroll"><table><tr><th>IP</th><th>Name</th><th>MAC</th><th>Lease ends</th></tr>
         ${d.leases.map(l => `<tr><td>${esc(l.ip)}</td><td>${esc(l.name || '–')}</td><td class="small">${esc(l.mac)}</td><td class="small">${new Date(l.expires * 1000).toLocaleString()}</td></tr>`).join('')}</table></div></div>
     </div>`;
-    document.querySelectorAll('[data-restart]').forEach(b => b.onclick = () => act('wan_restart', {iface:b.dataset.restart}));
+    document.querySelectorAll('[data-goto]').forEach(b => b.onclick = () => document.querySelector(`#tabs [data-t="${b.dataset.goto}"]`).click());
+  },
+
+  async interfaces() {
+    const [d, c] = await Promise.all([api('/api/router'), api('/api/openwrt').catch(e => ({error: e.message}))]);
+    const cfgOk = !c.error, cif = Object.fromEntries((c.interfaces || []).map(i => [i.name, i]));
+    $('#view').innerHTML = `<div class="grid">
+      ${cfgOk ? '' : `<div class="card wide err">Router config not readable: ${esc(c.error)}. Editing is unavailable.</div>`}
+      <div class="card wide"><h2>Interfaces <span class="spacer"></span>${cfgOk ? '<button class="act primary" id="if-new">+ Create interface</button>' : ''}</h2><div class="scroll"><table>
+        <tr><th>Name</th><th>State</th><th>Proto</th><th>Device</th><th>IP</th><th>Gateway</th><th>Zone</th><th>mwan3</th><th>Up for</th><th></th></tr>
+        ${d.interfaces.map(i => { const m = d.mwan[i.name], ci = cif[i.name] || {}; return `<tr><td><b>${esc(i.name)}</b></td><td>${pill(i.up)}</td><td>${esc(i.proto)}</td><td>${esc(i.device)}</td><td>${esc(i.ip || '–')}</td><td>${esc(i.gateway || '–')}</td>
+          <td>${ci.zone ? `<span class="pill ${ci.zone === 'wan' ? 'warn' : 'ok'}">${esc(ci.zone)}</span>` : '<span class="small">–</span>'}</td>
+          <td>${m ? `<span class="pill ${m.status === 'online' ? 'ok' : 'bad'}">${esc(m.status)}</span> <span class="small">${m.latency ?? '–'} ms · ${m.loss ?? '–'}%</span>` : '–'}</td><td>${dur(i.uptime)}</td>
+          <td><div class="row">${i.restartable ? `<button class="act sm" data-diag="${esc(i.name)}">Diagnose</button><button class="act sm" data-restart="${esc(i.name)}">Restart</button>` : ''}
+            ${cfgOk && cif[i.name] ? `<button class="act sm" data-ifedit="${esc(i.name)}">Edit</button>${i.name !== 'lan' ? `<button class="act sm" data-ifdel="${esc(i.name)}">Delete</button>` : ''}` : ''}</div></td></tr>`; }).join('')}</table></div>
+        <div class="small" style="margin-top:6px">Changes are applied with automatic rollback: if the router or a working internet link doesn't come back, the previous config is restored within ${c.rollback_s || 90} s.</div></div>
+    </div>`;
+    document.querySelectorAll('[data-restart]').forEach(b => b.onclick = () => act('wan_restart', {iface: b.dataset.restart}));
     document.querySelectorAll('[data-diag]').forEach(b => b.onclick = () => diagnoseWan(b.dataset.diag));
+    if (!cfgOk) return;
+    $('#if-new').onclick = () => ifaceDialog(c, null);
+    document.querySelectorAll('[data-ifedit]').forEach(b => b.onclick = () => ifaceDialog(c, cif[b.dataset.ifedit]));
+    document.querySelectorAll('[data-ifdel]').forEach(b => b.onclick = () => act('ow_iface_delete', {name: b.dataset.ifdel}));
+  },
+
+  async netdevs() {
+    const c = await api('/api/openwrt');
+    $('#view').innerHTML = `<div class="grid">
+      <div class="card wide"><h2>Network devices <span class="spacer"></span><button class="act" id="mv-new">+ MAC VLANs</button><button class="act primary" id="dev-new">+ Create device</button></h2><div class="scroll"><table>
+        <tr><th>Device</th><th>Type</th><th>Base / ports</th><th>VLAN</th><th>MAC</th><th>IPv6</th><th>Used by</th><th></th></tr>
+        ${c.devices.map(x => `<tr><td><b>${esc(x.name)}</b></td><td class="small">${esc(x.type)}</td><td class="small">${esc(x.base || x.ports.join(', ') || '–')}</td><td>${esc(x.vid || '–')}</td>
+          <td class="mono small">${esc(x.macaddr || 'default')}</td><td>${x.ipv6 ? '<span class="pill ok">on</span>' : '<span class="pill mut">off</span>'}</td>
+          <td class="small">${x.used_by.length ? esc(x.used_by.join(', ')) : '<span class="pill warn">unused</span>'}</td>
+          <td><div class="row">${x.type !== 'macvlan' ? `<button class="act sm" data-mvbase="${esc(x.name)}" title="Add MAC VLAN devices on ${esc(x.name)}">+ MAC VLANs</button>` : ''}<button class="act sm" data-devedit="${esc(x.id)}">Edit</button>${x.used_by.length ? '' : `<button class="act sm" data-devdel="${esc(x.id)}">Delete</button>`}</div></td></tr>`).join('')}</table></div>
+        <div class="small" style="margin-top:6px">A device must be unused (no interface, bridge or other device on it) before it can be deleted.</div></div>
+    </div>`;
+    $('#dev-new').onclick = () => deviceDialog(c, null);
+    $('#mv-new').onclick = () => macvlanDialog(c, null);
+    document.querySelectorAll('[data-mvbase]').forEach(b => b.onclick = () => macvlanDialog(c, b.dataset.mvbase));
+    document.querySelectorAll('[data-devedit]').forEach(b => b.onclick = () => deviceDialog(c, c.devices.find(x => x.id === b.dataset.devedit)));
+    document.querySelectorAll('[data-devdel]').forEach(b => b.onclick = () => act('ow_device_delete', {id: b.dataset.devdel}));
+  },
+
+  async mwan() {
+    const c = await api('/api/openwrt');
+    const M = c.mwan, polUsers = n => M.rules.filter(r => r.use_policy === n).map(r => r.name);
+    const memIn = n => M.policies.filter(p => p.use_member.includes(n)).map(p => p.name);
+    $('#view').innerHTML = `<div class="grid">
+      <div class="card wide small">mwan3 decides which internet link carries each connection: <b>interfaces</b> are health-tracked links, <b>members</b> give a link a metric (priority) and weight (share), <b>policies</b> group members, and <b>rules</b> (top to bottom) send traffic to a policy. Every change is applied with automatic rollback.</div>
+      <div class="card wide"><h2>Interfaces (health tracking) <span class="spacer"></span>
+        <button class="act primary" id="mw-add">+ Add interface</button></h2>
+        <div class="scroll"><table><tr><th>Interface</th><th>Status</th><th>Enabled</th><th>Tracking IPs</th><th>Reliability</th><th>Interval</th><th>Down / up</th><th>Members</th><th></th></tr>
+        ${M.interfaces.map(i => `<tr><td><b>${esc(i.name)}</b></td><td>${i.status ? `<span class="pill ${i.status === 'online' ? 'ok' : 'bad'}">${esc(i.status)}</span>` : '–'}</td>
+          <td>${i.enabled !== '0' ? '<span class="pill ok">yes</span>' : '<span class="pill mut">no</span>'}</td><td class="mono small">${esc(i.track_ip.join(', '))}</td>
+          <td>${esc(i.reliability || 1)}</td><td>${esc(i.interval || '–')} s</td><td>${esc(i.down || '–')} / ${esc(i.up || '–')}</td>
+          <td class="small">${esc(M.members.filter(m => m.interface === i.name).map(m => m.name).join(', ') || '–')}</td>
+          <td><div class="row"><button class="act sm" data-mwi="${esc(i.name)}">Edit</button><button class="act sm" data-mwx="${esc(i.name)}">Delete</button></div></td></tr>`).join('')}</table></div></div>
+      <div class="card wide"><h2>Members <span class="spacer"></span><button class="act" id="mm-new">+ New member</button></h2>
+        <div class="scroll"><table><tr><th>Member</th><th>Interface</th><th>Metric</th><th>Weight</th><th>In policies</th><th></th></tr>
+        ${M.members.map(m => `<tr><td><b>${esc(m.name)}</b></td><td>${esc(m.interface)}</td><td>${esc(m.metric)}</td><td>${esc(m.weight)}</td>
+          <td class="small">${esc(memIn(m.name).join(', ') || '–')}</td>
+          <td><div class="row"><button class="act sm" data-mme="${esc(m.name)}">Edit</button><button class="act sm" data-mmd="${esc(m.name)}">Delete</button></div></td></tr>`).join('')}</table></div></div>
+      <div class="card wide"><h2>Policies <span class="spacer"></span><button class="act" id="mp-new">+ New policy</button></h2>
+        <div class="scroll"><table><tr><th>Policy</th><th>Members</th><th>When all are down</th><th>Used by rules</th><th></th></tr>
+        ${M.policies.map(p => `<tr><td><b>${esc(p.name)}</b></td><td>${p.use_member.map(n => { const m = M.members.find(x => x.name === n) || {};
+            return `<span class="pill mut" style="margin:1px">${esc(n)} <span style="opacity:.7">${esc(m.interface || '?')} m${esc(m.metric || '?')}/w${esc(m.weight || '?')}</span></span>`; }).join('')}</td>
+          <td>${esc(p.last_resort)}</td><td class="small">${esc(polUsers(p.name).join(', ') || '–')}</td>
+          <td><div class="row"><button class="act sm" data-mpe="${esc(p.name)}">Edit</button>${polUsers(p.name).length ? '' : `<button class="act sm" data-mpd="${esc(p.name)}">Delete</button>`}</div></td></tr>`).join('')}</table></div></div>
+      <div class="card wide"><h2>Rules <span class="small" style="font-weight:400">checked top to bottom</span><span class="spacer"></span><button class="act" id="mr-new">+ New rule</button></h2>
+        <div class="scroll"><table><tr><th>#</th><th>Rule</th><th>Proto</th><th>Source</th><th>Destination</th><th>Sticky</th><th>Policy</th><th></th></tr>
+        ${M.rules.map((r, n) => `<tr><td>${n + 1}</td><td><b>${esc(r.name)}</b></td><td>${esc(r.proto || 'all')}</td>
+          <td class="mono small">${esc(r.src_ip || 'any')}${r.src_port ? ':' + esc(r.src_port) : ''}</td><td class="mono small">${esc(r.dest_ip || 'any')}${r.dest_port ? ':' + esc(r.dest_port) : ''}</td>
+          <td>${r.sticky === '1' ? `<span class="pill ok">${esc(r.timeout || 600)} s</span>` : '–'}</td><td><span class="pill" style="background:var(--accent-bg);color:var(--accent)">${esc(r.use_policy)}</span></td>
+          <td><div class="row"><button class="act sm" data-mru="${esc(r.name)}" ${n === 0 ? 'disabled' : ''} title="Move up">↑</button><button class="act sm" data-mrd="${esc(r.name)}" ${n === M.rules.length - 1 ? 'disabled' : ''} title="Move down">↓</button>
+            <button class="act sm" data-mre="${esc(r.name)}">Edit</button><button class="act sm" data-mrx="${esc(r.name)}">Delete</button></div></td></tr>`).join('')}</table></div></div>
+    </div>`;
+    const on = (sel, fn) => document.querySelectorAll(sel).forEach(b => b.onclick = () => fn(b));
+    $('#mw-add').onclick = () => mwIfaceDialog(c, null);
+    on('[data-mwx]', b => act('ow_mwan_iface_delete', {name: b.dataset.mwx}));
+    on('[data-mwi]', b => mwIfaceDialog(c, M.interfaces.find(x => x.name === b.dataset.mwi)));
+    $('#mm-new').onclick = () => memberDialog(c, null);
+    on('[data-mme]', b => memberDialog(c, M.members.find(x => x.name === b.dataset.mme)));
+    on('[data-mmd]', b => act('ow_mwan_member_delete', {name: b.dataset.mmd}));
+    $('#mp-new').onclick = () => policyDialog(c, null);
+    on('[data-mpe]', b => policyDialog(c, M.policies.find(x => x.name === b.dataset.mpe)));
+    on('[data-mpd]', b => act('ow_mwan_policy_delete', {name: b.dataset.mpd}));
+    $('#mr-new').onclick = () => ruleDialog(c, null);
+    on('[data-mre]', b => ruleDialog(c, M.rules.find(x => x.name === b.dataset.mre)));
+    on('[data-mrx]', b => act('ow_mwan_rule_delete', {name: b.dataset.mrx}));
+    on('[data-mru]', b => act('ow_mwan_rule_move', {name: b.dataset.mru, step: -1}));
+    on('[data-mrd]', b => act('ow_mwan_rule_move', {name: b.dataset.mrd, step: 1}));
   },
 
   async wifi() {
@@ -691,7 +1643,7 @@ const VIEWS = {
       <div class="card"><h2>General <span class="spacer"></span>${save('gen-save')}</h2><div class="frm">
         <label for="gen-name">Site name</label>${inp('gen-name', d.general.site_name, 'maxlength="40"')}</div></div>
 
-      <div class="card"><h2>Protected switch ports <span class="spacer"></span><button class="act" id="pp-add">+ Add</button>${save('pp-save')}</h2>
+      <div class="card span2"><h2>Protected switch ports <span class="spacer"></span><button class="act" id="pp-add">+ Add</button>${save('pp-save')}</h2>
         <table id="pp-table"></table><div class="small" style="margin-top:6px">Changes to these ports need the port name typed to confirm.</div></div>
 
       <div class="card wide"><h2>Connections <span class="spacer"></span>${save('con-save')}</h2>
@@ -804,6 +1756,17 @@ const VIEWS = {
         <td>${a.result && a.result.ok ? pill(true,'ok') : `<span class="pill bad">failed</span> <span class="small">${esc(a.result?.error || a.result)}</span>`}</td></tr>`).join('') || '<tr><td class="small">No changes yet.</td></tr>'}</table></div></div>`;
   },
 };
+document.querySelectorAll('#tabs button').forEach(b => {
+  b.innerHTML = (ICON[b.dataset.t] || '') + `<span>${b.textContent}</span>` + (b.dataset.t === 'alerts' ? '<em class="nb" id="nb-alerts" hidden></em>' : '');
+});
+$('#brand-logo').innerHTML = ICON.logo;
+$('#signout').innerHTML = ICON.logout + '<span>Sign out</span>';
+$('#refresh').innerHTML = ICON.refresh;
+$('#refresh').onclick = () => load(false);
+let theme = 'auto';
+try { theme = localStorage.getItem('noc-theme') || 'auto'; } catch (e) {}
+applyTheme(THEMES.includes(theme) ? theme : 'auto');
+$('#theme').onclick = () => applyTheme(THEMES[(THEMES.indexOf(document.documentElement.dataset.theme || 'auto') + 1) % THEMES.length]);
 api('/api/meta').then(m => { META = m; document.title = m.site_name; $('#site-name').textContent = m.site_name; })
   .catch(() => {}).finally(load);
 </script>

@@ -25,6 +25,7 @@ import urllib3
 from fastapi import FastAPI, Request
 
 import notify
+import openwrt
 import settings
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 
@@ -79,6 +80,7 @@ def derive_settings():
 
 
 derive_settings()
+VIEW_STALE = 300  # page views may show data up to 5 min old while it refreshes in the background
 
 
 def wan_groups():
@@ -111,12 +113,10 @@ _cache: dict = {}
 _cache_lock = threading.Lock()
 
 
-def cached(key, ttl, fn):
-    now = time.time()
-    with _cache_lock:
-        hit = _cache.get(key)
-        if hit and now - hit[0] < ttl:
-            return hit[1]
+_refreshing: set = set()
+
+
+def _store(key, fn):
     try:
         val = fn()
     except Exception as e:  # surface collector failures to the UI instead of crashing
@@ -124,6 +124,32 @@ def cached(key, ttl, fn):
     with _cache_lock:
         _cache[key] = (time.time(), val)
     return val
+
+
+def cached(key, ttl, fn, stale=0):
+    """Value of fn(), reused for `ttl` seconds.
+
+    With `stale` > 0 (page views only), an expired but recent good value is returned at once
+    and refreshed in the background, so tabs open instantly. The watcher and every action
+    use the default (stale=0) and always get data no older than `ttl`."""
+    now = time.time()
+    with _cache_lock:
+        hit = _cache.get(key)
+        if hit and now - hit[0] < ttl:
+            return hit[1]
+        usable = hit and now - hit[0] < stale and not (isinstance(hit[1], dict) and "error" in hit[1])
+        if usable:
+            if key not in _refreshing:
+                _refreshing.add(key)
+
+                def refresh():
+                    try:
+                        _store(key, fn)
+                    finally:
+                        _refreshing.discard(key)
+                threading.Thread(target=refresh, daemon=True).start()
+            return hit[1]
+    return _store(key, fn)
 
 
 def invalidate(*keys):
@@ -428,6 +454,35 @@ def collect_router():
             "wifi": parse_wifi(sec, names), "onts": onts, "_names": names, "_arp": parse_arp(sec.get("ARP", ""))}
 
 
+WANQ_SH = r"""
+for i in __IFACES__; do
+  ( T=$(uci -q get mwan3.$i.track_ip | cut -d' ' -f1)
+    r=$(mwan3 use $i ping -c 3 -W 1 -q "${T:-8.8.8.8}" 2>&1 | tr '\n' ' ')
+    echo "$i|${T:-8.8.8.8}|$r" ) &
+done
+wait
+"""
+
+
+def collect_wan_quality():
+    """Latency and loss of every monitored WAN, pinging its mwan3 track IP through that link.
+    mwan3's own status reports 0 / 0 unless its quality checking is enabled."""
+    names = sorted(n for n in wan_ifaces() if re.fullmatch(r"[A-Za-z0-9_]{1,32}", n))
+    if not names or not ROUTER_HOST:
+        return {}
+    out = {}
+    for line in ssh(ROUTER_HOST, WANQ_SH.replace("__IFACES__", " ".join(names)), timeout=20).splitlines():
+        iface, _, rest = line.partition("|")
+        target, _, text = rest.partition("|")
+        loss = re.search(r"(\d+)% packet loss", text)
+        rtt = re.search(r"= ([\d.]+)/([\d.]+)/([\d.]+) ms", text)
+        if iface in names:
+            out[iface] = {"loss": int(loss.group(1)) if loss else 100,
+                          "latency": round(float(rtt.group(2)), 1) if rtt else None,
+                          "target": target, "measured": True}
+    return out
+
+
 def collect_ap():
     if not AP_HOST:
         return {"system": {}, "wifi": [], "note": "no access point configured"}
@@ -576,7 +631,7 @@ def vlan_body(native, untag, tag):
             "untagNetworkIds": [i for i in untag if i != native], "tagNetworkIds": [i for i in tag if i != native]}
 
 
-NETMETA = Path("/var/lib/noc/networks.json")  # NOC-side DHCP plans per Omada network id
+NETMETA = VAR / "networks.json"  # NOC-side DHCP plans per Omada network id
 
 
 def load_meta():
@@ -852,6 +907,8 @@ def plan_action(kind, p):
     """Validate an action and describe exactly what it will do. Returns (summary, detail, confirm_word, fn)."""
     if kind.startswith("settings_"):
         return settings.plan(sys.modules[__name__], kind, p)
+    if kind.startswith("ow_"):
+        return openwrt.plan(sys.modules[__name__], kind, p)
     if kind == "dns_blocking":
         enable = bool(p.get("enable"))
         minutes = int(p.get("minutes") or 0)
@@ -983,8 +1040,28 @@ def plan_action(kind, p):
                     "mldSnoopEnable": False, "dhcpL2RelayEnable": False, "allLan": True,
                     "interfaceIds": template.get("interfaceIds", [])}
             detail = [f"Omada: new switch VLAN '{name}' with ID {vlan}" + (" (IGMP snooping on)" if igmp else ""),
-                      *dhcp_lines(plan),
-                      "Not on any port yet: add it with Edit VLANs on the ports/LAG that should carry it."]
+                      *dhcp_lines(plan)]
+            # Optional: carry it tagged on the switch<->router LAG, so the router actually receives it.
+            lag = None
+            if p.get("carry_lag") not in (None, "", False):
+                lag = next((x for x in sw.get("lags", []) if str(x["lag"]) == str(p["carry_lag"])), None)
+                if not lag:
+                    raise ValueError("unknown LAG")
+                detail.append(f"Omada: carry it tagged on LAG {lag['lag']} (ports {' + '.join(map(str, lag['ports']))}, the link to the router)")
+            elif not p.get("router"):
+                detail.append("Not on any port yet: add it with Edit VLANs on the ports/LAG that should carry it.")
+            # Optional: the router side (device, interface, firewall, DHCP, mwan3) in the same action.
+            r_plan = None
+            router = p.get("router") or {}
+            if router.get("interface") or router.get("device"):
+                if router.get("interface"):
+                    r_plan = openwrt.plan(sys.modules[__name__], "ow_setup", router)
+                else:
+                    r_plan = openwrt.plan(sys.modules[__name__], "ow_device_create", router["device"])
+                detail += ["Router (OpenWrt), applied after the switch:"] + ["  " + x for x in r_plan[1]]
+                if not lag:
+                    detail.append("⚠ The VLAN is not carried to the router, so the new router interface will have no traffic until you add it to the LAG")
+                detail.append("If the router part fails, the new Omada network is removed again, so nothing is left half-done")
 
             def run():
                 OMADA.call("POST", "/lan-networks", json=body)
@@ -993,11 +1070,34 @@ def plan_action(kind, p):
                        if n.get("vlan") == vlan and n.get("name") == name]
                 if not got:
                     raise RuntimeError("controller accepted the request but the network isn't listed - check Omada")
+                nid = got[0]["id"]
                 m = load_meta()
-                m[got[0]["id"]] = plan
+                m[nid] = plan
                 save_meta(m)
-                return {"verified": True, "id": got[0]["id"]}
-            return f"Create network {name} (VLAN {vlan})", detail, None, run, ["switch"]
+                res = {"verified": True, "id": nid}
+                tagged = False
+                try:
+                    if lag:
+                        tag = lag["tag_ids"] + [nid]
+                        OMADA.call("PATCH", f"/switches/{SWITCH_MAC}/lags/{lag['lag']}", json=vlan_body(lag["native_id"], lag["untag_ids"], tag))
+                        tagged = True
+                        verify_vlans(lambda: port_details([lag["lag"]])["_lags"].get(lag["lag"], {}), lag["native_id"], lag["untag_ids"], tag, f"LAG {lag['lag']}")
+                        res["lag"] = lag["lag"]
+                    if r_plan:
+                        res["router"] = r_plan[3]()
+                except Exception as ex:
+                    # Undo the switch side so a failed router step leaves nothing behind.
+                    if tagged:
+                        OMADA.call("PATCH", f"/switches/{SWITCH_MAC}/lags/{lag['lag']}", json=vlan_body(lag["native_id"], lag["untag_ids"], lag["tag_ids"]))
+                    OMADA.call("DELETE", f"/lan-networks/{nid}")
+                    m = load_meta()
+                    m.pop(nid, None)
+                    save_meta(m)
+                    raise RuntimeError(f"{ex}. The new Omada network was removed again, so nothing was left half-done") from None
+                return res
+            word = r_plan[2] if r_plan else None
+            return (f"Create network {name} (VLAN {vlan})" + (" on the switch and the router" if r_plan else ""),
+                    detail, word, run, ["switch", "router", "owcfg"])
 
         cur = nets.get(p.get("id"))
         if not cur:
@@ -1027,10 +1127,25 @@ def plan_action(kind, p):
                                       f"{x.get('protected') or 'protected'}")
             else:
                 detail.append("No port or LAG carries it.")
-            if users.get(cur["vlan"]):
-                detail.append(f"⚠ Router interface(s) on {TRUNK_DEV}.{cur['vlan']} lose this VLAN: {', '.join(users[cur['vlan']])}")
+            # Optional router clean-up, each part only if ticked (device / interface / mwan3).
+            ro = p.get("router") or {}
+            r_plan = None
+            if any(ro.get(k) for k in ("device", "interface", "mwan")):
+                r_plan = openwrt.plan(sys.modules[__name__], "ow_vlan_cleanup", {"vlan": cur["vlan"], **ro})
+                detail += ["Router (OpenWrt), done first:"] + ["  " + x for x in r_plan[1]]
+                detail.append("If the router part fails, the switch is left untouched")
+            elif users.get(cur["vlan"]):
+                detail.append(f"⚠ Router interface(s) on {TRUNK_DEV}.{cur['vlan']} lose this VLAN: {', '.join(users[cur['vlan']])}"
+                              " (kept on the router: tick the router options to remove them too)")
 
             def run():
+                out = {}
+                if r_plan:
+                    out["router"] = r_plan[3]()  # raises (and rolls back) before the switch is touched
+                out.update(omada_delete())
+                return out
+
+            def omada_delete():
                 for k, i, x in detach:
                     untag = [v for v in x["untag_ids"] if v != nid]
                     tag = [v for v in x["tag_ids"] if v != nid]
@@ -1046,7 +1161,8 @@ def plan_action(kind, p):
                 if m.pop(cur["id"], None) is not None:
                     save_meta(m)
                 return {"verified": True}
-            return f"Delete network {cur['name']}", detail, f"vlan {cur['vlan']}", run, ["switch"]
+            return (f"Delete network {cur['name']}" + (" and its router setup" if r_plan else ""), detail,
+                    f"vlan {cur['vlan']}", run, ["switch", "router", "owcfg"])
 
         # net_edit
         name = clean_name(p.get("name") or cur["name"])
@@ -1344,15 +1460,16 @@ def index():
 
 @app.get("/api/overview")
 def api_overview():
-    with cf.ThreadPoolExecutor(5) as ex:
-        f = {k: ex.submit(cached, k, ttl, fn) for k, ttl, fn in [
+    with cf.ThreadPoolExecutor(6) as ex:
+        f = {k: ex.submit(cached, k, ttl, fn, VIEW_STALE) for k, ttl, fn in [
             ("ping", 10, collect_ping), ("router", 15, collect_router), ("dns", 15, collect_dns),
-            ("proxmox", 20, collect_proxmox), ("switch", 20, collect_switch)]}
+            ("proxmox", 20, collect_proxmox), ("switch", 20, collect_switch), ("wanq", 30, collect_wan_quality)]}
         r = {k: v.result() for k, v in f.items()}
     router = r["router"] if "error" not in r["router"] else {}
+    q = r["wanq"] if "error" not in r["wanq"] else {}
     return {"devices": r["ping"],
             "wans": [{"name": i["name"], "up": i["up"], "ip": i["ip"], "uptime": i["uptime"],
-                      **(router.get("mwan", {}).get(i["name"], {}))}
+                      **(router.get("mwan", {}).get(i["name"], {})), **q.get(i["name"], {})}
                      for i in router.get("interfaces", []) if i["name"] in wan_ifaces()],
             "onts": router.get("onts", []), "router_system": router.get("system"),
             "dns": r["dns"], "proxmox": r["proxmox"],
@@ -1362,8 +1479,8 @@ def api_overview():
 
 @app.get("/api/devices")
 def api_devices():
-    live = {x["name"]: x for x in cached("ping", 10, collect_ping)} if C.get("devices") else {}
-    r = cached("router", 15, collect_router)
+    live = {x["name"]: x for x in cached("ping", 10, collect_ping, VIEW_STALE)} if C.get("devices") else {}
+    r = cached("router", 15, collect_router, VIEW_STALE)
     leases = r.get("leases", []) if isinstance(r, dict) else []
     tracked_macs = {d["mac"].lower() for d in C.get("devices", []) if d.get("mac")}
     tracked_ips = {(d.get("target") or "").split(":")[0] for d in C.get("devices", [])}
@@ -1376,28 +1493,32 @@ def api_devices():
 
 @app.get("/api/router")
 def api_router():
-    d = cached("router", 15, collect_router)
-    return {k: v for k, v in d.items() if not k.startswith("_")}
+    d = cached("router", 15, collect_router, VIEW_STALE)
+    q = cached("wanq", 30, collect_wan_quality, VIEW_STALE)
+    out = {k: v for k, v in d.items() if not k.startswith("_")}
+    if isinstance(q, dict) and "error" not in q and isinstance(out.get("mwan"), dict):
+        out["mwan"] = {n: {**m, **q.get(n, {})} for n, m in out["mwan"].items()}
+    return out
 
 
 @app.get("/api/ap")
 def api_ap():
-    return cached("ap", 15, collect_ap)
+    return cached("ap", 15, collect_ap, VIEW_STALE)
 
 
 @app.get("/api/dns")
 def api_dns():
-    return cached("dns", 10, collect_dns)
+    return cached("dns", 10, collect_dns, VIEW_STALE)
 
 
 @app.get("/api/switch")
 def api_switch():
-    return cached("switch", 20, collect_switch)
+    return cached("switch", 20, collect_switch, VIEW_STALE)
 
 
 @app.get("/api/proxmox")
 def api_proxmox():
-    return cached("proxmox", 20, collect_proxmox)
+    return cached("proxmox", 20, collect_proxmox, VIEW_STALE)
 
 
 @app.get("/api/audit")
@@ -1413,6 +1534,12 @@ def api_alerts():
     procs = {i["name"]: i.get("proto") for i in r.get("interfaces", [])} if isinstance(r, dict) else {}
     return {**TG.status(), "groups": wan_groups(), "monitored": sorted(wan_ifaces()),
             "candidates": [{"name": n, "proto": procs.get(n)} for n in wan_candidates()]}
+
+
+@app.get("/api/openwrt")
+def api_openwrt():
+    """Router config (devices, interfaces, firewall zones, DHCP, mwan3) for the Router and MultiWAN tabs."""
+    return cached("owcfg", 10, lambda: openwrt.read(sys.modules[__name__]), VIEW_STALE)
 
 
 @app.get("/api/settings")

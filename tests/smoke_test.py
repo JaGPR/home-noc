@@ -4,6 +4,7 @@ No network access is needed: it only exercises auth, metadata and an action prev
 Run:  python tests/smoke_test.py
 """
 import json
+import re
 import os
 import shutil
 import sys
@@ -253,5 +254,219 @@ r = pv("wan_groups_set", {"groups": {"isp-a": ["wan"], "isp-b": ["wan2"]},
                           "paths": {"isp-b": {"switch_port": 2, "isp_device": "Router", "ont": "Main ONT"}}}).json()
 assert any("isp-b path" in x for x in r["detail"]), r
 assert pv("wan_groups_set", {"groups": {"isp-a": ["wan"]}, "paths": {"isp-a": {"ont": "Nope"}}}).status_code == 400
+
+# Page views may get a recent stale value (refreshed in the background); everything else is strict.
+noc._cache["t1"] = (time.time() - 100, {"v": 1})
+assert noc.cached("t1", 10, lambda: {"v": 2}, stale=300) == {"v": 1}, "page view gets the stale value at once"
+for _ in range(50):
+    if noc._cache["t1"][1] == {"v": 2}:
+        break
+    time.sleep(0.05)
+assert noc._cache["t1"][1] == {"v": 2}, "and it is refreshed in the background"
+noc._cache["t2"] = (time.time() - 100, {"v": 1})
+assert noc.cached("t2", 10, lambda: {"v": 2}) == {"v": 2}, "watcher/actions always get fresh data"
+noc._cache["t3"] = (time.time() - 100, {"error": "x"})
+assert noc.cached("t3", 10, lambda: {"v": 3}, stale=300) == {"v": 3}, "a cached error is never served stale"
+
+# Link quality, measured through each WAN (mwan3's own numbers are 0 without quality checks).
+real_ssh = noc.ssh
+noc.ssh = lambda host, script, timeout=20: (
+    "wan|8.8.8.8|3 packets transmitted, 3 packets received, 0% packet loss round-trip min/avg/max = 14.7/16.04/18.6 ms \n"
+    "wan2|1.1.1.1|3 packets transmitted, 0 packets received, 100% packet loss \n")
+try:
+    q = noc.collect_wan_quality()
+finally:
+    noc.ssh = real_ssh
+assert q["wan"] == {"loss": 0, "latency": 16.0, "target": "8.8.8.8", "measured": True}, q
+assert q["wan2"]["loss"] == 100 and q["wan2"]["latency"] is None, q
+
+# OpenWrt editing (offline): canned `uci -X show` output stands in for the router.
+import openwrt  # noqa: E402
+
+UCI = """network.cfg01=device
+network.cfg01.name='bond'
+network.cfg01.type='bonding'
+network.cfg01.ports='lan1' 'lan3'
+network.cfg02=device
+network.cfg02.type='8021q'
+network.cfg02.ifname='bond'
+network.cfg02.vid='20'
+network.cfg02.name='bond.20'
+network.cfg03=device
+network.cfg03.type='8021q'
+network.cfg03.ifname='bond'
+network.cfg03.vid='30'
+network.cfg03.name='bond.30'
+network.lan=interface
+network.lan.device='br-lan'
+network.lan.proto='static'
+network.lan.ipaddr='192.0.2.1/24'
+network.ispb=interface
+network.ispb.device='bond.20'
+network.ispb.proto='pppoe'
+network.ispb.username='user1'
+network.ispb.password='TopSecret'
+firewall.cfg10=zone
+firewall.cfg10.name='lan'
+firewall.cfg10.network='lan'
+firewall.cfg11=zone
+firewall.cfg11.name='wan'
+firewall.cfg11.network='ispb'
+dhcp.lan=dhcp
+dhcp.lan.interface='lan'
+dhcp.lan.start='100'
+dhcp.lan.limit='150'
+mwan3.ispb=interface
+mwan3.ispb.enabled='1'
+mwan3.ispb.track_ip='8.8.8.8'
+mwan3.m_ispb=member
+mwan3.m_ispb.interface='ispb'
+mwan3.m_ispb.metric='1'
+mwan3.m_ispb.weight='1'
+mwan3.balanced=policy
+mwan3.balanced.use_member='m_ispb'
+mwan3.rule_all=rule
+mwan3.rule_all.use_policy='balanced'
+mwan3.rule_all.dest_ip='0.0.0.0/0'
+"""
+noc.ssh = lambda host, script, timeout=20: UCI + "\n@@MWANSTATUS\n" + '{"interfaces": {"ispb": {"status": "online"}}}'
+try:
+    cfg = openwrt.read(noc)
+    assert "TopSecret" not in json.dumps(cfg), "PPPoE password must never be read back"
+    ispb = next(i for i in cfg["interfaces"] if i["name"] == "ispb")
+    assert ispb["password_set"] and ispb["zone"] == "wan" and ispb["mwan"], ispb
+    assert next(d for d in cfg["devices"] if d["name"] == "bond.20")["used_by"] == ["interface ispb"]
+    assert next(d for d in cfg["devices"] if d["name"] == "bond.30")["used_by"] == []
+    pv = lambda kind, params: c.post("/api/actions/preview", json={"kind": kind, "params": params})
+    # the wizard: new VLAN device + static LAN interface + DHCP server in the lan zone
+    r = pv("ow_setup", {"device": {"mode": "new", "type": "8021q", "base": "bond", "vid": 40, "ipv6": False},
+                        "interface": {"name": "guest", "proto": "static", "ipaddr": "10.0.40.1/24", "ipv6": False, "auto": True},
+                        "zone": "lan", "dhcp_server": {"enabled": True, "start": 100, "limit": 50, "leasetime": "12h"}}).json()
+    txt = " | ".join(r["detail"])
+    assert "New device bond.40: VLAN 40 (802.1q) on bond" in txt and "Firewall zone: none → lan" in txt and "DHCP server: on" in txt, r
+    # a WAN with mwan3 member + policy, PPPoE password never echoed
+    r = pv("ow_setup", {"device": {"mode": "new", "type": "8021q", "base": "bond", "vid": 50},
+                        "interface": {"name": "ispc", "proto": "pppoe", "username": "u2", "password": "Pw-123", "metric": 5},
+                        "zone": "wan", "mwan": {"enabled": True, "track_ip": ["8.8.8.8", "1.1.1.1"], "reliability": 1,
+                                                "metric": 2, "weight": 3, "policies": ["balanced"]}})
+    assert r.status_code == 200 and "Pw-123" not in r.text and "member m_ispc (metric 2, weight 3), in policies balanced" in r.text, r.text
+    b = openwrt.Batch(); b.set("network.x.y", "it's")  # noqa: E702
+except ValueError as ex:
+    assert "quotes" in str(ex), ex
+else:
+    raise AssertionError("values with quotes must be refused")
+try:
+    assert pv("ow_device_delete", {"id": "cfg02"}).json()["error"].startswith("bond.20 is in use"), "in-use devices stay"
+    assert pv("ow_device_delete", {"id": "cfg03"}).status_code == 200
+    assert "rule_all" in pv("ow_mwan_policy_delete", {"name": "balanced"}).json()["error"], "policies used by rules stay"
+    assert pv("ow_iface_delete", {"name": "lan"}).status_code == 400, "LAN can't be deleted"
+    r = pv("ow_iface_delete", {"name": "ispb"}).json()
+    assert r["confirm_word"] == "ispb" and any("member m_ispb" in x for x in r["detail"]) and any("policy balanced" in x for x in r["detail"]), r
+    assert pv("ow_iface_edit", {"interface": {"name": "ispb", "proto": "pppoe", "device": "bond.20", "username": "user1", "password": ""}}).status_code == 400, \
+        "an edit that changes nothing is refused"
+    r = pv("ow_iface_edit", {"interface": {"name": "ispb", "proto": "pppoe", "device": "bond.20", "username": "user2", "password": ""}}).json()
+    assert "username: user1 → user2" in r["detail"], r
+    r = pv("ow_mwan_rule", {"name": "tv", "proto": "tcp", "src_ip": "192.0.2.50/32", "dest_port": "443", "use_policy": "balanced"}).json()
+    assert any("tcp from 192.0.2.50/32" in x for x in r["detail"]), r
+    assert pv("ow_mwan_rule", {"name": "bad", "proto": "all", "dest_port": "443", "use_policy": "balanced"}).status_code == 400, "ports need tcp/udp"
+    assert pv("ow_setup", {"interface": {"name": "x1", "proto": "static", "ipaddr": "10.0.0.1", "device": "bond.30"}}).status_code == 400, "prefix required"
+    # several MAC VLANs on one device, each with a PPPoE interface, its own gateway metric, mwan3 member
+    mv = lambda **kw: pv("ow_macvlan_bulk", {"base": "bond.30", "mode": "vepa", "mac": "random", "interfaces": True, "proto": "pppoe",
+                                            "username": "isp-user", "password": "Mv-Secret", "zone": "wan",
+                                            "rows": [{"dev_name": "b30mac0", "ifname": "isp7", "metric": 7}, {"dev_name": "b30mac1", "ifname": "isp8", "metric": 8}],
+                                            "mwan": {"enabled": True, "track_ip": ["8.8.8.8"], "metric": 1, "weight": 1, "policies": ["balanced"]}, **kw})
+    r = mv()
+    assert r.status_code == 200 and "Mv-Secret" not in r.text, r.text
+    txt = " | ".join(r.json()["detail"])
+    assert "2 MAC VLAN device(s) on bond.30 (vepa mode), a fixed random MAC each" in txt and "New device b30mac0: MAC VLAN on bond.30" in txt, txt
+    assert "interface isp7: pppoe on b30mac0, metric 7" in txt and "interface isp8: pppoe on b30mac1, metric 8" in txt, txt
+    assert "member m_isp8 (metric 1, weight 1), in policies balanced" in txt and "All in firewall zone wan" in txt, txt
+    assert re.search(r"MAC address: hardware default → [0-9a-f]{2}(:[0-9a-f]{2}){5}", txt), "a fixed random MAC is set"
+    assert mv(rows=[{"dev_name": "b30mac0", "ifname": "ispb"}]).status_code == 400, "existing interface name refused"
+    assert mv(rows=[]).status_code == 400 and mv(base="nosuch").status_code == 400
+    assert mv(proto="static", rows=[{"dev_name": "b30mac0", "ifname": "st1", "ipaddr": "10.9.0.2"}]).status_code == 400, "static needs a prefix"
+    r = mv(proto="static", zone="lan", mwan=None, rows=[{"dev_name": "b30mac0", "ifname": "st1", "ipaddr": "10.9.0.2/24", "gateway": "10.9.0.1", "metric": 30}]).json()
+    assert any("st1: static on b30mac0, metric 30, 10.9.0.2/24 via 10.9.0.1" in x for x in r["detail"]), r
+    # mwan3: add an interface with a member in a policy, and remove one
+    r = pv("ow_mwan_iface", {"name": "lan", "track_ip": ["1.1.1.1"], "reliability": 1,
+                             "member": {"name": "m_lan", "metric": 3, "weight": 2, "policies": ["balanced"]}}).json()
+    txt = " | ".join(r["detail"])
+    assert "New mwan3 interface lan" in txt and "New member m_lan: metric 3, weight 2, in policies balanced" in txt and "not 'wan'" in txt, r
+    assert pv("ow_mwan_iface", {"name": "nosuch", "track_ip": ["1.1.1.1"]}).status_code == 400, "must be a router interface"
+    assert pv("ow_mwan_iface", {"name": "lan", "track_ip": ["1.1.1.1"], "member": {"name": "m_ispb"}}).status_code == 400, "member name taken"
+    r = pv("ow_mwan_iface_delete", {"name": "ispb"}).json()
+    txt = " | ".join(r["detail"])
+    assert r["confirm_word"] == "ispb" and "Delete its member m_ispb" in txt and "left with no members" in txt, r
+finally:
+    noc.ssh = real_ssh
+
+# "New network" = Omada VLAN + LAG tag + router setup as ONE action; a failing router step undoes the switch side.
+assert str(noc.NETMETA).startswith(str(var)), "network plans must live in NOC_VAR, not a hard-coded path"
+calls = []
+FAKE_SW = {"networks": [{"id": "n1", "name": "Default", "vlan": 1, "editable": False, "igmp": False}],
+           "lags": [{"lag": 1, "name": "LAG 1", "ports": [4, 5], "native_id": "n1", "untag_ids": ["n1"], "tag_ids": []}],
+           "ports": [], "profiles": []}
+real_cs, real_call, real_pd = noc.collect_switch, noc.OMADA.call, noc.port_details
+
+
+def fake_call(method, path, **kw):
+    calls.append((method, path))
+    if method == "GET" and path == "/lan-networks":
+        return {"data": [{"id": "nNEW", "name": "Guest", "vlan": 60}]}
+    return {}
+
+
+noc.collect_switch, noc.OMADA.call = (lambda: FAKE_SW), fake_call
+noc.port_details = lambda lag_ids=(): {"_lags": {1: {"nativeNetworkId": "n1", "untagNetworkIds": ["n1"], "tagNetworkIds": ["nNEW"]}}}
+noc.ssh = lambda host, script, timeout=20: UCI + "\n@@MWANSTATUS\n{}"   # the router "refuses" every change
+try:
+    params = {"name": "Guest", "vlan": 60, "igmp": False, "carry_lag": 1,
+              "dhcp": {"device": "openwrt", "gateway": "10.0.60.1", "prefix": 24, "enabled": True,
+                       "range_start": "10.0.60.100", "range_end": "10.0.60.199", "lease_h": 12, "dns": "192.0.2.10"},
+              "router": {"device": {"mode": "new", "type": "8021q", "base": "bond", "vid": 60},
+                         "interface": {"name": "Guest", "proto": "static", "ipaddr": "10.0.60.1/24", "ipv6": False, "auto": True},
+                         "zone": "lan", "dhcp_server": {"enabled": True, "start": 100, "limit": 100, "leasetime": "12h", "dns": "192.0.2.10"}}}
+    r = c.post("/api/actions/preview", json={"kind": "net_create", "params": params}).json()
+    txt = " | ".join(r["detail"])
+    assert r["summary"] == "Create network Guest (VLAN 60) on the switch and the router", r
+    assert "carry it tagged on LAG 1" in txt and "New device bond.60" in txt and "hands out DNS 192.0.2.10" in txt and "removed again" in txt, txt
+    assert calls == [], "a preview must not touch the controller"
+    out = c.post("/api/actions/confirm", json={"id": r["id"]})
+    assert out.status_code == 500 and "removed again" in out.json()["error"], out.text
+    assert ("POST", "/lan-networks") in calls and ("DELETE", "/lan-networks/nNEW") in calls, calls
+    lag_patches = [x for x in calls if x == ("PATCH", f"/switches/{noc.SWITCH_MAC}/lags/1")]
+    assert len(lag_patches) == 2, "LAG tagged, then untagged again on failure"
+    assert "nNEW" not in noc.load_meta(), "the DHCP plan of the removed network is dropped"
+    # switch-only (no router steps) still works as before
+    calls.clear()
+    r = c.post("/api/actions/preview", json={"kind": "net_create", "params": {**params, "router": None, "carry_lag": None}}).json()
+    assert r["summary"] == "Create network Guest (VLAN 60)" and "Not on any port yet" in " ".join(r["detail"]), r
+finally:
+    noc.collect_switch, noc.OMADA.call, noc.port_details, noc.ssh = real_cs, real_call, real_pd, real_ssh
+
+# Deleting a VLAN: router device / interface / mwan3 are removed only when ticked, router first.
+calls.clear()
+DEL_SW = {"networks": [{"id": "n20", "name": "ISPB", "vlan": 20, "editable": True, "igmp": False}],
+          "lags": [], "ports": [], "profiles": []}
+noc.collect_switch, noc.OMADA.call = (lambda: DEL_SW), fake_call
+noc.ssh = lambda host, script, timeout=20: UCI + "\n@@MWANSTATUS\n{}"   # router refuses changes (no "APPLIED")
+try:
+    pvd = lambda router=None: c.post("/api/actions/preview", json={"kind": "net_delete", "params": {"id": "n20", **({"router": router} if router else {})}}).json()
+    r = pvd()
+    assert r["summary"] == "Delete network ISPB" and "kept on the router" not in " ".join(r["detail"]), r  # no users known offline
+    r = pvd({"mwan": True})
+    txt = " | ".join(r["detail"])
+    assert "stop tracking ispb" in txt and "delete member m_ispb" in txt and "Delete interface" not in txt and "Delete device" not in txt, txt
+    r = pvd({"interface": True})
+    txt = " | ".join(r["detail"])
+    assert "Delete interface ispb" in txt and "stop tracking ispb" in txt and "Delete device" not in txt, "interface pulls in mwan3: " + txt
+    r = pvd({"device": True})
+    txt = " | ".join(r["detail"])
+    assert all(x in txt for x in ("Delete device bond.20", "Delete interface ispb", "stop tracking ispb")), txt
+    assert r["summary"] == "Delete network ISPB and its router setup" and r["confirm_word"] == "vlan 20", r
+    out = c.post("/api/actions/confirm", json={"id": r["id"], "confirm_text": "vlan 20"})
+    assert out.status_code == 500 and not any(x[0] == "DELETE" for x in calls), "router failed first, so the switch VLAN must stay"
+finally:
+    noc.collect_switch, noc.OMADA.call, noc.ssh = real_cs, real_call, real_ssh
 
 print("smoke test: all checks passed")

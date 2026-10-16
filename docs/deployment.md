@@ -27,7 +27,7 @@ Start from [`config/config.example.json`](../config/config.example.json):
 | `site_name` | Title shown in the UI |
 | `devices[]` | Health checks: `target` is an IP (ping) or `host:port` (TCP), for devices that ignore ping from other subnets |
 | `dns.vip`, `dns.piholes[]` | The keepalived VIP, and each Pi-hole's URL, the **name** of its password variable in `secrets.env`, and its MAC (used to show which node holds the VIP) |
-| `router.host` | OpenWrt router reached over SSH with the NOC key |
+| `router.host` | OpenWrt router reached over SSH with the NOC key; also used by the Router and MultiWAN editors ([openwrt.md](openwrt.md)) |
 | `router.wan_interfaces` | Interfaces the UI may restart (each restart is previewed and confirmed) |
 | `router.trunk_device` | Device carrying VLANs to the switch (`bond`, `eth1`, …); VLAN *N* = `<trunk>.N` |
 | `router.ont_caches[]` | DDM cache files from [luci-app-vsol-ddm](https://github.com/AliLostInTheDark/luci-app-vsol-ddm) / [luci-app-hsgq-ddm](https://github.com/JaGPR/luci-app-hsgq-ddm) to show fibre signal |
