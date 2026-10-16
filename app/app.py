@@ -15,6 +15,7 @@ import secrets
 import shlex
 import socket
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -22,6 +23,9 @@ from pathlib import Path
 import requests
 import urllib3
 from fastapi import FastAPI, Request
+
+import notify
+import settings
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 
 urllib3.disable_warnings()
@@ -48,30 +52,59 @@ E = load_env(ETC / "secrets.env")
 # Network layout (no secrets): see config/config.example.json in the repo.
 C = json.loads((ETC / "config.json").read_text())
 
-SITE_NAME = C.get("site_name", "Home NOC")
-# Devices checked for the overview. "target" is an IP (ping) or "host:port" (TCP check,
-# for devices that ignore ping from other subnets).
-DEVICES = [(d["name"], d["target"], d.get("group", "other")) for d in C.get("devices", [])]
+# Device health checks live in C["devices"] and are editable from the Devices tab.
+# Everything else is editable from the Settings tab; derive_settings() and connect_services()
+# turn C into the values below and are re-run after every Settings change.
 
-DNS = C.get("dns", {})
-DNS_VIP = DNS.get("vip")
-VIP_MACS = {p["mac"].lower(): p["name"] for p in DNS.get("piholes", []) if p.get("mac")}
 
-ROUTER = C.get("router", {})
-ROUTER_HOST = ROUTER.get("host")
-AP_HOST = (C.get("access_point") or {}).get("host")
-LAN_IFACE = ROUTER.get("lan_interface", "lan")
-TRUNK_DEV = ROUTER.get("trunk_device", "bond")  # VLANs arrive as <trunk>.<vid>, e.g. bond.123
-WAN_IFACES = set(ROUTER.get("wan_interfaces", []))
-# DDM caches written on the router by luci-app-vsol-ddm / luci-app-hsgq-ddm.
-ONT_CACHES = ROUTER.get("ont_caches", [])
+def derive_settings():
+    global SITE_NAME, DNS, DNS_VIP, VIP_MACS, ROUTER, ROUTER_HOST, AP_HOST, LAN_IFACE, TRUNK_DEV
+    global ONT_CACHES, SW, SWITCH_MAC, SWITCH_PORTS, PROTECTED_PORTS, NEWNET
+    SITE_NAME = C.get("site_name", "Home NOC")
+    DNS = C.setdefault("dns", {})
+    DNS_VIP = DNS.get("vip")
+    VIP_MACS = {p["mac"].lower(): p["name"] for p in DNS.get("piholes", []) if p.get("mac")}
+    ROUTER = C.setdefault("router", {})
+    ROUTER_HOST = ROUTER.get("host")
+    AP_HOST = (C.get("access_point") or {}).get("host")
+    LAN_IFACE = ROUTER.get("lan_interface", "lan")
+    TRUNK_DEV = ROUTER.get("trunk_device", "bond")  # VLANs arrive as <trunk>.<vid>, e.g. bond.123
+    # DDM caches written on the router by luci-app-vsol-ddm / luci-app-hsgq-ddm.
+    ONT_CACHES = ROUTER.get("ont_caches", [])
+    SW = C.setdefault("switch", {})
+    SWITCH_MAC = SW.get("mac", "")
+    SWITCH_PORTS = int(SW.get("ports", 10))
+    PROTECTED_PORTS = {int(k): v for k, v in (SW.get("protected_ports") or {}).items()}
+    NEWNET = C.get("new_network_defaults", {})
 
-SW = C.get("switch", {})
-SWITCH_MAC = SW.get("mac", "")
-SWITCH_PORTS = int(SW.get("ports", 10))
-PROTECTED_PORTS = {int(k): v for k, v in (SW.get("protected_ports") or {}).items()}
 
-NEWNET = C.get("new_network_defaults", {})
+derive_settings()
+
+
+def wan_groups():
+    """{group name: [interfaces]}, e.g. {"isp-a": ["wan1", ...]}. Editable from the Settings tab."""
+    return ROUTER.get("wan_groups") or {}
+
+
+def wan_ifaces():
+    """Monitored, restartable WANs: router.wan_interfaces plus every member of a WAN group."""
+    s = set(ROUTER.get("wan_interfaces", []))
+    for members in wan_groups().values():
+        s |= set(members)
+    return s
+
+
+def wan_group_of(iface):
+    return next((g for g, m in wan_groups().items() if iface in m), None)
+
+
+def wan_candidates():
+    """Router interfaces that may be put in a WAN group: everything except LAN and loopback.
+    Falls back to the configured WANs when the router can't be reached."""
+    r = cached("router", 15, collect_router)
+    names = [i["name"] for i in r.get("interfaces", [])] if isinstance(r, dict) else []
+    return [n for n in names if n not in (LAN_IFACE, "loopback")] or sorted(wan_ifaces())
+
 
 # ---------------------------------------------------------------- helpers
 _cache: dict = {}
@@ -133,9 +166,13 @@ def jload(s, default=None):
 
 
 def audit(request, action, summary, result):
+    audit_entry(request.client.host if request.client else "",
+                request.headers.get("cf-access-authenticated-user-email", ""), action, summary, result)
+
+
+def audit_entry(ip, via, action, summary, result):
     AUDIT.parent.mkdir(parents=True, exist_ok=True)
-    entry = {"ts": time.strftime("%Y-%m-%d %H:%M:%S"), "ip": request.client.host if request.client else "",
-             "via": request.headers.get("cf-access-authenticated-user-email", ""),
+    entry = {"ts": time.strftime("%Y-%m-%d %H:%M:%S"), "ip": ip, "via": via,
              "action": action, "summary": summary, "result": result}
     with AUDIT.open("a") as f:
         f.write(json.dumps(entry) + "\n")
@@ -156,10 +193,88 @@ def ping(ip):
     return {"up": r.returncode == 0, "ms": float(m.group(1)) if m else None}
 
 
+DEVICE_GROUPS = ["core", "isp", "dns", "server", "iot", "client", "other"]
+
+
+CONFIG_LOCK = threading.Lock()
+
+
+def set_secrets(updates):
+    """Write KEY=VALUE pairs into secrets.env (mode 600), keeping every other line as it is."""
+    for k, v in updates.items():
+        if not re.fullmatch(r"[A-Z][A-Z0-9_]{1,63}", k) or "\n" in v or "\r" in v:
+            raise ValueError(f"invalid secret {k}")
+    with CONFIG_LOCK:
+        path = ETC / "secrets.env"
+        lines = path.read_text().splitlines() if path.exists() else []
+        out, done = [], set()
+        for line in lines:
+            k = line.split("=", 1)[0].strip() if "=" in line and not line.lstrip().startswith("#") else None
+            if k in updates:
+                out.append(f"{k}={updates[k]}")
+                done.add(k)
+            else:
+                out.append(line)
+        out += [f"{k}={v}" for k, v in updates.items() if k not in done]
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text("\n".join(out) + "\n")
+        os.chmod(tmp, 0o600)
+        tmp.replace(path)
+        E.update(updates)
+
+
+def save_config():
+    """Persist C to config.json atomically, keeping the previous version as config.json.bak."""
+    with CONFIG_LOCK:
+        _save_config()
+
+
+def _save_config():
+    path = ETC / "config.json"
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(C, indent=2) + "\n")
+    os.chmod(tmp, 0o600)
+    if path.exists():
+        path.replace(ETC / "config.json.bak")
+    tmp.replace(path)
+
+
+def neighbour_ips():
+    """MAC -> current IPv4, from the router's DHCP leases first, then its ARP table."""
+    r = cached("router", 15, collect_router)
+    if not isinstance(r, dict) or "leases" not in r:
+        return {}
+    ips = dict(r.get("_arp", {}))
+    ips.update({l["mac"]: l["ip"] for l in r["leases"]})
+    return ips
+
+
+def resolve_device(d, macs):
+    """Config entry -> (check target or None, current IP). A "mac" entry follows the device
+    to whatever IP it has now; an "ip"/"target" entry is checked as written."""
+    if d.get("mac"):
+        ip = macs.get(d["mac"].lower())
+        if not ip:
+            return None, None
+        return (f"{ip}:{d['port']}" if d.get("port") else ip), ip
+    t = d.get("target") or d.get("ip", "")
+    return t, t.rsplit(":", 1)[0] if t.count(":") == 1 else t
+
+
 def collect_ping():
+    devs = C.get("devices", [])
+    macs = neighbour_ips() if any(d.get("mac") for d in devs) else {}
+    targets = [resolve_device(d, macs) for d in devs]
+    todo = sorted({t for t, _ in targets if t})
     with cf.ThreadPoolExecutor(16) as ex:
-        res = dict(zip([d[1] for d in DEVICES], ex.map(ping, [d[1] for d in DEVICES])))
-    return [{"name": n, "ip": ip, "group": g, **res[ip]} for n, ip, g in DEVICES]
+        res = dict(zip(todo, ex.map(ping, todo)))
+    out = []
+    for d, (t, ip) in zip(devs, targets):
+        st = res.get(t, {"up": False, "ms": None})
+        out.append({"name": d["name"], "ip": t or "not seen", "current_ip": ip, "group": d.get("group", "other"),
+                    "mac": d.get("mac"), "tracking": "mac" if d.get("mac") else "ip", **st,
+                    "note": "MAC not seen in router DHCP/ARP" if d.get("mac") and not t else ""})
+    return out
 
 
 def vip_owner():
@@ -182,16 +297,23 @@ for i in $(ubus list 'hostapd.*' 2>/dev/null | cut -d. -f2); do
   printf '\n@@WIFIASSOC %s\n' "$i"; ubus call iwinfo assoclist "{\"device\":\"$i\"}"
 done
 """
-ROUTER_SH = r"""
+ROUTER_SH_BASE = r"""
 printf '\n@@IF\n'; ubus call network.interface dump
 printf '\n@@MWAN\n'; ubus call mwan3 status 2>/dev/null || echo '{}'
 printf '\n@@SYS\n'; ubus call system info
 printf '\n@@BOARD\n'; ubus call system board
 printf '\n@@DEV\n'; ubus call network.device status
 printf '\n@@LEASES\n'; cat /tmp/dhcp.leases
+printf '\n@@ARP\n'; cat /proc/net/arp
 printf '\n@@DHCPCFG\n'; uci -q show dhcp | grep -E "^dhcp\.[A-Za-z0-9_]+\.(interface|start|limit|leasetime|ignore|dhcpv4)="
-""" + "".join(f"printf '\\n@@ONT{i}\\n'; cat {shlex.quote(o['path'])} 2>/dev/null || echo '{{}}'\n"
-              for i, o in enumerate(ONT_CACHES)) + WIFI_SH
+"""
+
+
+def router_sh():
+    return ROUTER_SH_BASE + "".join(f"printf '\\n@@ONT{i}\\n'; cat {shlex.quote(o['path'])} 2>/dev/null || echo '{{}}'\n"
+                                    for i, o in enumerate(ONT_CACHES)) + WIFI_SH
+
+
 AP_SH = "printf '\\n@@SYS\\n'; ubus call system info\nprintf '\\n@@BOARD\\n'; ubus call system board\n" + WIFI_SH
 
 
@@ -223,22 +345,37 @@ def parse_wifi(sec, names):
     return radios
 
 
+def parse_arp(raw):
+    """/proc/net/arp -> {mac: ip} for complete entries (flags 0x2) on any interface."""
+    out = {}
+    for line in raw.splitlines()[1:]:
+        p = line.split()
+        if len(p) >= 4 and p[2] == "0x2" and p[3] != "00:00:00:00:00:00":
+            out[p[3].lower()] = p[0]
+    return out
+
+
 def parse_ont(raw, name):
     """One luci-app-vsol-ddm / luci-app-hsgq-ddm cache file -> compact summary."""
     vs = jload(raw, {}) or {}
     ddm, onu, dev = vs.get("ddm", {}), vs.get("onu", {}), vs.get("device", {})
+    thr = vs.get("thresholds") or {}
     return {"name": name, "connected": vs.get("connected"), "rx_dbm": ddm.get("rx_power_dbm"),
             "tx_dbm": ddm.get("tx_power_dbm"), "temp_c": ddm.get("temperature_c"),
             "state": onu.get("registered_status"), "uptime": dev.get("uptime"), "firmware": dev.get("firmware"),
             "model": dev.get("model"), "fec_uncorrectable": ddm.get("fec_uncorrectable_codewords"),
             "alarms": {k[6:]: v for k, v in onu.items() if k.startswith("alarm_")}, "ts": vs.get("timestamp"),
+            "state_code": onu.get("state"),
+            # The ONT's own warning limits (SFF-8472 / G.984.2 class), used by the Telegram watcher.
+            "limits": {k: thr.get(k) for k in ("rx_pwr_low_alarm", "rx_pwr_low_warn", "rx_pwr_high_warn", "tx_pwr_low_warn",
+                                               "tx_pwr_high_warn", "temp_low_warn", "temp_high_warn")},
             "age_s": int(time.time() - vs["timestamp"]) if vs.get("timestamp") else None}
 
 
 def collect_router():
     if not ROUTER_HOST:
         raise RuntimeError("router.host is not set in config.json")
-    sec = sections(ssh(ROUTER_HOST, ROUTER_SH))
+    sec = sections(ssh(ROUTER_HOST, router_sh()))
     leases = []
     for line in sec.get("LEASES", "").splitlines():
         p = line.split()
@@ -246,7 +383,7 @@ def collect_router():
             leases.append({"expires": int(p[0]), "mac": p[1].lower(), "ip": p[2], "name": "" if p[3] == "*" else p[3]})
     names = {l["mac"]: l for l in leases}
 
-    ifaces = []
+    ifaces, wans = [], wan_ifaces()
     for i in (jload(sec.get("IF"), {}) or {}).get("interface", []):
         if i.get("interface") == "loopback":
             continue
@@ -256,7 +393,7 @@ def collect_router():
                        "device": i.get("l3_device") or i.get("device"), "uptime": i.get("uptime"),
                        "ip": f"{addr.get('address')}/{addr.get('mask')}" if addr.get("address") else "",
                        "gateway": gw, "dns": i.get("dns-server", []), "metric": i.get("metric"),
-                       "restartable": i.get("interface") in WAN_IFACES})
+                       "restartable": i.get("interface") in wans, "group": wan_group_of(i.get("interface"))})
 
     mwan = {}
     for name, m in ((jload(sec.get("MWAN"), {}) or {}).get("interfaces") or {}).items():
@@ -288,7 +425,7 @@ def collect_router():
 
     return {"system": parse_system(sec), "interfaces": ifaces, "mwan": mwan, "ports": ports, "dhcp_pools": pools,
             "leases": sorted(leases, key=lambda l: tuple(int(x) for x in l["ip"].split("."))),
-            "wifi": parse_wifi(sec, names), "onts": onts, "_names": names}
+            "wifi": parse_wifi(sec, names), "onts": onts, "_names": names, "_arp": parse_arp(sec.get("ARP", ""))}
 
 
 def collect_ap():
@@ -325,9 +462,6 @@ class PiHole:
             raise RuntimeError("Pi-hole auth failed")
 
 
-# Each Pi-hole's app password lives in secrets.env under the name given by "password_env".
-PIHOLES = [PiHole(p["name"], p["url"].rstrip("/"), E.get(p.get("password_env", ""), ""))
-           for p in DNS.get("piholes", [])]
 
 
 def collect_pihole_one(p):
@@ -356,7 +490,6 @@ def collect_dns():
 
 
 # ---------------------------------------------------------------- Omada
-OMC = C.get("omada", {})
 
 
 class Omada:
@@ -389,7 +522,26 @@ class Omada:
         return d.get("result")
 
 
-OMADA = Omada()
+def connect_services():
+    """(Re)build the API clients from C and the secrets: Pi-holes, Omada, Proxmox."""
+    global PIHOLES, OMC, OMADA, PVE
+    # Each Pi-hole's app password lives in secrets.env under the name given by "password_env".
+    PIHOLES = [PiHole(p["name"], p["url"].rstrip("/"), E.get(p.get("password_env", ""), ""))
+               for p in DNS.get("piholes", [])]
+    OMC = C.get("omada", {})
+    OMADA = Omada()
+    PVE = C.get("proxmox", {})
+
+
+def apply_config():
+    """Make a saved change take effect without a restart."""
+    derive_settings()
+    connect_services()
+    with _cache_lock:
+        _cache.clear()
+
+
+connect_services()
 
 
 def port_details(lag_ids=()):
@@ -547,7 +699,7 @@ def planned_subnets(meta, exclude_id=None):
 
 
 def router_vlan_users():
-    """VLAN id -> router interface names riding it over the trunk (e.g. 1015 -> ['wan_b'])."""
+    """VLAN id -> router interface names riding it over the trunk (e.g. 100 -> ['wan_b'])."""
     r = cached("router", 15, collect_router)
     users = {}
     for i in r.get("interfaces", []) if isinstance(r, dict) else []:
@@ -627,9 +779,6 @@ def collect_switch():
 
 
 # ---------------------------------------------------------------- Proxmox
-PVE = C.get("proxmox", {})
-
-
 def pve(path):
     if not PVE.get("url"):
         raise RuntimeError("proxmox.url is not set in config.json")
@@ -701,6 +850,8 @@ def verify_vlans(read, native, untag, tag, what):
 
 def plan_action(kind, p):
     """Validate an action and describe exactly what it will do. Returns (summary, detail, confirm_word, fn)."""
+    if kind.startswith("settings_"):
+        return settings.plan(sys.modules[__name__], kind, p)
     if kind == "dns_blocking":
         enable = bool(p.get("enable"))
         minutes = int(p.get("minutes") or 0)
@@ -717,6 +868,7 @@ def plan_action(kind, p):
                 [f"{p.name} ({p.url})" for p in PIHOLES], None, run, ["dns"])
 
     if kind == "switch_port":
+        invalidate("switch")  # plan from fresh controller data
         sw = cached("switch", 20, collect_switch)
         port = int(p["port"])
         cur = next((x for x in sw["ports"] if x["port"] == port), None)
@@ -754,6 +906,7 @@ def plan_action(kind, p):
         return f"Switch port {port} ({cur['name']})", detail, word, run, ["switch"]
 
     if kind == "switch_lag":
+        invalidate("switch")  # plan from fresh controller data
         sw = cached("switch", 20, collect_switch)
         lid = int(p["lag"])
         cur = next((x for x in sw.get("lags", []) if x["lag"] == lid), None)
@@ -780,6 +933,8 @@ def plan_action(kind, p):
         return f"LAG {lid} VLANs", detail, f"lag {lid}", run, ["switch"]
 
     if kind in ("net_create", "net_edit", "net_delete"):
+        # Plan from fresh controller data: changes made directly in Omada must be seen immediately.
+        invalidate("switch")
         sw = cached("switch", 20, collect_switch)
         nets = {n["id"]: n for n in sw["networks"]}
         by_vlan = {n["vlan"]: n for n in sw["networks"]}
@@ -851,13 +1006,38 @@ def plan_action(kind, p):
             raise ValueError(f"'{cur['name']}' is Omada's built-in network (the switch's management VLAN) - read-only here")
 
         if kind == "net_delete":
-            if cur["used_by"]:
-                raise ValueError(f"'{cur['name']}' is still carried by {', '.join(cur['used_by'])} - remove it there first")
-            detail = [f"Delete network '{cur['name']}' (VLAN {cur['vlan']})", "No port or LAG carries it."]
+            nid = cur["id"]
+            # Like Omada, a carried VLAN is first removed from its ports/LAGs, but here every
+            # one of them is listed in the preview. A native (PVID) VLAN is never stripped
+            # silently: that port would be left without an untagged network.
+            natives = [f"port {x['port']}" for x in sw["ports"] if not x["lag"] and x["native_id"] == nid] + \
+                      [f"LAG {x['lag']}" for x in sw.get("lags", []) if x["native_id"] == nid]
+            if natives:
+                raise ValueError(f"'{cur['name']}' is the native (untagged) VLAN on {', '.join(natives)} - "
+                                 "give those a different native VLAN first (Edit VLANs)")
+            detach = [("port", x["port"], x) for x in sw["ports"] if not x["lag"] and nid in x["untag_ids"] + x["tag_ids"]] + \
+                     [("lag", x["lag"], x) for x in sw.get("lags", []) if nid in x["untag_ids"] + x["tag_ids"]]
+            detail = [f"Delete network '{cur['name']}' (VLAN {cur['vlan']})"]
+            if detach:
+                detail.append("First removes it from: " + ", ".join(
+                    f"{'LAG' if k == 'lag' else 'port'} {i} ({'untagged' if nid in x['untag_ids'] else 'tagged'})" for k, i, x in detach))
+                for k, i, x in detach:
+                    if k == "lag" or x.get("protected"):
+                        detail.append(f"⚠ {'LAG ' + str(i) if k == 'lag' else 'port ' + str(i)} is "
+                                      f"{x.get('protected') or 'protected'}")
+            else:
+                detail.append("No port or LAG carries it.")
             if users.get(cur["vlan"]):
-                detail.append(f"Router interface(s) still configured on {TRUNK_DEV}.{cur['vlan']}: {', '.join(users[cur['vlan']])}")
+                detail.append(f"⚠ Router interface(s) on {TRUNK_DEV}.{cur['vlan']} lose this VLAN: {', '.join(users[cur['vlan']])}")
 
             def run():
+                for k, i, x in detach:
+                    untag = [v for v in x["untag_ids"] if v != nid]
+                    tag = [v for v in x["tag_ids"] if v != nid]
+                    path = f"/switches/{SWITCH_MAC}/lags/{i}" if k == "lag" else f"/switches/{SWITCH_MAC}/ports/{i}"
+                    OMADA.call("PATCH", path, json=vlan_body(x["native_id"], untag, tag))
+                    read = (lambda i=i: port_details([i])["_lags"].get(i, {})) if k == "lag" else (lambda i=i: port_details().get(i, {}))
+                    verify_vlans(read, x["native_id"], untag, tag, f"{k} {i}")
                 OMADA.call("DELETE", f"/lan-networks/{cur['id']}")
                 time.sleep(1)
                 if any(n.get("id") == cur["id"] for n in OMADA.call("GET", "/lan-networks", params={"page": 1, "pageSize": 100}).get("data", [])):
@@ -923,9 +1103,151 @@ def plan_action(kind, p):
             return {"verified": True}
         return f"Edit network {cur['name']}", detail, word, run, ["switch"]
 
+    if kind in ("device_add", "device_edit", "device_delete"):
+        devs = C.setdefault("devices", [])
+        names = [d["name"] for d in devs]
+        orig = p.get("original_name")
+        if kind != "device_add" and orig not in names:
+            raise ValueError("unknown device")
+        if kind == "device_delete":
+            cur = devs[names.index(orig)]
+
+            def run():
+                C["devices"] = [d for d in C["devices"] if d["name"] != orig]
+                save_config()
+                return {"saved": True}
+            how = f"MAC {cur['mac']}" if cur.get("mac") else cur.get("target")
+            return f"Stop tracking {orig}", [f"Removes '{orig}' ({how}) from device health checks",
+                                              "The device itself is not touched"], None, run, ["ping"]
+
+        name = (p.get("name") or "").strip()
+        if not 1 <= len(name) <= 64 or not re.fullmatch(r"[\w .\-()/+]+", name):
+            raise ValueError("name: 1-64 letters, digits, space, _ . - ( ) / +")
+        if name in names and name != orig:
+            raise ValueError(f"a device named '{name}' already exists")
+        group = p.get("group") or "other"
+        if group not in DEVICE_GROUPS:
+            raise ValueError("unknown group")
+        port = p.get("port") or None
+        if port is not None:
+            port = int(port)
+            if not 1 <= port <= 65535:
+                raise ValueError("port 1-65535")
+        entry = {"name": name, "group": group}
+        mode = p.get("mode", "ip")
+        if mode == "mac":
+            mac = (p.get("mac") or "").strip().lower().replace("-", ":")
+            if not re.fullmatch(r"([0-9a-f]{2}:){5}[0-9a-f]{2}", mac):
+                raise ValueError("MAC must look like aa:bb:cc:dd:ee:ff")
+            entry["mac"] = mac
+            if port:
+                entry["port"] = port
+            now = neighbour_ips().get(mac)
+            how = f"follows MAC {mac} (currently {now or 'not seen on the network'})"
+        else:
+            try:
+                ip = str(ipaddress.ip_address((p.get("ip") or "").strip()))
+            except ValueError:
+                raise ValueError("enter a valid IPv4 address")
+            entry["target"] = f"{ip}:{port}" if port else ip
+            how = f"checks {entry['target']}" + (" (TCP)" if port else " (ping)")
+        detail = [f"{'Track' if kind == 'device_add' else 'Update'} '{name}' [{group}]: {how}"]
+        if kind == "device_edit":
+            old = devs[names.index(orig)]
+            detail.insert(0, "Was: " + (f"MAC {old['mac']}" if old.get("mac") else old.get("target", "?")) +
+                          (f", name '{orig}'" if orig != name else ""))
+
+        def run():
+            if kind == "device_add":
+                C["devices"].append(entry)
+            else:
+                C["devices"][[d["name"] for d in C["devices"]].index(orig)] = entry
+                for path in (ROUTER.get("wan_paths") or {}).values():  # keep diagnosis paths pointing at it
+                    if path.get("isp_device") == orig:
+                        path["isp_device"] = name
+            save_config()
+            return {"saved": True}
+        return (f"{'Add' if kind == 'device_add' else 'Edit'} device {name}", detail, None, run, ["ping"])
+
+    if kind == "wan_group_restart":
+        group = str(p.get("group", ""))
+        members = wan_groups().get(group)
+        if not members:
+            raise ValueError(f"unknown WAN group '{group}' (groups: {', '.join(wan_groups()) or 'none'})")
+        script = "".join(f"ifup {shlex.quote(i)}; sleep 3\n" for i in members)
+
+        def run():
+            ssh(ROUTER_HOST, script, timeout=15 + 5 * len(members))
+            return {"restarted": members}
+        return (f"Restart all {group} links ({len(members)})",
+                [f"Router runs ifup on {', '.join(members)}, 3 s apart",
+                 "Each drops for ~5-30 s; mwan3 moves traffic to the other ISPs meanwhile"], None, run, ["router"])
+
+    if kind == "wan_groups_set":
+        groups = p.get("groups")
+        if not isinstance(groups, dict):
+            raise ValueError("groups must be {name: [interfaces]}")
+        known = set(wan_candidates())
+        clean, seen = {}, {}
+        for g, members in groups.items():
+            g = str(g).strip().lower()
+            if not re.fullmatch(r"[a-z0-9_-]{1,20}", g):
+                raise ValueError(f"group name '{g}': use 1-20 letters, digits, - or _")
+            members = [str(m) for m in (members or [])]
+            if not members:
+                raise ValueError(f"group '{g}' has no interfaces")
+            for m in members:
+                if m not in known:
+                    raise ValueError(f"'{m}' is not a router interface")
+                if m in seen:
+                    raise ValueError(f"'{m}' is in both '{seen[m]}' and '{g}'")
+                seen[m] = g
+            clean[g] = members
+        old = wan_groups()
+        detail = [f"{g}: {', '.join(m)}" + ("" if old.get(g) == m else "  (was: " + (", ".join(old[g]) if g in old else "new group") + ")")
+                  for g, m in clean.items()] + [f"{g}: removed (was {', '.join(m)})" for g, m in old.items() if g not in clean]
+        # Optional per-group path used by the WAN diagnosis: switch port, ISP box, fibre ONT.
+        old_paths = ROUTER.get("wan_paths") or {}
+        paths = old_paths if p.get("paths") is None else {}
+        if p.get("paths") is not None:
+            dev_names = {d["name"] for d in C.get("devices", [])}
+            ont_names = {o["name"] for o in ONT_CACHES}
+            for g, path in (p.get("paths") or {}).items():
+                g = str(g).strip().lower()
+                if g not in clean:
+                    continue
+                path = path or {}
+                entry = {}
+                if path.get("switch_port") not in (None, "", 0):
+                    port = int(path["switch_port"])
+                    if not 1 <= port <= SWITCH_PORTS:
+                        raise ValueError(f"{g}: switch port must be 1-{SWITCH_PORTS}")
+                    entry["switch_port"] = port
+                for key, names, what in (("isp_device", dev_names, "tracked device"), ("ont", ont_names, "fibre ONT source")):
+                    if path.get(key):
+                        if path[key] not in names:
+                            raise ValueError(f"{g}: '{path[key]}' is not a {what}")
+                        entry[key] = path[key]
+                if entry:
+                    paths[g] = entry
+            for g in sorted(set(paths) | set(old_paths)):
+                if paths.get(g) != old_paths.get(g):
+                    pp = paths.get(g)
+                    detail.append(f"{g} path: " + (", ".join(f"{k.replace('_', ' ')} {v}" for k, v in pp.items()) if pp else "none")
+                                  + f"  (was: {', '.join(f'{k} {v}' for k, v in (old_paths.get(g) or {}).items()) or 'none'})")
+        if clean == old and paths == old_paths:
+            raise ValueError("nothing changed")
+
+        def run():
+            ROUTER["wan_groups"] = clean
+            ROUTER["wan_paths"] = paths
+            save_config()
+            return {"saved": True}
+        return "Update WAN groups", detail, None, run, ["router"]
+
     if kind == "wan_restart":
         iface = p.get("iface")
-        if iface not in WAN_IFACES:
+        if iface not in wan_ifaces():
             raise ValueError("not a restartable WAN")
 
         def run():
@@ -938,6 +1260,15 @@ def plan_action(kind, p):
 
 # ---------------------------------------------------------------- app + auth
 app = FastAPI(title="NOC", docs_url=None, redoc_url=None)
+TG = notify.Telegram(sys.modules[__name__])
+
+
+@app.on_event("startup")
+def start_workers():
+    # The watcher and Telegram bot run in this process (single uvicorn worker).
+    # NOC_NO_WORKERS=1 keeps them off, e.g. in offline tests.
+    if os.environ.get("NOC_NO_WORKERS") != "1":
+        TG.start()
 SESSION_KEY = E["NOC_SESSION_KEY"].encode()
 SESSION_HOURS = 12
 
@@ -1022,17 +1353,31 @@ def api_overview():
     return {"devices": r["ping"],
             "wans": [{"name": i["name"], "up": i["up"], "ip": i["ip"], "uptime": i["uptime"],
                       **(router.get("mwan", {}).get(i["name"], {}))}
-                     for i in router.get("interfaces", []) if i["name"] in WAN_IFACES],
+                     for i in router.get("interfaces", []) if i["name"] in wan_ifaces()],
             "onts": router.get("onts", []), "router_system": router.get("system"),
             "dns": r["dns"], "proxmox": r["proxmox"],
             "switch_ports_up": sum(1 for p in r["switch"].get("ports", []) if p["link"]) if "ports" in r["switch"] else None,
             "errors": {k: v["error"] for k, v in r.items() if isinstance(v, dict) and "error" in v}}
 
 
+@app.get("/api/devices")
+def api_devices():
+    live = {x["name"]: x for x in cached("ping", 10, collect_ping)} if C.get("devices") else {}
+    r = cached("router", 15, collect_router)
+    leases = r.get("leases", []) if isinstance(r, dict) else []
+    tracked_macs = {d["mac"].lower() for d in C.get("devices", []) if d.get("mac")}
+    tracked_ips = {(d.get("target") or "").split(":")[0] for d in C.get("devices", [])}
+    tracked_ips |= {x.get("current_ip") for x in live.values() if x.get("current_ip")}
+    return {"groups": DEVICE_GROUPS,
+            "devices": [{**d, **{k: live.get(d["name"], {}).get(k) for k in ("up", "ms", "current_ip", "note")}}
+                        for d in C.get("devices", [])],
+            "suggestions": [l for l in leases if l["mac"] not in tracked_macs and l["ip"] not in tracked_ips]}
+
+
 @app.get("/api/router")
 def api_router():
     d = cached("router", 15, collect_router)
-    return {k: v for k, v in d.items() if k != "_names"}
+    return {k: v for k, v in d.items() if not k.startswith("_")}
 
 
 @app.get("/api/ap")
@@ -1060,6 +1405,56 @@ def api_audit():
     if not AUDIT.exists():
         return []
     return [json.loads(l) for l in AUDIT.read_text().splitlines()[-100:]][::-1]
+
+
+@app.get("/api/alerts")
+def api_alerts():
+    r = cached("router", 15, collect_router)
+    procs = {i["name"]: i.get("proto") for i in r.get("interfaces", [])} if isinstance(r, dict) else {}
+    return {**TG.status(), "groups": wan_groups(), "monitored": sorted(wan_ifaces()),
+            "candidates": [{"name": n, "proto": procs.get(n)} for n in wan_candidates()]}
+
+
+@app.get("/api/settings")
+def api_settings():
+    return settings.current(sys.modules[__name__])
+
+
+@app.get("/api/diagnose")
+def api_diagnose(target: str):
+    """Walk a WAN link's (or every link in a WAN group's) path and report where it breaks."""
+    targets = wan_groups().get(target) or ([target] if target in wan_ifaces() else None)
+    if not targets:
+        return JSONResponse({"error": f"'{target}' is not a monitored WAN or group"}, status_code=400)
+    return {"results": list(TG.run_diagnoses(targets).values())}
+
+
+@app.post("/api/alerts/pair")
+def api_alerts_pair(request: Request):
+    if not TG.token():
+        return JSONResponse({"error": "Add TELEGRAM_BOT_TOKEN to secrets.env first"}, status_code=400)
+    code = TG.new_pairing_code()
+    audit(request, "telegram_pair_code", "Created a Telegram pairing code", {"ok": True})
+    return {"code": code, "bot": TG.bot_name, "expires_in": notify.PAIR_TTL}
+
+
+@app.post("/api/alerts/test")
+def api_alerts_test():
+    if not TG.chat_id():
+        return JSONResponse({"error": "Pair a Telegram chat first"}, status_code=400)
+    try:
+        TG.send(TG.chat_id(), f"👋 Test message from <b>{notify.e(SITE_NAME)}</b>. Alerts will arrive here.")
+    except Exception as ex:
+        return JSONResponse({"error": str(ex)}, status_code=502)
+    return {"ok": True}
+
+
+@app.post("/api/alerts/unpair")
+def api_alerts_unpair(request: Request):
+    (C.get("telegram") or {}).pop("chat_id", None)
+    save_config()
+    audit(request, "telegram_unpair", "Unpaired the Telegram chat", {"ok": True})
+    return {"ok": True}
 
 
 @app.post("/api/actions/preview")

@@ -18,9 +18,13 @@ Plus the field notes that came with it: a **highly available Pi-hole** kit and a
 | **DNS** | Each Pi-hole: queries, % blocked, blocklist size, top blocked domains, top clients | Pause blocking (5/15/30/60 min or until resumed) and resume, on all Pi-holes at once |
 | **Switch** | Every port: link, speed, PoE, profile, **native / untagged / tagged VLANs**; LAGs; networks with their DHCP source | Edit a port's VLANs or profile, enable/disable a port, edit a LAG's VLANs, create/edit/delete networks (VLANs) |
 | **Router** | Interfaces (IP, gateway, mwan3 state), physical ports, ONT details and alarms, DHCP leases | Restart a single WAN link |
+| **Alerts** | Telegram setup and pairing, open problems (with the diagnosed cause), recent alerts | Pair / unpair Telegram, send a test |
+| **Settings** | Every setting the NOC uses; secrets shown only as set / not set | Edit DNS servers (Pi-holes, VIP, app passwords), WAN groups and their diagnosis paths, fibre ONT sources, protected ports, router/AP/Omada/Proxmox connections, alert timing, site name. Changes apply live |
 | **Wi-Fi** | Every radio on the router and AP, every client with name, IP, signal and rates | — |
 | **Proxmox** | Host CPU/RAM, storage fill, every VM/container (CPU, RAM, disk) | Read-only |
 | **Audit log** | Every change: when, from where, what, result | — |
+
+**Telegram alerts and bot** (optional): devices, WAN links, Pi-holes, the DNS VIP and fibre optics are checked every 30 s, and a change that holds for two checks is sent to your paired chat. The bot answers `/status`, `/wan`, `/dns`, `/optics` and more, and can restart a WAN or a whole ISP group or pause ad-blocking, each after a Confirm button. See [docs/telegram.md](docs/telegram.md).
 
 ### Safety model
 - **Preview first.** Every change shows exactly what will happen, e.g.
@@ -62,7 +66,8 @@ Any integration you leave out of `config.json` simply shows "not configured".
 
 ## Repository layout
 ```
-app/                 NOC backend (app.py) and UI (static/)
+app/                 NOC backend (app.py), watcher + Telegram bot (notify.py), WAN diagnosis (diagnose.py),
+                     Settings tab (settings.py), UI (static/)
 config/              config.example.json, secrets.env.example
 deploy/              create-lxc.sh, install.sh, noc.service, proxmox-token.sh
 pihole-ha/           keepalived health check + configs, nebula-sync service, gravity cron
@@ -71,11 +76,12 @@ docs/
   pihole-ha.md       two-node Pi-hole with VIP failover and sync, plus pitfalls
   network-audit.md   read-only audit checklist with commands and red flags
   architecture.md    reference layout, NOC data flow, single points of failure
+  telegram.md        alerts, bot commands, pairing, WAN groups
 ```
 
 ## API
 All endpoints need a login session. `GET /api/meta`, `/api/overview`, `/api/router`,
-`/api/ap`, `/api/dns`, `/api/switch`, `/api/proxmox`, `/api/audit`.
+`/api/ap`, `/api/dns`, `/api/switch`, `/api/proxmox`, `/api/audit`, `/api/alerts`, `/api/settings`, `/api/diagnose?target=`.
 Changes: `POST /api/actions/preview` → `{id, summary, detail, confirm_word}`, then
 `POST /api/actions/confirm {id, confirm_text}`. Previews expire after 2 minutes.
 

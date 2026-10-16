@@ -37,7 +37,7 @@
   tr:last-child td { border-bottom:0; }
   .dot { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:6px; }
   .dot.ok { background:var(--ok); } .dot.bad { background:var(--bad); }
-  button.act, select, input[type=number], input[type=text] { font:inherit; border:1px solid var(--border); background:var(--card); color:var(--text); border-radius:8px; padding:5px 10px; }
+  button.act, select, input[type=number], input[type=text], input[type=password] { font:inherit; border:1px solid var(--border); background:var(--card); color:var(--text); border-radius:8px; padding:5px 10px; }
   button.act { cursor:pointer; } button.act:hover { border-color:var(--accent); }
   button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
   button.danger { background:var(--bad); color:#fff; border-color:var(--bad); }
@@ -59,7 +59,7 @@
   <nav id="tabs">
     <button data-t="overview" class="on">Overview</button><button data-t="dns">DNS</button>
     <button data-t="switch">Switch</button><button data-t="router">Router</button>
-    <button data-t="wifi">Wi-Fi</button><button data-t="proxmox">Proxmox</button><button data-t="audit">Audit log</button>
+    <button data-t="wifi">Wi-Fi</button><button data-t="devices">Devices</button><button data-t="proxmox">Proxmox</button><button data-t="alerts">Alerts</button><button data-t="settings">Settings</button><button data-t="audit">Audit log</button>
   </nav>
   <span class="spacer"></span>
   <span class="meta" id="updated">loading…</span>
@@ -116,7 +116,7 @@
 <style>
   .frm { display:grid; grid-template-columns:150px 1fr; gap:10px 12px; align-items:center; }
   .frm > label { font-size:13px; color:var(--muted); }
-  .frm input[type=text], .frm input[type=number], .frm select { width:100%; }
+  .frm input[type=text], .frm input[type=number], .frm input[type=password], .frm select { width:100%; }
   .frm .ip { display:flex; gap:6px; align-items:center; }
   .frm h3 { grid-column:1 / -1; margin:8px 0 0; font-size:13px; font-weight:650; }
   @media (max-width:520px) { .frm { grid-template-columns:1fr; } }
@@ -153,8 +153,68 @@
   </div>
 </dialog>
 
+<dialog id="xdlg" style="max-width:640px">
+  <h2 id="xdlg-title" style="margin:0 0 8px;font-size:16px"></h2>
+  <div id="xdlg-body"></div>
+  <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="act" id="xdlg-close">Close</button></div>
+</dialog>
+
+<dialog id="ddlg" style="max-width:520px">
+  <h2 id="ddlg-title" style="margin:0 0 12px;font-size:16px"></h2>
+  <div class="frm">
+    <label for="ddlg-name">Name</label><input type="text" id="ddlg-name" maxlength="64" autocomplete="off">
+    <label for="ddlg-group">Group</label><select id="ddlg-group"></select>
+    <label for="ddlg-mode">Track by</label>
+    <select id="ddlg-mode">
+      <option value="mac">MAC address: follows the device if its IP changes</option>
+      <option value="ip">Fixed IP address</option>
+    </select>
+    <label class="m-mac" for="ddlg-mac">MAC address</label><input class="m-mac" type="text" id="ddlg-mac" placeholder="aa:bb:cc:dd:ee:ff" autocomplete="off">
+    <label class="m-ip" for="ddlg-ip">IP address</label><input class="m-ip" type="text" id="ddlg-ip" placeholder="192.0.2.50" autocomplete="off">
+    <label for="ddlg-port">TCP port (optional)</label><input type="number" id="ddlg-port" min="1" max="65535" placeholder="leave empty to use ping">
+  </div>
+  <div class="small" style="margin-top:10px">Use a TCP port (e.g. 80) for devices that don't answer ping from other subnets. MAC tracking looks the device up in the router's DHCP and ARP tables on every refresh.</div>
+  <div id="ddlg-err" class="err" style="margin-top:8px"></div>
+  <div class="row" style="justify-content:flex-end;margin-top:12px">
+    <button class="act" id="ddlg-cancel">Cancel</button><button class="act primary" id="ddlg-ok">Preview</button>
+  </div>
+</dialog>
+
 <script>
 const $ = s => document.querySelector(s);
+let DV = null;
+
+function editDevice(name, prefill) {
+  const d = name ? DV.devices.find(x => x.name === name) : (prefill || {});
+  const dlg = $('#ddlg');
+  $('#ddlg-title').textContent = name ? `Edit ${name}` : 'Track a device';
+  $('#ddlg-group').innerHTML = DV.groups.map(g => `<option ${g === (d.group || 'other') ? 'selected' : ''}>${g}</option>`).join('');
+  const [tip, tport] = (d.target || '').split(':');
+  $('#ddlg-name').value = d.name || '';
+  $('#ddlg-mode').value = d.mac ? 'mac' : (d.target ? 'ip' : 'mac');
+  $('#ddlg-mac').value = d.mac || '';
+  $('#ddlg-ip').value = tip || d.ip || '';
+  $('#ddlg-port').value = d.port || tport || '';
+  const showMode = () => { const m = $('#ddlg-mode').value;
+    document.querySelectorAll('#ddlg .m-mac').forEach(e => e.classList.toggle('hidden', m !== 'mac'));
+    document.querySelectorAll('#ddlg .m-ip').forEach(e => e.classList.toggle('hidden', m !== 'ip')); };
+  $('#ddlg-mode').onchange = showMode; showMode();
+  $('#ddlg-err').textContent = '';
+  dlg.querySelectorAll('input, select').forEach(e => e.oninput = () => { $('#ddlg-err').textContent = ''; });
+  dlg.showModal();
+  $('#ddlg-cancel').onclick = () => dlg.close();
+  $('#ddlg-ok').onclick = () => {
+    const err = m => { $('#ddlg-err').textContent = m; };
+    const p = {name: $('#ddlg-name').value.trim(), group: $('#ddlg-group').value, mode: $('#ddlg-mode').value,
+               mac: $('#ddlg-mac').value.trim(), ip: $('#ddlg-ip').value.trim(), port: $('#ddlg-port').value.trim() || null};
+    if (!p.name) return err('Enter a name.');
+    if (p.mode === 'mac' && !/^([0-9a-f]{2}[:-]){5}[0-9a-f]{2}$/i.test(p.mac)) return err('MAC must look like aa:bb:cc:dd:ee:ff');
+    if (p.mode === 'ip' && !/^\d{1,3}(\.\d{1,3}){3}$/.test(p.ip)) return err('Enter a valid IPv4 address.');
+    if (p.port && !(+p.port >= 1 && +p.port <= 65535)) return err('Port must be 1–65535.');
+    dlg.close();
+    if (name) act('device_edit', {...p, original_name: name}); else act('device_add', p);
+  };
+}
 let SW = null;
 // Non-secret UI settings from config.json (filled by /api/meta before the first view loads).
 let META = {site_name: 'NOC', dns_vip: null, new_network: {subnet_template: '', range_start: 100, range_end: 200, lease_h: 12, dns: ''}};
@@ -328,7 +388,7 @@ async function load() {
   clearTimeout(timer);
   try { await VIEWS[tab](); $('#updated').textContent = 'updated ' + new Date().toLocaleTimeString(); }
   catch (e) { if (e.message !== 'login') $('#view').innerHTML = `<div class="card err">Failed to load: ${esc(e.message)}</div>`; }
-  if (tab !== 'audit') timer = setTimeout(load, tab === 'overview' ? 15000 : 30000);
+  if (tab !== 'audit' && tab !== 'settings') timer = setTimeout(load, tab === 'overview' ? 15000 : 30000);
 }
 
 // ---------- preview -> confirm flow
@@ -356,6 +416,58 @@ async function act(kind, params) {
 }
 
 const errBox = errs => { const e = Object.entries(errs || {}); return e.length ? `<div class="card wide err">Some sources failed: ${e.map(([k,v]) => `<b>${esc(k)}</b>: ${esc(v)}`).join(' · ')}</div>` : ''; };
+
+async function diagnoseWan(target) {
+  const dlg = $('#xdlg');
+  $('#xdlg-title').textContent = `Diagnosing ${target}…`;
+  $('#xdlg-body').innerHTML = '<div class="small">Checking router, switch, ISP box, fibre and the ISP session. This takes a few seconds.</div>';
+  $('#xdlg-close').onclick = () => dlg.close();
+  dlg.showModal();
+  try {
+    const r = await api('/api/diagnose?target=' + encodeURIComponent(target));
+    const icon = s => s.ok ? '<span class="pill ok">OK</span>' : s.ok === null ? '<span class="pill mut">not checked</span>'
+      : s.consequence ? '<span class="pill mut">follows</span>' : '<span class="pill bad">FAULT</span>';
+    $('#xdlg-title').textContent = `Diagnosis: ${target}`;
+    $('#xdlg-body').innerHTML = r.results.map(d => `<div style="margin-bottom:12px"><b>${esc(d.iface)}</b>${d.group ? ` <span class="small">[${esc(d.group)}]</span>` : ''}
+      <div class="${d.layer ? 'err' : 'small'}" style="margin:4px 0 6px">${d.layer ? 'Cause: ' : ''}${esc(d.verdict)}</div>
+      <table>${d.steps.map(s => `<tr><td style="white-space:nowrap">${icon(s)}</td><td style="white-space:nowrap"><b>${esc(s.layer)}</b></td><td class="small">${esc(s.detail)}</td></tr>`).join('')}</table></div>`).join('');
+  } catch (e) { $('#xdlg-body').innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+}
+
+let PAIRBOX = null;  // {html, exp}: survives the 30 s auto-refresh
+function renderAlertStatus(d) {
+  const last = d.last_check ? `${Math.round(Date.now() / 1000 - d.last_check)} s ago` : 'not yet';
+  $('#tg-status').innerHTML = `<h2>Telegram ${d.paired ? pill(true, 'paired') : d.token_set ? '<span class="pill warn">not paired</span>' : '<span class="pill mut">not set up</span>'}
+      ${d.bot ? `<span class="small">@${esc(d.bot)}</span>` : ''}<span class="spacer"></span>
+      ${d.token_set ? `<button class="act" id="tg-pair">${d.paired ? 'Pair another chat' : 'Pair'}</button>` : ''}
+      ${d.paired ? '<button class="act" id="tg-test">Send test</button><button class="act" id="tg-unpair">Unpair</button>' : ''}</h2>
+    <div class="kv" style="max-width:520px"><dt>Watcher</dt><dd>${d.running ? `${d.checks} checks · last run ${last}` : 'not running'}</dd>
+      <dt>Interval</dt><dd>every ${d.settings.check_every_s} s · alert after ${d.settings.confirm_checks} checks in a row</dd>
+      ${d.outbox ? `<dt>Waiting to send</dt><dd>${d.outbox} message(s)</dd>` : ''}</div>
+    ${d.watch_error ? `<div class="err">Watcher: ${esc(d.watch_error)}</div>` : ''}${d.bot_error && d.token_set ? `<div class="err">Bot: ${esc(d.bot_error)}</div>` : ''}
+    <div id="tg-pairbox"></div>
+    ${d.token_set ? '' : `<div class="small" style="margin-top:8px"><b>Set up:</b> in Telegram, message <b>@BotFather</b>, send <code>/newbot</code> and copy the token it gives you.
+      On the NOC container run <code>nano /etc/noc/secrets.env</code> and add the line <code>TELEGRAM_BOT_TOKEN=&lt;token&gt;</code>. The NOC picks it up within a minute; then press Pair.</div>`}`;
+  $('#tg-problems').innerHTML = d.problems.length
+    ? `<table>${d.problems.map(p => `<tr><td><span class="dot bad"></span>${esc(p.text)}${p.cause ? `<div class="small" style="color:var(--warn)">↳ ${esc(p.cause)}</div>` : ''}</td><td class="small" style="text-align:right">${dur(p.for_s)}</td></tr>`).join('')}</table>`
+    : '<div class="small">Nothing is wrong right now.</div>';
+  $('#tg-recent').innerHTML = `<tr><th>Time</th><th>Event</th><th></th></tr>` + (d.recent.map(a => `<tr><td class="small">${esc(a.ts)}</td>
+      <td>${esc(a.text)}</td><td>${a.key === 'vip' ? '<span class="pill mut">moved</span>' : pill(a.ok, 'recovered', 'problem')}${a.ok && a.lasted_s ? ` <span class="small">after ${dur(a.lasted_s)}</span>` : ''}</td></tr>`).join('')
+      || '<tr><td class="small" colspan="3">No alerts yet.</td></tr>');
+  if (d.paired && PAIRBOX && PAIRBOX.was_unpaired) PAIRBOX = null;
+  if (PAIRBOX && Date.now() < PAIRBOX.exp) $('#tg-pairbox').innerHTML = PAIRBOX.html;
+  const post = path => api(path, {method: 'POST'});
+  if ($('#tg-pair')) $('#tg-pair').onclick = async () => {
+    try {
+      const r = await post('/api/alerts/pair');
+      $('#tg-pairbox').innerHTML = `<div class="card" style="margin-top:10px;background:var(--chip)">Send this to ${r.bot ? `<b>@${esc(r.bot)}</b>` : 'your bot'} in Telegram within 10 minutes:
+        <div class="big" style="margin:6px 0"><code>/pair ${esc(r.code)}</code></div><div class="small">The chat that sends it becomes the only one the bot answers.</div></div>`;
+      PAIRBOX = {html: $('#tg-pairbox').innerHTML, exp: Date.now() + r.expires_in * 1000, was_unpaired: !d.paired};
+    } catch (e) { $('#tg-pairbox').innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+  };
+  if ($('#tg-test')) $('#tg-test').onclick = async () => { try { await post('/api/alerts/test'); alert('Sent. Check Telegram.'); } catch (e) { alert(e.message); } };
+  if ($('#tg-unpair')) $('#tg-unpair').onclick = async () => { if (confirm('Stop sending alerts to the paired chat?')) { await post('/api/alerts/unpair'); load(); } };
+}
 
 const VIEWS = {
   async overview() {
@@ -478,11 +590,12 @@ const VIEWS = {
       <div class="card wide"><h2>Interfaces</h2><div class="scroll"><table><tr><th>Name</th><th>State</th><th>Proto</th><th>Device</th><th>IP</th><th>Gateway</th><th>mwan3</th><th>Up for</th><th></th></tr>
         ${d.interfaces.map(i => { const m = d.mwan[i.name]; return `<tr><td><b>${esc(i.name)}</b></td><td>${pill(i.up)}</td><td>${esc(i.proto)}</td><td>${esc(i.device)}</td><td>${esc(i.ip || '–')}</td><td>${esc(i.gateway || '–')}</td>
           <td>${m ? `<span class="pill ${m.status === 'online' ? 'ok' : 'bad'}">${esc(m.status)}</span> <span class="small">${m.latency ?? '–'} ms · ${m.loss ?? '–'}%</span>` : '–'}</td><td>${dur(i.uptime)}</td>
-          <td>${i.restartable ? `<button class="act" data-restart="${esc(i.name)}">Restart</button>` : ''}</td></tr>`; }).join('')}</table></div></div>
+          <td>${i.restartable ? `<div class="row"><button class="act" data-diag="${esc(i.name)}">Diagnose</button><button class="act" data-restart="${esc(i.name)}">Restart</button></div>` : ''}</td></tr>`; }).join('')}</table></div></div>
       <div class="card wide"><h2>DHCP clients (${d.leases.length})</h2><div class="scroll"><table><tr><th>IP</th><th>Name</th><th>MAC</th><th>Lease ends</th></tr>
         ${d.leases.map(l => `<tr><td>${esc(l.ip)}</td><td>${esc(l.name || '–')}</td><td class="small">${esc(l.mac)}</td><td class="small">${new Date(l.expires * 1000).toLocaleString()}</td></tr>`).join('')}</table></div></div>
     </div>`;
     document.querySelectorAll('[data-restart]').forEach(b => b.onclick = () => act('wan_restart', {iface:b.dataset.restart}));
+    document.querySelectorAll('[data-diag]').forEach(b => b.onclick = () => diagnoseWan(b.dataset.diag));
   },
 
   async wifi() {
@@ -495,6 +608,34 @@ const VIEWS = {
           <td><span class="pill ${c.signal > -60 ? 'ok' : c.signal > -72 ? 'warn' : 'bad'}">${c.signal} dBm</span></td><td>${c.rx_mbps} / ${c.tx_mbps} Mbps</td><td class="small">${Math.round(c.inactive_ms / 1000)} s</td></tr>`).join('') || '<tr><td class="small">no clients</td></tr>'}</table></div></div>`).join('')}</div>`;
   },
 
+  async devices() {
+    const d = await api('/api/devices');
+    DV = d;
+    $('#view').innerHTML = `<div class="grid">
+      <div class="card wide"><h2>Tracked devices <span class="spacer"></span><button class="act primary" id="dev-add">+ Track a device</button></h2>
+        <div class="scroll"><table><tr><th>Device</th><th>Group</th><th>Tracking</th><th>Checked at</th><th>Status</th><th></th></tr>
+        ${d.devices.map(x => `<tr><td><b>${esc(x.name)}</b></td><td>${esc(x.group || 'other')}</td>
+          <td class="small">${x.mac ? `MAC <code>${esc(x.mac)}</code>${x.port ? ' · TCP ' + x.port : ''}` : `IP <code>${esc(x.target)}</code>${(x.target || '').includes(':') ? ' (TCP)' : ''}`}</td>
+          <td>${esc(x.current_ip || '–')}${x.note ? `<div class="small" style="color:var(--warn)">${esc(x.note)}</div>` : ''}</td>
+          <td>${x.up === undefined || x.up === null ? '<span class="pill mut">–</span>' : pill(x.up)}${x.ms != null ? ` <span class="small">${x.ms} ms</span>` : ''}</td>
+          <td><div class="row"><button class="act" data-devedit="${esc(x.name)}">Edit</button><button class="act" data-devdel="${esc(x.name)}">Remove</button></div></td></tr>`).join('') || '<tr><td class="small">No devices tracked yet.</td></tr>'}
+        </table></div>
+        <div class="small" style="margin-top:6px">Devices tracked by MAC follow their IP automatically. IP-tracked devices are checked at the fixed address.</div></div>
+      <div class="card wide"><h2>Seen by the router, not tracked (${d.suggestions.length})</h2>
+        <div class="scroll"><table><tr><th>Name</th><th>IP</th><th>MAC</th><th></th></tr>
+        ${d.suggestions.map(l => `<tr><td>${esc(l.name || '–')}</td><td>${esc(l.ip)}</td><td class="small">${esc(l.mac)}</td>
+          <td><button class="act" data-devtrack="${esc(l.mac)}">Track</button></td></tr>`).join('') || '<tr><td class="small">Every DHCP client is already tracked.</td></tr>'}
+        </table></div></div>
+    </div>`;
+    $('#dev-add').onclick = () => editDevice(null);
+    document.querySelectorAll('[data-devedit]').forEach(b => b.onclick = () => editDevice(b.dataset.devedit));
+    document.querySelectorAll('[data-devdel]').forEach(b => b.onclick = () => act('device_delete', {original_name: b.dataset.devdel}));
+    document.querySelectorAll('[data-devtrack]').forEach(b => b.onclick = () => {
+      const l = d.suggestions.find(s => s.mac === b.dataset.devtrack);
+      editDevice(null, {name: l.name || '', mac: l.mac, group: 'client'});
+    });
+  },
+
   async proxmox() {
     const d = await api('/api/proxmox');
     $('#view').innerHTML = `<div class="grid">
@@ -505,6 +646,155 @@ const VIEWS = {
           <td>${g.cpu_pct}%</td><td style="min-width:110px">${bar(g.mem_pct)}</td><td style="min-width:110px">${bar(g.disk_pct)}</td><td>${dur(g.uptime)}</td></tr>`).join('')}</table></div>
         <div class="small" style="margin-top:6px">Read-only for now (Proxmox token has the Auditor role).</div></div>
     </div>`;
+  },
+
+  async alerts() {
+    const d = await api('/api/alerts');
+    $('#view').innerHTML = `<div class="grid">
+      <div class="card wide" id="tg-status"></div>
+      <div class="card wide"><h2>Open problems</h2><div id="tg-problems"></div></div>
+      <div class="card wide small">WAN groups, their paths for diagnosis, DNS servers and every other setting are in the <a href="#" id="to-settings">Settings</a> tab.</div>
+      <div class="card wide"><h2>Recent alerts</h2><div class="scroll"><table id="tg-recent"></table></div></div>
+    </div>`;
+    renderAlertStatus(d);
+    $('#to-settings').onclick = ev => { ev.preventDefault(); document.querySelector('#tabs [data-t="settings"]').click(); };
+  },
+
+  async settings() {
+    const d = await api('/api/settings');
+    const inp = (id, v, extra = '') => `<input type="text" id="${id}" value="${esc(v ?? '')}" ${extra}>`;
+    const secret = (id, isSet) => `<input type="password" id="${id}" autocomplete="new-password" placeholder="${isSet ? 'set: leave empty to keep' : 'not set'}">`;
+    const save = id => `<button class="act primary" id="${id}">Save</button>`;
+    $('#view').innerHTML = `<div class="grid">
+      <div class="card wide small">Every change opens a preview first and is written to the audit log. Passwords and tokens are write-only: the page never shows them, and an empty box keeps the current one.</div>
+
+      <div class="card wide"><h2>DNS servers <span class="spacer"></span><button class="act" id="ph-add">+ Add Pi-hole</button>${save('ph-save')}</h2>
+        <div class="row" style="margin-bottom:8px"><label class="small" for="dns-vip">Shared DNS address (VIP)</label>${inp('dns-vip', d.dns.vip, 'placeholder="none" style="width:150px"')}
+          <span class="small">the address clients use; keepalived moves it between the Pi-holes</span></div>
+        <div class="scroll"><table id="ph-table"></table></div>
+        <div class="small" style="margin-top:6px">URL is the Pi-hole web address (e.g. http://192.0.2.11 or http://192.0.2.9:8080). MAC lets the NOC tell which Pi-hole holds the VIP. The password is the Pi-hole <b>app password</b> (Settings → Web interface / API → Configure app password); the preview tests the login.</div></div>
+
+      <div class="card wide" id="wan-card"><h2>WAN groups and paths <span class="spacer"></span><button class="act" id="grp-add">+ Add group</button>${save('grp-save')}</h2>
+        <div class="small" style="margin-bottom:8px">A group is the set of router interfaces of one ISP: Telegram <code>/restart &lt;group&gt;</code>, the Restart buttons and alerts use it. The path (switch port, ISP box, fibre ONT) is what the diagnosis checks when a link of that group goes down; the router side is found automatically.</div>
+        <div class="scroll"><table id="grp-table"></table></div></div>
+
+      <div class="card wide"><h2>Fibre ONT sources <span class="spacer"></span><button class="act" id="ont-add">+ Add</button>${save('ont-save')}</h2>
+        <div class="scroll"><table id="ont-table"></table></div>
+        <div class="small" style="margin-top:6px">The DDM cache file a LuCI DDM app writes on the router (e.g. /tmp/vsol_ddm_cache.json, /tmp/hsgq_ddm_cache.json).</div></div>
+
+      <div class="card"><h2>Monitoring and alerts <span class="spacer"></span>${save('mon-save')}</h2><div class="frm">
+        <label for="mon-every">Check every (seconds)</label><input type="number" id="mon-every" min="10" max="600" value="${d.monitoring.check_every_s}">
+        <label for="mon-confirm">Checks in a row before alerting</label><input type="number" id="mon-confirm" min="1" max="10" value="${d.monitoring.confirm_checks}">
+        <label for="mon-stale">ONT reading is stale after (seconds)</label><input type="number" id="mon-stale" min="60" max="3600" value="${d.monitoring.ont_stale_s}">
+      </div></div>
+
+      <div class="card"><h2>General <span class="spacer"></span>${save('gen-save')}</h2><div class="frm">
+        <label for="gen-name">Site name</label>${inp('gen-name', d.general.site_name, 'maxlength="40"')}</div></div>
+
+      <div class="card"><h2>Protected switch ports <span class="spacer"></span><button class="act" id="pp-add">+ Add</button>${save('pp-save')}</h2>
+        <table id="pp-table"></table><div class="small" style="margin-top:6px">Changes to these ports need the port name typed to confirm.</div></div>
+
+      <div class="card wide"><h2>Connections <span class="spacer"></span>${save('con-save')}</h2>
+        <div class="frm" style="max-width:720px">
+          <label for="con-router">Router (OpenWrt) address</label>${inp('con-router', d.connections.router_host)}
+          <label for="con-ap">Access point address</label>${inp('con-ap', d.connections.ap_host, 'placeholder="none"')}
+          <label for="con-swmac">Switch MAC</label>${inp('con-swmac', d.connections.switch_mac)}
+          <label for="con-swports">Switch ports</label><input type="number" id="con-swports" min="4" max="64" value="${esc(d.connections.switch_ports)}">
+          <label for="con-omurl">Omada controller URL</label>${inp('con-omurl', d.connections.omada_url, 'placeholder="https://10.0.0.5:8043"')}
+          <label for="con-omcid">Omada controller ID</label>${inp('con-omcid', d.connections.omadac_id)}
+          <label for="con-omsite">Omada site ID</label>${inp('con-omsite', d.connections.site_id)}
+          <label for="con-omci">Omada client ID</label>${secret('con-omci', d.connections.omada_client_set)}
+          <label for="con-omcs">Omada client secret</label>${secret('con-omcs', d.connections.omada_client_set)}
+          <label for="con-pvurl">Proxmox URL</label>${inp('con-pvurl', d.connections.proxmox_url, 'placeholder="https://10.0.0.6:8006"')}
+          <label for="con-pvnode">Proxmox node</label>${inp('con-pvnode', d.connections.proxmox_node)}
+          <label for="con-pvtok">Proxmox API token</label>${secret('con-pvtok', d.connections.pve_token_set)}
+        </div>
+        <div class="small" style="margin-top:6px">A new router or AP address must already accept the NOC's SSH key; the preview shows the new host's key fingerprint, which is trusted when you confirm.</div></div>
+    </div>`;
+
+    // ---- DNS servers
+    const ph = d.dns.piholes.map(x => ({...x, original_name: x.name, password: ''}));
+    const drawPh = () => { $('#ph-table').innerHTML = `<tr><th>Name</th><th>URL</th><th>MAC (optional)</th><th>App password</th><th></th></tr>` +
+      (ph.map((x, i) => `<tr>
+        <td><input type="text" data-ph="${i}" data-k="name" value="${esc(x.name)}" style="width:140px" aria-label="Name"></td>
+        <td><input type="text" data-ph="${i}" data-k="url" value="${esc(x.url)}" placeholder="http://10.0.0.5" style="width:200px" aria-label="URL"></td>
+        <td><input type="text" data-ph="${i}" data-k="mac" value="${esc(x.mac)}" placeholder="aa:bb:cc:dd:ee:ff" style="width:160px" aria-label="MAC"></td>
+        <td><input type="password" data-ph="${i}" data-k="password" autocomplete="new-password" placeholder="${x.password_set ? 'set: leave empty to keep' : 'required'}" style="width:180px" aria-label="App password"></td>
+        <td><button class="act" data-phdel="${i}">Remove</button></td></tr>`).join('') || '<tr><td class="small" colspan="5">No Pi-holes. Add one.</td></tr>'); };
+    drawPh();
+    $('#ph-table').oninput = ev => { const t = ev.target; if (t.dataset.ph !== undefined) ph[+t.dataset.ph][t.dataset.k] = t.value; };
+    $('#ph-table').onclick = ev => { const b = ev.target.closest('[data-phdel]'); if (b) { ph.splice(+b.dataset.phdel, 1); drawPh(); } };
+    $('#ph-add').onclick = () => { ph.push({name: '', url: '', mac: '', password: '', password_set: false}); drawPh(); };
+    $('#ph-save').onclick = () => act('settings_dns', {vip: $('#dns-vip').value.trim(),
+      piholes: ph.map(x => ({name: x.name.trim(), url: x.url.trim(), mac: x.mac.trim(), password: x.password, original_name: x.original_name}))});
+
+    // ---- WAN groups and paths
+    const W = d.wan;
+    const groups = Object.entries(W.groups).map(([name, members]) => ({name, orig: name, members: [...members], path: {...(W.paths[name] || {})}}));
+    const opt = (list, sel) => `<option value="">none</option>` + list.map(n => `<option ${n === sel ? 'selected' : ''}>${esc(n)}</option>`).join('');
+    const drawGrp = () => { $('#grp-table').innerHTML = `<tr><th>Group</th><th>Interfaces</th><th>Switch port</th><th>ISP box</th><th>Fibre ONT</th><th></th></tr>` +
+      (groups.map((g, gi) => `<tr>
+        <td><input type="text" data-gname="${gi}" value="${esc(g.name)}" maxlength="20" style="width:100px" aria-label="Group name"></td>
+        <td style="min-width:260px">${W.candidates.map(c => `<label class="pill ${g.members.includes(c) ? 'ok' : 'mut'}" style="margin:2px;cursor:pointer">
+          <input type="checkbox" data-g="${gi}" value="${esc(c)}" ${g.members.includes(c) ? 'checked' : ''} style="margin:0 4px 0 0;vertical-align:-1px">${esc(c)}</label>`).join('')}</td>
+        <td><input type="number" data-gp="${gi}" data-k="switch_port" min="1" max="${W.switch_ports}" value="${esc(g.path.switch_port ?? '')}" placeholder="none" style="width:80px" aria-label="Switch port"></td>
+        <td><select data-gp="${gi}" data-k="isp_device" aria-label="ISP box">${opt(W.devices, g.path.isp_device)}</select></td>
+        <td><select data-gp="${gi}" data-k="ont" aria-label="Fibre ONT">${opt(W.onts, g.path.ont)}</select></td>
+        <td><div class="row"><button class="act" data-grestart="${esc(g.orig || '')}" ${g.orig && W.groups[g.orig] ? '' : 'disabled title="Save the group first"'}>Restart</button><button class="act" data-gdel="${gi}">Remove</button></div></td></tr>`).join('')
+        || '<tr><td class="small" colspan="6">No groups yet. Add one, e.g. isp-a = wan1 to wan4.</td></tr>'); };
+    drawGrp();
+    $('#grp-table').onchange = ev => {
+      const t = ev.target;
+      if (t.dataset.g !== undefined) {
+        const gi = +t.dataset.g, g = groups[gi];
+        g.members = t.checked ? [...g.members, t.value] : g.members.filter(m => m !== t.value);
+        if (t.checked) groups.forEach((o, i) => { if (i !== gi) o.members = o.members.filter(m => m !== t.value); });  // one group per interface
+        drawGrp();
+      }
+      if (t.dataset.gp !== undefined) groups[+t.dataset.gp].path[t.dataset.k] = t.value || null;
+    };
+    $('#grp-table').oninput = ev => { const t = ev.target;
+      if (t.dataset.gname !== undefined) groups[+t.dataset.gname].name = t.value.trim().toLowerCase();
+      if (t.dataset.gp !== undefined && t.type === 'number') groups[+t.dataset.gp].path.switch_port = t.value ? +t.value : null; };
+    $('#grp-table').onclick = ev => { const b = ev.target.closest('button'); if (!b) return;
+      if (b.dataset.gdel !== undefined) { groups.splice(+b.dataset.gdel, 1); drawGrp(); }
+      if (b.dataset.grestart) act('wan_group_restart', {group: b.dataset.grestart}); };
+    $('#grp-add').onclick = () => { groups.push({name: 'group' + (groups.length + 1), orig: null, members: [], path: {}}); drawGrp(); };
+    $('#grp-save').onclick = () => act('wan_groups_set', {groups: Object.fromEntries(groups.map(g => [g.name, g.members])),
+                                                          paths: Object.fromEntries(groups.map(g => [g.name, g.path]))});
+
+    // ---- Fibre ONT sources
+    const onts = d.onts.map(o => ({...o, original_name: o.name}));
+    const drawOnt = () => { $('#ont-table').innerHTML = `<tr><th>Name</th><th>Cache file on the router</th><th></th></tr>` +
+      (onts.map((o, i) => `<tr><td><input type="text" data-ont="${i}" data-k="name" value="${esc(o.name)}" style="width:200px" aria-label="ONT name"></td>
+        <td><input type="text" data-ont="${i}" data-k="path" value="${esc(o.path)}" placeholder="/tmp/vsol_ddm_cache.json" style="width:280px" aria-label="Cache path"></td>
+        <td><button class="act" data-ontdel="${i}">Remove</button></td></tr>`).join('') || '<tr><td class="small" colspan="3">None.</td></tr>'); };
+    drawOnt();
+    $('#ont-table').oninput = ev => { const t = ev.target; if (t.dataset.ont !== undefined) onts[+t.dataset.ont][t.dataset.k] = t.value; };
+    $('#ont-table').onclick = ev => { const b = ev.target.closest('[data-ontdel]'); if (b) { onts.splice(+b.dataset.ontdel, 1); drawOnt(); } };
+    $('#ont-add').onclick = () => { onts.push({name: '', path: '', original_name: null}); drawOnt(); };
+    $('#ont-save').onclick = () => act('settings_onts', {onts: onts.map(o => ({name: o.name.trim(), path: o.path.trim(), original_name: o.original_name}))});
+
+    // ---- Protected switch ports
+    const pp = Object.entries(d.protected_ports).map(([port, label]) => ({port, label}));
+    const drawPp = () => { $('#pp-table').innerHTML = `<tr><th>Port</th><th>What is plugged in</th><th></th></tr>` +
+      (pp.map((x, i) => `<tr><td><input type="number" data-pp="${i}" data-k="port" min="1" max="${W.switch_ports}" value="${esc(x.port)}" style="width:70px" aria-label="Port"></td>
+        <td><input type="text" data-pp="${i}" data-k="label" value="${esc(x.label)}" style="width:200px" aria-label="Label"></td>
+        <td><button class="act" data-ppdel="${i}">Remove</button></td></tr>`).join('') || '<tr><td class="small" colspan="3">None.</td></tr>'); };
+    drawPp();
+    $('#pp-table').oninput = ev => { const t = ev.target; if (t.dataset.pp !== undefined) pp[+t.dataset.pp][t.dataset.k] = t.value; };
+    $('#pp-table').onclick = ev => { const b = ev.target.closest('[data-ppdel]'); if (b) { pp.splice(+b.dataset.ppdel, 1); drawPp(); } };
+    $('#pp-add').onclick = () => { pp.push({port: '', label: ''}); drawPp(); };
+    $('#pp-save').onclick = () => act('settings_protected', {ports: Object.fromEntries(pp.filter(x => x.port).map(x => [x.port, x.label.trim()]))});
+
+    // ---- simple forms
+    $('#mon-save').onclick = () => act('settings_monitoring', {check_every_s: +$('#mon-every').value, confirm_checks: +$('#mon-confirm').value, ont_stale_s: +$('#mon-stale').value});
+    $('#gen-save').onclick = () => act('settings_general', {site_name: $('#gen-name').value.trim()});
+    $('#con-save').onclick = () => act('settings_connections', {
+      router_host: $('#con-router').value, ap_host: $('#con-ap').value, switch_mac: $('#con-swmac').value, switch_ports: $('#con-swports').value,
+      omada_url: $('#con-omurl').value, omadac_id: $('#con-omcid').value, site_id: $('#con-omsite').value,
+      omada_client_id: $('#con-omci').value, omada_client_secret: $('#con-omcs').value,
+      proxmox_url: $('#con-pvurl').value, proxmox_node: $('#con-pvnode').value, pve_token: $('#con-pvtok').value});
   },
 
   async audit() {
