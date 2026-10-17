@@ -1643,6 +1643,12 @@ const VIEWS = {
       <div class="card"><h2>General <span class="spacer"></span>${save('gen-save')}</h2><div class="frm">
         <label for="gen-name">Site name</label>${inp('gen-name', d.general.site_name, 'maxlength="40"')}</div></div>
 
+      <div class="card"><h2>NOC password <span class="spacer"></span><button class="act primary" id="pw-save">Change</button></h2><div class="frm">
+        <label for="pw-cur">Current password</label><input type="password" id="pw-cur" autocomplete="current-password">
+        <label for="pw-new">New password</label><input type="password" id="pw-new" autocomplete="new-password" minlength="10">
+        <label for="pw-new2">New password again</label><input type="password" id="pw-new2" autocomplete="new-password" minlength="10"></div>
+        <div class="small" style="margin-top:6px">At least 10 characters. Every other signed-in browser is signed out, and Telegram gets a notice. Forgot it? Use <b>Forgot password</b> on the sign-in page.</div></div>
+
       <div class="card span2"><h2>Protected switch ports <span class="spacer"></span><button class="act" id="pp-add">+ Add</button>${save('pp-save')}</h2>
         <table id="pp-table"></table><div class="small" style="margin-top:6px">Changes to these ports need the port name typed to confirm.</div></div>
 
@@ -1742,6 +1748,15 @@ const VIEWS = {
     // ---- simple forms
     $('#mon-save').onclick = () => act('settings_monitoring', {check_every_s: +$('#mon-every').value, confirm_checks: +$('#mon-confirm').value, ont_stale_s: +$('#mon-stale').value});
     $('#gen-save').onclick = () => act('settings_general', {site_name: $('#gen-name').value.trim()});
+    $('#pw-save').onclick = async () => {
+      const cur = $('#pw-cur').value, nw = $('#pw-new').value;
+      if (nw !== $('#pw-new2').value) return toast('The new passwords do not match.', 'bad');
+      try {
+        await api('/api/account/password', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({current: cur, new: nw})});
+        ['#pw-cur', '#pw-new', '#pw-new2'].forEach(s => $(s).value = '');
+        toast('Password changed. Other sessions are signed out.');
+      } catch (e) { toast(e.message, 'bad'); }
+    };
     $('#con-save').onclick = () => act('settings_connections', {
       router_host: $('#con-router').value, ap_host: $('#con-ap').value, switch_mac: $('#con-swmac').value, switch_ports: $('#con-swports').value,
       omada_url: $('#con-omurl').value, omadac_id: $('#con-omcid').value, site_id: $('#con-omsite').value,

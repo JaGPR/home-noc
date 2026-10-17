@@ -4,6 +4,7 @@ Reads: OpenWrt router + AP (SSH/ubus), Pi-hole x2 (API), Omada switch (Open API)
 Proxmox (read-only token), ping checks. Writes always go through preview -> confirm
 and are appended to an audit log.
 """
+import asyncio
 import concurrent.futures as cf
 import hashlib
 import hmac
@@ -24,6 +25,7 @@ import requests
 import urllib3
 from fastapi import FastAPI, Request
 
+import auth
 import notify
 import openwrt
 import settings
@@ -1389,16 +1391,20 @@ SESSION_KEY = E["NOC_SESSION_KEY"].encode()
 SESSION_HOURS = 12
 
 
+def session_sig(user, exp):
+    # the password's fingerprint is part of the signature: a new password signs old sessions out
+    return hmac.new(SESSION_KEY, f"{user}:{exp}:{auth.session_salt(E)}".encode(), hashlib.sha256).hexdigest()
+
+
 def make_session(user):
     exp = int(time.time()) + SESSION_HOURS * 3600
-    sig = hmac.new(SESSION_KEY, f"{user}:{exp}".encode(), hashlib.sha256).hexdigest()
-    return f"{user}:{exp}:{sig}"
+    return f"{user}:{exp}:{session_sig(user, exp)}"
 
 
 def valid_session(tok):
     try:
         user, exp, sig = tok.split(":")
-        good = hmac.new(SESSION_KEY, f"{user}:{exp}".encode(), hashlib.sha256).hexdigest()
+        good = session_sig(user, exp)
         return hmac.compare_digest(sig, good) and int(exp) > time.time()
     except Exception:
         return False
@@ -1406,7 +1412,7 @@ def valid_session(tok):
 
 @app.middleware("http")
 async def require_login(request: Request, call_next):
-    if request.url.path in ("/login", "/healthz") or valid_session(request.cookies.get("noc", "")):
+    if request.url.path in ("/login", "/login/forgot", "/login/reset", "/healthz") or valid_session(request.cookies.get("noc", "")):
         return await call_next(request)
     if request.url.path.startswith("/api/"):
         return JSONResponse({"error": "login required"}, status_code=401)
@@ -1436,14 +1442,91 @@ def login_page():
 async def login(request: Request):
     form = await request.form()
     ok = hmac.compare_digest(str(form.get("user", "")), E["NOC_ADMIN_USER"]) and \
-        hmac.compare_digest(str(form.get("password", "")), E["NOC_ADMIN_PASS"])
+        auth.verify(str(form.get("password", "")), E)
     if not ok:
-        time.sleep(1)
+        await asyncio.sleep(1)
         return RedirectResponse("/login?bad=1", status_code=303)
-    resp = RedirectResponse("/", status_code=303)
+    return signed_in(request, RedirectResponse("/", status_code=303))
+
+
+def signed_in(request, resp):
     resp.set_cookie("noc", make_session(E["NOC_ADMIN_USER"]), httponly=True, samesite="strict",
                     max_age=SESSION_HOURS * 3600, secure=request.headers.get("x-forwarded-proto") == "https")
     return resp
+
+
+def client_ip(request):
+    return request.headers.get("cf-connecting-ip") or (request.client.host if request.client else "?")
+
+
+def set_password(request, new, how):
+    set_secrets(auth.updates(new))
+    audit(request, "password", how, {"ok": True})
+    TG.queue(f"🔑 <b>{notify.e(SITE_NAME)}</b>: {how.lower()} from {notify.e(client_ip(request))}. "
+             "Other sessions are signed out.")
+
+
+@app.post("/api/account/password")
+async def change_password(request: Request):
+    p = await request.json()
+    cur, new = str(p.get("current", "")), str(p.get("new", ""))
+    if not auth.verify(cur, E):
+        await asyncio.sleep(1)
+        return JSONResponse({"error": "The current password is wrong."}, status_code=400)
+    why = auth.check_new(new, E["NOC_ADMIN_USER"]) or ("it is the current password" if new == cur else None)
+    if why:
+        return JSONResponse({"error": f"New password: {why}."}, status_code=400)
+    await asyncio.to_thread(set_password, request, new, "Changed the NOC password")
+    return signed_in(request, JSONResponse({"ok": True}))
+
+
+# Forgot password: a one-time code goes to the paired Telegram chat, the only channel the NOC has
+# outside the browser. Without Telegram the reset is done on the NOC's console with noc-passwd.
+RESET_TTL, RESET_TRIES, RESET_EVERY = 600, 5, 60
+RESET = {"hash": None, "exp": 0.0, "tries": 0, "sent": 0.0}
+
+
+@app.post("/login/forgot")
+async def forgot_password(request: Request):
+    if not (TG.token() and TG.chat_id()):
+        return JSONResponse({"error": "Telegram isn't set up, so no code can be sent. Reset the password on the "
+                                      "NOC's console instead: run noc-passwd as root.", "console": True}, status_code=400)
+    now = time.time()
+    if now - RESET["sent"] < RESET_EVERY:
+        return JSONResponse({"error": f"A code was just sent. You can ask again in {int(RESET_EVERY - (now - RESET['sent'])) + 1} s."},
+                            status_code=429)
+    code = f"{secrets.randbelow(10 ** 8):08d}"
+    text = (f"🔑 <b>{notify.e(SITE_NAME)}</b>: password reset requested from {notify.e(client_ip(request))}.\n"
+            f"Code: <code>{code[:4]}-{code[4:]}</code> (valid {RESET_TTL // 60} min, single use).\n"
+            "If this wasn't you, ignore it: the password stays as it is.")
+    try:
+        await asyncio.to_thread(TG.send, TG.chat_id(), text)
+    except Exception as ex:
+        return JSONResponse({"error": f"Could not send the code over Telegram: {ex}"}, status_code=502)
+    RESET.update(hash=hashlib.sha256(code.encode()).hexdigest(), exp=now + RESET_TTL, tries=0, sent=now)
+    audit(request, "password", "Requested a password reset code (sent to Telegram)", {"ok": True})
+    return {"sent": True, "valid_min": RESET_TTL // 60}
+
+
+@app.post("/login/reset")
+async def reset_password(request: Request):
+    p = await request.json()
+    code, new = re.sub(r"\D", "", str(p.get("code", ""))), str(p.get("new", ""))
+    if not RESET["hash"] or time.time() > RESET["exp"]:
+        return JSONResponse({"error": "No valid code: ask for a new one."}, status_code=400)
+    if not hmac.compare_digest(hashlib.sha256(code.encode()).hexdigest(), RESET["hash"]):
+        RESET["tries"] += 1
+        if RESET["tries"] >= RESET_TRIES:
+            RESET.update(hash=None, exp=0.0)
+            return JSONResponse({"error": "Wrong code too many times: ask for a new one."}, status_code=400)
+        await asyncio.sleep(1)
+        return JSONResponse({"error": f"Wrong code ({RESET_TRIES - RESET['tries']} tries left)."}, status_code=400)
+    why = auth.check_new(new, E["NOC_ADMIN_USER"])
+    if why:
+        return JSONResponse({"error": f"New password: {why}."}, status_code=400)  # the code stays valid
+    RESET.update(hash=None, exp=0.0)
+    await asyncio.to_thread(set_password, request, new, "Reset the NOC password with a Telegram code")
+    return signed_in(request, JSONResponse({"ok": True}))
 
 
 @app.get("/logout")

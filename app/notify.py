@@ -61,6 +61,7 @@ class Telegram:
         self.states = {}        # check key -> {"ok", "since", "streak", "text"}
         self.diag = {}          # WAN interface -> latest diagnosis while it is down
         self.vip = None         # {"owner", "cand", "streak"}
+        self.mgmt_down = {}     # device check key -> first down reading (telegram.mgmt_grace)
         self.outbox = []        # [{"text", "ts"}] waiting for the internet / Telegram
         self.pending = {}       # action id -> {"plan", "kind", "exp", "chat"}
         self.pairing = None     # (code, expires)
@@ -178,7 +179,41 @@ class Telegram:
             vip = d.get("vip_owner")
         except Exception as ex:
             out["source:dns"] = (False, f"DNS checks failed: {ex}")
+        self.apply_grace(out)
         return out, vip
+
+    def apply_grace(self, out):
+        """Some ISP boxes drop their management address for a minute or two now and then while
+        traffic keeps flowing. For devices in telegram.mgmt_grace ({name: seconds}) a down reading
+        counts as OK until it has lasted that long, unless their WAN group is fully down or the
+        fibre (the group's ONT) is not in O5 / has an alarm."""
+        grace, now = self.cfg().get("mgmt_grace") or {}, time.time()
+        paths = self.noc.ROUTER.get("wan_paths") or {}
+        for name, secs in grace.items():
+            key = f"device:{name}"
+            if key not in out:
+                continue
+            if out[key][0]:
+                self.mgmt_down.pop(key, None)
+                continue
+            since = self.mgmt_down.setdefault(key, now)
+            serious, onts = False, []
+            for g, path in paths.items():
+                if path.get("isp_device") != name:
+                    continue
+                wans = [f"wan:{w}" for w in self.noc.wan_groups().get(g, [])]
+                serious |= bool(wans) and all(w in out and not out[w][0] for w in wans)
+                if path.get("ont"):
+                    link = f"ont:{path['ont']}:link"
+                    # while the box is unreachable its poller has no fresh reading: use the last known state
+                    fibre_ok = out[link][0] if link in out else (self.states.get(link) or {}).get("ok", True)
+                    serious |= not fibre_ok
+                    onts.append(path["ont"])
+            if not serious and now - since < float(secs):
+                out[key] = (True, out[key][1])  # held: management-only blip
+                for o in onts:  # the poller can't reach it either; that is the same blip
+                    if f"ont:{o}:poll" in out:
+                        out[f"ont:{o}:poll"] = (True, out[f"ont:{o}:poll"][1])
 
     def ont_checks(self, o, out):
         n, lim = o["name"], o.get("limits") or {}

@@ -47,7 +47,7 @@ Never commit this file. Each integration gets **its own, minimal** credential:
 | **Pi-hole v6** | Settings → Web interface / API → *Configure app password*, one per Pi-hole |
 | **Omada** | Global/Settings → Platform Integration → Open API → Add New App, **Client mode**, admin role for your site. Put the client ID/secret in secrets.env; the omadacId and site ID go in config.json (the site ID is listed under `/openapi/v1/{omadacId}/sites`) |
 | **Proxmox** | `sh deploy/proxmox-token.sh` on the Proxmox host creates a **PVEAuditor (read-only)** token |
-| **NOC login** | `NOC_ADMIN_USER` / `NOC_ADMIN_PASS`; `NOC_SESSION_KEY` signs sessions |
+| **NOC login** | `NOC_ADMIN_USER` / `NOC_ADMIN_PASS` (first install; replaced by `NOC_ADMIN_PASS_HASH` once you change it in Settings → NOC password); `NOC_SESSION_KEY` signs sessions. Forgot it: **Forgot password?** on the sign-in page sends a one-time code to the paired Telegram chat, or run `noc-passwd` as root on the NOC |
 
 Then: `systemctl restart noc` and open `http://<noc-ip>:8080`.
 

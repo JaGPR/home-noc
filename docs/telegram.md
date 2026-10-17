@@ -80,6 +80,7 @@ other links meanwhile.
 | `check_every_s` | 30 | seconds between checks |
 | `confirm_checks` | 2 | consecutive readings needed before alerting |
 | `ont_stale_s` | 180 | an ONT reading older than this counts as "not reporting" |
+| `mgmt_grace` | – | `{"<device>": seconds}`: for an ISP box that briefly drops its management address, alert only once it has been down that long, or at once if its WAN group is fully down or its fibre is not OK. Its ONT poller staleness is held with it |
 | `chat_id` | – | set by pairing; remove (or press **Unpair**) to stop messages |
 
 Alert history is kept in `/var/lib/noc/alerts.jsonl` and shown in the Alerts tab.

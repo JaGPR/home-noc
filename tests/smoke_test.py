@@ -100,6 +100,30 @@ tg.ont_checks({"name": "ONT", "connected": True, "age_s": 10, "rx_dbm": -28.1, "
                "limits": {"rx_pwr_low_warn": -26, "rx_pwr_high_warn": -9, "tx_pwr_low_warn": 0.5,
                           "tx_pwr_high_warn": 3.5, "temp_low_warn": 0, "temp_high_warn": 65}}, out)
 assert out["ont:ONT:rx"][0] is False and out["ont:ONT:tx"][0] and out["ont:ONT:link"][0], out
+
+# telegram.mgmt_grace: an ISP box's management drop is held unless it lasts, its WANs are down or the fibre is bad.
+real_paths, real_grace = noc.ROUTER.get("wan_paths"), noc.C.setdefault("telegram", {}).get("mgmt_grace")
+noc.ROUTER["wan_paths"] = {"isp-b": {"isp_device": "Box", "ont": "ONT"}}
+noc.C["telegram"]["mgmt_grace"] = {"Box": 300}
+try:
+    def held(wan_ok=True, link=None, age=0):
+        r = {"device:Box": (False, "Box down"), "wan:wan2": (wan_ok, "wan2"), "ont:ONT:poll": (False, "no reading")}
+        if link is not None:
+            r["ont:ONT:link"] = (link, "ONT")
+        tg.mgmt_down = {"device:Box": time.time() - age}
+        tg.apply_grace(r)
+        return r["device:Box"][0], r["ont:ONT:poll"][0]
+    assert held() == (True, True), "a short management blip is held, poller staleness with it"
+    assert held(age=301) == (False, False), "longer than the grace: alert"
+    assert held(wan_ok=False) == (False, False), "its internet is down too: alert at once"
+    assert held(link=False) == (False, False), "fibre not OK: alert at once"
+    r = {"device:Box": (True, "Box")}
+    tg.apply_grace(r)
+    assert "device:Box" not in tg.mgmt_down, "recovery resets the timer"
+finally:
+    noc.ROUTER["wan_paths"] = real_paths
+    noc.C["telegram"].pop("mgmt_grace", None) if real_grace is None else noc.C["telegram"].update(mgmt_grace=real_grace)
+    tg.mgmt_down = {}
 tg.token_cache = (time.time() + 1e6, "123:SECRET")
 real_post = notify.requests.post
 notify.requests.post = lambda *a, **k: (_ for _ in ()).throw(OSError("https://api.telegram.org/bot123:SECRET/getMe failed"))
@@ -468,5 +492,52 @@ try:
     assert out.status_code == 500 and not any(x[0] == "DELETE" for x in calls), "router failed first, so the switch VLAN must stay"
 finally:
     noc.collect_switch, noc.OMADA.call, noc.ssh = real_cs, real_call, real_ssh
+
+# NOC password: change it (signs old sessions out), then reset it with a Telegram code.
+import auth  # noqa: E402
+import passwd  # noqa: E402
+
+assert auth.verify("x" * 12, {"NOC_ADMIN_PASS_HASH": auth.hash_password("x" * 12, 1000)}) and not auth.verify("", {})
+pwpost = lambda path, body: c.post(path, json=body)
+old_cookie = c.cookies.get("noc")
+assert pwpost("/api/account/password", {"current": "wrong", "new": "brand-new-pass-1"}).status_code == 400, "current password checked"
+assert "10 characters" in pwpost("/api/account/password", {"current": "test-pass", "new": "short"}).json()["error"]
+r = pwpost("/api/account/password", {"current": "test-pass", "new": "brand-new-pass-1"})
+assert r.status_code == 200 and "noc" in r.cookies, r.text
+sec = (etc / "secrets.env").read_text()
+assert "NOC_ADMIN_PASS_HASH=pbkdf2_sha256$" in sec and "\nNOC_ADMIN_PASS=\n" in sec and "brand-new-pass-1" not in sec, "only a hash is stored"
+assert c.get("/api/audit").status_code == 200, "the changer stays signed in"
+assert TestClient(noc.app, cookies={"noc": old_cookie}).get("/api/audit").status_code == 401, "old sessions are signed out"
+anon = TestClient(noc.app)
+assert anon.post("/login", data={"user": "admin", "password": "test-pass"}, follow_redirects=False).headers["location"].endswith("bad=1")
+assert anon.post("/login", data={"user": "admin", "password": "brand-new-pass-1"}, follow_redirects=False).headers["location"] == "/"
+
+r = anon.post("/login/forgot")
+assert r.status_code == 400 and r.json().get("console"), "no Telegram: point to noc-passwd"
+sent = []
+real_tok, real_chat, real_send = noc.TG.token, noc.TG.chat_id, noc.TG.send
+noc.TG.token, noc.TG.chat_id, noc.TG.send = (lambda: "tok"), (lambda: 42), (lambda chat, text, **kw: sent.append(text))
+try:
+    assert anon.post("/login/forgot").json()["sent"] and len(sent) == 1, sent
+    assert anon.post("/login/forgot").status_code == 429, "one code a minute"
+    code = re.search(r"<code>(\d{4}-\d{4})</code>", sent[0]).group(1)
+    wrong = "0000-0000" if code != "0000-0000" else "1111-1111"
+    assert "tries left" in anon.post("/login/reset", json={"code": wrong, "new": "reset-pass-123"}).json()["error"]
+    assert anon.post("/login/reset", json={"code": code, "new": "short"}).status_code == 400, "weak password refused"
+    r = anon.post("/login/reset", json={"code": code, "new": "reset-pass-123"})
+    assert r.status_code == 200 and "noc" in r.cookies and anon.get("/api/audit").status_code == 200, r.text
+    assert anon.post("/login/reset", json={"code": code, "new": "other-pass-123"}).status_code == 400, "codes are single use"
+    assert c.get("/api/audit").status_code == 401, "the reset signs everyone else out"
+    noc.RESET.update(sent=0.0)
+    anon.post("/login/forgot")
+    for _ in range(noc.RESET_TRIES):
+        r = anon.post("/login/reset", json={"code": wrong, "new": "reset-pass-123"})
+    assert "too many" in r.json()["error"] and noc.RESET["hash"] is None, "the code dies after 5 wrong tries"
+finally:
+    noc.TG.token, noc.TG.chat_id, noc.TG.send = real_tok, real_chat, real_send
+assert TestClient(noc.app).post("/login", data={"user": "admin", "password": "reset-pass-123"}, follow_redirects=False).headers["location"] == "/"
+# the console tool writes the same format
+passwd.write_env(etc / "secrets.env", auth.updates("console-pass-99"))
+assert auth.verify("console-pass-99", noc.load_env(etc / "secrets.env"))
 
 print("smoke test: all checks passed")

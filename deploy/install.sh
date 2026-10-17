@@ -17,9 +17,11 @@ apt-get install -y -qq python3 python3-fastapi python3-uvicorn python3-requests 
 echo "==> Installing the app to /opt/noc"
 mkdir -p /opt/noc/static /etc/noc /var/lib/noc
 chmod 700 /etc/noc
-cp app/app.py /opt/noc/app.py
+cp app/*.py /opt/noc/
 cp app/static/*.html /opt/noc/static/
-python3 -m py_compile /opt/noc/app.py
+for f in /opt/noc/*.py; do python3 -m py_compile "$f"; done
+printf '#!/bin/sh\nexec python3 /opt/noc/passwd.py "$@"\n' > /usr/local/sbin/noc-passwd
+chmod 755 /usr/local/sbin/noc-passwd
 
 if [ ! -f /etc/noc/config.json ]; then
 	install -m 600 config/config.example.json /etc/noc/config.json

@@ -18,7 +18,7 @@ jobs:
       - name: Install dependencies
         run: pip install fastapi uvicorn requests python-multipart httpx
       - name: Compile
-        run: python -m py_compile app/app.py
+        run: for f in app/*.py; do python -m py_compile "$f"; done
       - name: Smoke test (offline, example config)
         run: python tests/smoke_test.py
 
