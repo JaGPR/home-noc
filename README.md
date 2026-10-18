@@ -25,7 +25,7 @@ Plus the field notes that came with it: a **highly available Pi-hole** kit and a
 | **Proxmox** | Host CPU/RAM, storage fill, every VM/container (CPU, RAM, disk) | Read-only |
 | **Audit log** | Every change: when, from where, what, result | — |
 
-**Telegram alerts and bot** (optional): devices, WAN links, Pi-holes, the DNS VIP and fibre optics are checked every 30 s, and a change that holds for two checks is sent to your paired chat. The bot answers `/status`, `/wan`, `/dns`, `/optics` and more, and can restart a WAN or a whole ISP group or pause ad-blocking, each after a Confirm button. See [docs/telegram.md](docs/telegram.md).
+**Telegram alerts and bot** (optional): devices, WAN links, Pi-holes, the DNS VIP and fibre optics are checked every 30 s, and a change that holds for two checks is sent to your paired chat. The bot answers `/status`, `/wan`, `/dns`, `/optics` and more, and can restart a WAN or a whole ISP group or pause ad-blocking, each after a Confirm button. It also reports **Proxmox backups**: each finished run with every guest's result, plus failed, stuck or missed backups and a full or offline backup storage (`/backups` lists each guest's latest backup). See [docs/telegram.md](docs/telegram.md).
 
 ### Safety model
 - **Preview first.** Every change shows exactly what will happen, e.g.
@@ -67,7 +67,7 @@ Any integration you leave out of `config.json` simply shows "not configured".
 
 ## Repository layout
 ```
-app/                 NOC backend (app.py), watcher + Telegram bot (notify.py), WAN diagnosis (diagnose.py),
+app/                 NOC backend (app.py), watcher + Telegram bot (notify.py), backup watcher (backups.py), WAN diagnosis (diagnose.py),
                      Settings tab (settings.py), router/mwan3 editing (openwrt.py), UI (static/)
 config/              config.example.json, secrets.env.example
 deploy/              create-lxc.sh, install.sh, noc.service, proxmox-token.sh

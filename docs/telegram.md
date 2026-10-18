@@ -17,6 +17,7 @@ Every `check_every_s` seconds (default 30):
 | Ad-blocking | blocking is not `enabled` on a Pi-hole (includes deliberate pauses, with the time left) |
 | DNS VIP | moves from one Pi-hole to another (sent as a "moved" event) |
 | Each fibre ONT | no fresh reading from its router poller, LOS/LOF/other alarm, not in O5, or RX/TX power or temperature outside the **ONT's own warning limits** |
+| Backup storage | a storage that an enabled Proxmox backup job writes to is offline, or above `backup_store_warn_pct` % used |
 
 A check must disagree with its last reported state `confirm_checks` times in a row
 (default 2, so about a minute) before a message goes out, in both directions, so one
@@ -26,6 +27,21 @@ is down), messages wait in an outbox and are sent later, marked with the time th
 happened.
 
 Monitored WANs are `router.wan_interfaces` plus every member of a WAN group.
+
+### Proxmox backups
+
+Read with the NOC's read-only Proxmox token (PVEAuditor is enough), checked once a minute:
+
+- **Backup finished**: one message per backup run (scheduled or manual) with each guest's
+  result, archive size and time, plus how full the backup storage is. A run with a failed
+  guest is sent as ❌ with Proxmox's error for that guest; warnings as ⚠️. Successful runs
+  can be muted (`backup_success`); problems are always sent.
+- **Stuck**: a backup still running after `backup_long_h` hours (e.g. hanging on an NFS share
+  that went away).
+- **Missed**: a scheduled job's start time passed and no backup started within 30 minutes.
+
+`/backups` lists the jobs (schedule, storage, retention, next run) and each guest's latest
+good backup, taken from the backup task logs (an auditor token can't list backup files).
 
 ## Setting it up
 
@@ -50,6 +66,7 @@ Monitored WANs are `router.wan_interfaces` plus every member of a WAN group.
 | `/optics` | Each ONT: RX/TX power vs its limits, temperature, reading age |
 | `/devices` | Devices that are down (`/devices all` lists every device) |
 | `/problems` | Every check that is currently not OK |
+| `/backups` | Proxmox backup jobs and each guest's latest backup |
 | `/restart <link\|group>` | Restart one WAN (`/restart wan3`) or a whole group (`/restart isp-a`) |
 | `/pause <minutes>` / `/resume` | Pause ad-blocking on all Pi-holes (`0` = until resumed) / resume it |
 
@@ -80,6 +97,10 @@ other links meanwhile.
 | `check_every_s` | 30 | seconds between checks |
 | `confirm_checks` | 2 | consecutive readings needed before alerting |
 | `ont_stale_s` | 180 | an ONT reading older than this counts as "not reporting" |
+| `backup_alerts` | true | Proxmox backup messages and the backup storage check |
+| `backup_success` | true | also send a message when a backup run succeeds |
+| `backup_store_warn_pct` | 85 | backup storage counts as a problem above this % used |
+| `backup_long_h` | 4 | a backup still running after this many hours is reported as stuck |
 | `mgmt_grace` | – | `{"<device>": seconds}`: for an ISP box that briefly drops its management address, alert only once it has been down that long, or at once if its WAN group is fully down or its fibre is not OK. Its ONT poller staleness is held with it |
 | `chat_id` | – | set by pairing; remove (or press **Unpair**) to stop messages |
 

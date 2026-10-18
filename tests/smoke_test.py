@@ -148,6 +148,7 @@ routers = [{"error": "offline"}, {"interfaces": [{"name": "wan", "up": True, "ip
                                                  {"name": "wan2", "up": False, "ip": ""}],
                                   "mwan": {"wan": {"status": "online", "latency": 5}, "wan2": {"status": "offline"}},
                                   "onts": [ont]}]
+noc._cache["backup_store"] = (now, {})  # backup storage checks: covered by the backups section below
 for r in routers:
     noc._cache["router"] = (now, r)
     for cmd in (tg.cmd_status, tg.cmd_wan, tg.cmd_dns, tg.cmd_optics, tg.cmd_devices, tg.cmd_problems):
@@ -261,6 +262,8 @@ assert pv("settings_onts", {"onts": [{"name": "Bad", "path": "relative.json"}]})
 r = pv("settings_protected", {"ports": {"1": "Uplink to router", "7": "NAS"}}).json()
 assert c.post("/api/actions/confirm", json={"id": r["id"]}).json()["ok"] and noc.PROTECTED_PORTS == {1: "Uplink to router", 7: "NAS"}
 assert pv("settings_protected", {"ports": {"99": "x"}}).status_code == 400
+assert pv("settings_protected", {"ports": {"9": "GPON stick (fibre, SFP)"}}).status_code == 200, "labels may use commas"
+assert pv("settings_protected", {"ports": {"9": "bad \"quote\""}}).status_code == 400
 
 r = pv("settings_general", {"site_name": "Lab NOC"}).json()
 assert c.post("/api/actions/confirm", json={"id": r["id"]}).json()["ok"] and noc.SITE_NAME == "Lab NOC"
@@ -539,5 +542,184 @@ assert TestClient(noc.app).post("/login", data={"user": "admin", "password": "re
 # the console tool writes the same format
 passwd.write_env(etc / "secrets.env", auth.updates("console-pass-99"))
 assert auth.verify("console-pass-99", noc.load_env(etc / "secrets.env"))
+
+# Single-port VLAN writes must carry the port's name/profile/override (Omada 6.x rejects VLAN fields alone).
+body = noc.port_vlan_body({"port": 7, "name": "Port7", "profile_id": "prof1", "override": False}, "n1", ["n1", "n2"], ["n3", "n1"])
+assert body == {"name": "Port7", "profileId": "prof1", "profileOverrideEnable": False, "nativeNetworkId": "n1",
+                "networkTagsSetting": 2, "untagNetworkIds": ["n2"], "tagNetworkIds": ["n3"]}, body
+assert noc.port_vlan_body({"port": 9, "name": None, "profile_id": "p", "override": True}, "n1", [], [])["name"] == "Port9"
+
+# Proxmox backup watcher: finished / failed / stuck / missed backups and the storage checks.
+import urllib.parse  # noqa: E402
+
+import backups  # noqa: E402
+
+LOG_OK = """INFO: starting new backup job: vzdump 100 105 --storage NAS_1 --mode snapshot
+INFO: Starting Backup of VM 100 (qemu)
+INFO: VM Name: pihole
+INFO: creating vzdump archive '/mnt/pve/NAS_1/dump/vzdump-qemu-100.vma.zst'
+INFO:  50% (1.0 GiB of 2.0 GiB) in 3s, read: 300 MiB/s, write: 290 MiB/s
+INFO: archive file size: 4.10GB
+INFO: Finished Backup of VM 100 (00:01:03)
+INFO: Starting Backup of VM 105 (qemu)
+INFO: VM Name: nas
+INFO: exclude disk 'sata1' '/dev/disk/by-id/ata-X' (backup=no)
+INFO: archive file size: 1.32GB
+INFO: Finished Backup of VM 105 (00:00:05)
+INFO: Backup job finished successfully
+TASK OK""".splitlines()
+LOG_FAIL = """INFO: Starting Backup of VM 101 (lxc)
+INFO: CT Name: omada
+ERROR: Backup of VM 101 failed - unable to create temporary directory on storage 'NAS_1'
+INFO: Starting Backup of VM 103 (qemu)
+INFO: VM Name: haos
+INFO: archive file size: 1.4GB
+INFO: Finished Backup of VM 103 (00:00:40)
+INFO: Backup job finished with errors
+TASK ERROR: job errors""".splitlines()
+p = backups.parse_log(LOG_OK)
+assert [(g["vmid"], g["name"], g["size"], g["took"], g["error"]) for g in p["guests"]] == [
+    ("100", "pihole", "4.10GB", 63, None), ("105", "nas", "1.32GB", 5, None)], p
+p = backups.parse_log(LOG_FAIL)
+assert p["guests"][0]["error"].startswith("unable to create") and p["guests"][1]["took"] == 40, p
+
+
+class FakePve:
+    def __init__(self):
+        self.tasks, self.logs, self.jobs, self.calls = [], {}, [], []
+        self.store = {"storage": "NAS_1", "active": 1, "used": 400e9, "total": 1000e9}
+
+    def __call__(self, path):
+        self.calls.append(path)
+        if "/tasks?" in path:
+            return self.tasks
+        if "/log?" in path:
+            upid = urllib.parse.unquote(path.split("/tasks/")[1].split("/log")[0])
+            return [{"n": i, "t": t} for i, t in enumerate(self.logs[upid])]
+        if path == "/cluster/backup":
+            return self.jobs
+        if path.endswith("/storage"):
+            return [self.store]
+        if path.endswith("/qemu"):
+            return [{"vmid": 100, "name": "pihole"}, {"vmid": 105, "name": "nas"}]
+        if path.endswith("/lxc"):
+            return [{"vmid": 101, "name": "omada"}]
+        raise AssertionError(path)
+
+
+fake, real_pve, real_pvecfg = FakePve(), noc.pve, dict(noc.PVE)
+noc.pve = fake
+noc.PVE.update(url="https://192.0.2.50:8006", node="pve")
+cfg = {**notify.DEFAULTS}
+try:
+    t0 = time.time()
+    fake.jobs = [{"id": "nightly", "type": "vzdump", "enabled": 1, "schedule": "02:00", "storage": "NAS_1",
+                  "next-run": t0 + 100, "all": 1, "exclude": "101", "prune-backups": {"keep-daily": "7"}}]
+    old = {"upid": "UPID:pve:1:old:vzdump::root@pam:", "starttime": t0 - 90000, "endtime": t0 - 89000, "status": "OK"}
+    fake.tasks = [old]
+    w = backups.Watcher(noc)
+    assert w.poll(cfg, "Home") == [], "old backups are not reported at startup"
+    ok = {"upid": "UPID:pve:2:ok:vzdump::root@pam:", "starttime": t0 - 70, "endtime": t0 - 2, "status": "OK"}
+    fake.tasks, fake.logs[ok["upid"]] = [ok, old], LOG_OK
+    w.last_poll = 0
+    msgs = w.poll(cfg, "Home")
+    assert len(msgs) == 1 and msgs[0].startswith("✅") and "2/2 guests" in msgs[0] and "105 nas · 1.32GB · 5s" in msgs[0] \
+        and "NAS_1: 400 of 1000 GB used (40%)" in msgs[0], msgs
+    w.last_poll = 0
+    assert w.poll(cfg, "Home") == [], "each backup is reported once"
+    n = len(fake.calls)
+    assert w.poll(cfg, "Home") == [] and len(fake.calls) == n, "polls Proxmox at most once a minute"
+    bad = {"upid": "UPID:pve:3:bad:vzdump::root@pam:", "starttime": t0 - 50, "endtime": t0 - 1, "status": "job errors"}
+    fake.tasks, fake.logs[bad["upid"]] = [bad, ok, old], LOG_FAIL
+    w.last_poll = 0
+    msgs = w.poll({**cfg, "backup_success": False}, "Home")
+    assert len(msgs) == 1 and msgs[0].startswith("❌") and "1 of 2 failed" in msgs[0] and "101 omada: unable to create" in msgs[0], msgs
+    quiet = {"upid": "UPID:pve:4:q:vzdump::root@pam:", "starttime": t0 - 50, "endtime": t0, "status": "OK"}
+    fake.tasks, fake.logs[quiet["upid"]] = [quiet, bad, ok, old], LOG_OK
+    w.last_poll = 0
+    assert w.poll({**cfg, "backup_success": False}, "Home") == [], "successes can be muted"
+    stuck = {"upid": "UPID:pve:5:s:vzdump::root@pam:", "starttime": t0 - 5 * 3600}
+    fake.tasks = [stuck, quiet, bad, ok, old]
+    w.last_poll = 0
+    msgs = w.poll(cfg, "Home")
+    assert len(msgs) == 1 and "still running" in msgs[0], msgs
+    w.last_poll = 0
+    assert w.poll(cfg, "Home") == [], "a stuck backup is reported once"
+    # missed: the job's next run advanced but no task started; reported after the grace time
+    due = t0 + 1000  # later than every task above
+    w.next_run["nightly"] = due
+    fake.jobs[0]["next-run"] = due + 86400
+    fake.tasks = [quiet, bad, ok, old]
+    w.last_poll = 0
+    assert w.poll(cfg, "Home") == [] and w.due, "not missed yet: still inside the grace time"
+    w.due = [("nightly", t0 - backups.MISSED_GRACE_S - 60, "02:00")]
+    fake.tasks = [old]  # nothing started since it was due
+    w.last_poll = 0
+    msgs = w.poll(cfg, "Home")
+    assert len(msgs) == 1 and "backup missed" in msgs[0] and not w.due, msgs
+    w.due = [("nightly", t0 - 60, "02:00")]
+    fake.tasks = [{"upid": "UPID:pve:6:n:vzdump::root@pam:", "starttime": t0 - 30}] + fake.tasks
+    w.last_poll = 0
+    assert w.poll(cfg, "Home") == [] and not w.due, "a job that started is not missed"
+    # storage checks
+    assert w.store_readings(cfg) == {"backup:store:NAS_1": (True, "Backup storage NAS_1: 40% used (warn at 85%)")}
+    fake.store = {**fake.store, "used": 900e9}
+    assert w.store_readings(cfg)["backup:store:NAS_1"][0] is False
+    fake.store = {"storage": "NAS_1", "active": 0}
+    assert w.store_readings(cfg)["backup:store:NAS_1"] == (False, "Backup storage NAS_1 is not available")
+    # /backups: latest good backup per guest comes from the task logs (101 failed in `bad`)
+    fake.store = {"storage": "NAS_1", "active": 1, "used": 400e9, "total": 1000e9}
+    w.parsed.clear()
+    ok["endtime"] = t0 - 7300
+    fake.tasks = [bad, ok, old]
+    fake.logs[old["upid"]] = []
+    out = w.overview("Home")
+    assert "02:00 → NAS_1 · 2 guests" in out and "🟢 100 pihole · 2h ago · 4.10GB" in out \
+        and "🟢 105 nas · 2h ago · 1.32GB" in out and "101 omada · no recent backup (not in any job)" in out, out
+    # the watch loop's evaluate() gets the storage check through the cache
+    noc._cache.pop("backup_store", None)
+    readings, _ = tg.evaluate()
+    assert readings["backup:store:NAS_1"][0] is True, readings
+finally:
+    noc.pve = real_pve
+    noc.PVE.clear(), noc.PVE.update(real_pvecfg)
+    noc._cache.pop("backup_store", None)
+
+# Settings: backup alert options (the password reset above signed `c` out: use a fresh session)
+c = TestClient(noc.app)
+c.cookies.set("noc", noc.make_session(noc.E["NOC_ADMIN_USER"]))
+r = pv("settings_monitoring", {"backup_alerts": True, "backup_success": False, "backup_store_warn_pct": 90, "backup_long_h": 6})
+assert r.status_code == 200, r.text
+assert pv("settings_monitoring", {"backup_store_warn_pct": 100}).status_code == 400
+assert pv("settings_monitoring", {"backup_success": "yes"}).status_code == 400
+
+# Router ports: only the configured ports are queried (asking for every device takes seconds),
+# names are checked before they reach the shell, and the output parses as one JSON object.
+real_ports = noc.ROUTER.get("ports")
+try:
+    noc.ROUTER["ports"] = ["wan", "lan1", "x;reboot", "br-lan"]
+    sh = noc.ports_sh()
+    assert "reboot" not in sh and sh.count("network.device status") == 3, sh
+    if shutil.which("sh"):  # without ubus every port falls back to {}: the quoting still has to hold
+        import subprocess  # noqa: E402
+        out = subprocess.run(["sh", "-c", sh], capture_output=True, text=True).stdout
+        assert set(json.loads(noc.sections(out)["DEV"])) == {"wan", "lan1", "br-lan", ""}, out
+finally:
+    noc.ROUTER.pop("ports", None) if real_ports is None else noc.ROUTER.update(ports=real_ports)
+# the page is served gzipped
+r = c.get("/", headers={"Accept-Encoding": "gzip"})
+assert r.status_code == 200 and r.headers.get("content-encoding") == "gzip", r.headers
+
+# Logs: a log above LOG_MAX moves to <name>.1 and the readers still see the latest entries across both.
+real_max, lp = noc.LOG_MAX, var / "rotate-test.jsonl"
+try:
+    noc.LOG_MAX = 200
+    for i in range(12):
+        noc.append_jsonl(lp, [{"n": i, "pad": "x" * 30}])
+    assert (var / "rotate-test.jsonl.1").exists() and lp.stat().st_size <= 200 + 60, "log must rotate"
+    assert [e["n"] for e in noc.tail_jsonl(lp, 5)] == [11, 10, 9, 8, 7], noc.tail_jsonl(lp, 5)
+    assert noc.tail_jsonl(var / "missing.jsonl", 5) == []
+finally:
+    noc.LOG_MAX = real_max
 
 print("smoke test: all checks passed")

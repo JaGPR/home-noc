@@ -14,16 +14,17 @@ The bot token is read from secrets.env (TELEGRAM_BOT_TOKEN) and never logged.
 """
 import concurrent.futures as cf
 import html
-import json
 import secrets
 import threading
 import time
 
 import requests
 
+import backups
 import diagnose
 
-DEFAULTS = {"check_every_s": 30, "confirm_checks": 2, "ont_stale_s": 180}
+DEFAULTS = {"check_every_s": 30, "confirm_checks": 2, "ont_stale_s": 180,
+            "backup_alerts": True, "backup_success": True, "backup_store_warn_pct": 85, "backup_long_h": 4}
 PAIR_TTL = 600
 ACTION_TTL = 120
 
@@ -34,6 +35,7 @@ HELP = """<b>NOC bot</b>
 /optics – fibre ONT readings
 /devices – devices that are down (/devices all)
 /problems – what is currently not OK
+/backups – Proxmox backup jobs and each guest's latest backup
 /diagnose &lt;link|group&gt; – why a link is down, layer by layer
 
 <b>Actions</b> (preview first, then Confirm)
@@ -72,6 +74,8 @@ class Telegram:
         self.bot_error = None
         self.started = False
         self.log_path = noc.VAR / "alerts.jsonl"
+        self.backups = backups.Watcher(noc)
+        self.backup_error = None
 
     # ------------------------------------------------------------ config / API
     def cfg(self):
@@ -179,6 +183,13 @@ class Telegram:
             vip = d.get("vip_owner")
         except Exception as ex:
             out["source:dns"] = (False, f"DNS checks failed: {ex}")
+
+        if self.cfg()["backup_alerts"] and noc.PVE.get("url"):
+            r = noc.cached("backup_store", 60, lambda: self.backups.store_readings(self.cfg()))
+            if isinstance(r.get("error"), str):  # Proxmox API failed: report it, don't page for it
+                self.backup_error = r["error"]
+            else:
+                out.update(r)
         self.apply_grace(out)
         return out, vip
 
@@ -301,16 +312,13 @@ class Telegram:
         return "\n".join(lines)
 
     def log(self, changes, vip_move):
+        ts = time.strftime("%Y-%m-%d %H:%M:%S")
+        entries = [{"ts": ts, "key": c["key"], "ok": c["ok"], "text": c["text"], "lasted_s": int(c["lasted"])}
+                   for c in changes]
+        if vip_move:
+            entries.append({"ts": ts, "key": "vip", "ok": True, "text": f"DNS VIP moved: {vip_move[0]} -> {vip_move[1]}"})
         try:
-            self.log_path.parent.mkdir(parents=True, exist_ok=True)
-            with self.log_path.open("a") as f:
-                ts = time.strftime("%Y-%m-%d %H:%M:%S")
-                for c in changes:
-                    f.write(json.dumps({"ts": ts, "key": c["key"], "ok": c["ok"], "text": c["text"],
-                                        "lasted_s": int(c["lasted"])}) + "\n")
-                if vip_move:
-                    f.write(json.dumps({"ts": ts, "key": "vip", "ok": True,
-                                        "text": f"DNS VIP moved: {vip_move[0]} -> {vip_move[1]}"}) + "\n")
+            self.noc.append_jsonl(self.log_path, entries)
         except OSError:
             pass
 
@@ -387,8 +395,22 @@ class Telegram:
                 self.last_check, self.watch_error, first = time.time(), None, False
             except Exception as ex:
                 self.watch_error = f"{type(ex).__name__}: {ex}"
+            self.backup_step()
             self.flush()
             time.sleep(max(5, int(self.cfg()["check_every_s"]) - (time.time() - t0)))
+
+    def backup_step(self):
+        """Finished / stuck / missed Proxmox backups (see backups.py)."""
+        if not (self.cfg()["backup_alerts"] and self.noc.PVE.get("url")):
+            return
+        try:
+            for text in self.backups.poll(self.cfg(), self.noc.SITE_NAME):
+                self.queue(text)
+                self.log([{"key": "backup", "ok": not text.startswith(("❌", "🔴", "⏳")),
+                           "text": text.split("\n")[0].replace("<b>", "").replace("</b>", ""), "lasted": 0}], None)
+            self.backup_error = None
+        except Exception as ex:
+            self.backup_error = f"{type(ex).__name__}: {ex}"
 
     # ------------------------------------------------------------ bot
     def new_pairing_code(self):
@@ -433,7 +455,8 @@ class Telegram:
             return  # not paired: stay silent
         handlers = {"/start": lambda a: HELP, "/help": lambda a: HELP, "/status": self.cmd_status,
                     "/wan": self.cmd_wan, "/dns": self.cmd_dns, "/optics": self.cmd_optics,
-                    "/devices": self.cmd_devices, "/problems": self.cmd_problems}
+                    "/devices": self.cmd_devices, "/problems": self.cmd_problems,
+                    "/backups": lambda a: self.backups.overview(self.noc.SITE_NAME)}
         if cmd == "/restart":
             return self.cmd_restart(chat, arg)
         if cmd == "/diagnose":
@@ -627,10 +650,9 @@ class Telegram:
         threading.Thread(target=self.bot_loop, name="noc-bot", daemon=True).start()
 
     def status(self):
-        recent = []
-        if self.log_path.exists():
-            recent = [json.loads(line) for line in self.log_path.read_text().splitlines()[-50:]][::-1]
+        recent = self.noc.tail_jsonl(self.log_path, 50)
         return {"token_set": bool(self.token()), "paired": bool(self.chat_id()), "bot": self.bot_name,
                 "running": self.started, "last_check": self.last_check, "checks": len(self.states),
-                "watch_error": self.watch_error, "bot_error": self.bot_error, "outbox": len(self.outbox),
+                "watch_error": self.watch_error, "bot_error": self.bot_error, "backup_error": self.backup_error,
+                "outbox": len(self.outbox),
                 "settings": self.cfg() | {"chat_id": None}, "problems": self.problems(), "recent": recent}

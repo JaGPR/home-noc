@@ -29,6 +29,7 @@ import auth
 import notify
 import openwrt
 import settings
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 
 urllib3.disable_warnings()
@@ -39,6 +40,7 @@ VAR = Path(os.environ.get("NOC_VAR", "/var/lib/noc"))
 AUDIT = VAR / "audit.jsonl"
 KEY = str(ETC / "id_ed25519")
 KNOWN_HOSTS = str(ETC / "known_hosts")
+SSH_MUX = Path(os.environ.get("NOC_SSH_MUX", "/run/noc-ssh"))  # reused SSH connections (ControlMaster)
 
 
 def load_env(path):
@@ -161,9 +163,18 @@ def invalidate(*keys):
 
 
 def ssh(host, script, timeout=20):
+    """Run a shell script on a host. One SSH connection per host is kept open for 5 minutes
+    and reused (about 6 ms per call instead of a 130 ms handshake, and no login per call in
+    the host's log). If the shared connection can't be used, ssh falls back to a normal one."""
+    try:
+        SSH_MUX.mkdir(mode=0o700, parents=True, exist_ok=True)
+        mux = ["-o", "ControlMaster=auto", "-o", f"ControlPath={SSH_MUX}/%C", "-o", "ControlPersist=300",
+               "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=2"]
+    except OSError:
+        mux = []
     r = subprocess.run(
         ["ssh", "-i", KEY, "-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
-         "-o", f"UserKnownHostsFile={KNOWN_HOSTS}", "-o", "StrictHostKeyChecking=yes",
+         "-o", f"UserKnownHostsFile={KNOWN_HOSTS}", "-o", "StrictHostKeyChecking=yes", *mux,
          f"root@{host}", "sh -s"],
         input=script, capture_output=True, text=True, timeout=timeout)
     if r.returncode != 0:
@@ -198,12 +209,44 @@ def audit(request, action, summary, result):
                 request.headers.get("cf-access-authenticated-user-email", ""), action, summary, result)
 
 
+LOG_MAX = 2_000_000  # bytes; a log above this moves to <name>.1 (one old file is kept)
+_log_lock = threading.Lock()
+
+
+def append_jsonl(path, entries):
+    with _log_lock:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            if path.stat().st_size > LOG_MAX:
+                path.replace(path.with_name(path.name + ".1"))
+        except FileNotFoundError:
+            pass
+        with path.open("a") as f:
+            f.writelines(json.dumps(e) + "\n" for e in entries)
+
+
+def tail_jsonl(path, n):
+    """Last n entries, newest first, reading into <name>.1 if the current file is short."""
+    lines = []
+    for p in (path, path.with_name(path.name + ".1")):
+        if len(lines) >= n:
+            break
+        try:
+            lines = p.read_text().splitlines() + lines
+        except FileNotFoundError:
+            pass
+    out = []
+    for line in lines[-n:][::-1]:
+        try:
+            out.append(json.loads(line))
+        except ValueError:
+            pass
+    return out
+
+
 def audit_entry(ip, via, action, summary, result):
-    AUDIT.parent.mkdir(parents=True, exist_ok=True)
-    entry = {"ts": time.strftime("%Y-%m-%d %H:%M:%S"), "ip": ip, "via": via,
-             "action": action, "summary": summary, "result": result}
-    with AUDIT.open("a") as f:
-        f.write(json.dumps(entry) + "\n")
+    append_jsonl(AUDIT, [{"ts": time.strftime("%Y-%m-%d %H:%M:%S"), "ip": ip, "via": via,
+                          "action": action, "summary": summary, "result": result}])
 
 
 # ---------------------------------------------------------------- ping / VIP
@@ -330,15 +373,28 @@ printf '\n@@IF\n'; ubus call network.interface dump
 printf '\n@@MWAN\n'; ubus call mwan3 status 2>/dev/null || echo '{}'
 printf '\n@@SYS\n'; ubus call system info
 printf '\n@@BOARD\n'; ubus call system board
-printf '\n@@DEV\n'; ubus call network.device status
 printf '\n@@LEASES\n'; cat /tmp/dhcp.leases
 printf '\n@@ARP\n'; cat /proc/net/arp
 printf '\n@@DHCPCFG\n'; uci -q show dhcp | grep -E "^dhcp\.[A-Za-z0-9_]+\.(interface|start|limit|leasetime|ignore|dhcpv4)="
 """
 
 
+DEFAULT_PORTS = ["wan", "lan1", "lan2", "lan3", "lan4", "br-lan"]
+
+
+def router_ports():
+    return [p for p in ROUTER.get("ports", DEFAULT_PORTS) if re.fullmatch(r"[A-Za-z0-9_.@-]{1,15}", str(p))]
+
+
+def ports_sh():
+    """Status of only the ports the NOC shows, as one JSON object. `ubus call network.device status`
+    without a name asks every device for its link modes: seconds with many VLANs and macvlans."""
+    one = """printf '"%s":' {n}; ubus call network.device status '{{"name":"{n}"}}' 2>/dev/null || echo '{{}}'; printf ','\n"""
+    return "printf '\\n@@DEV\\n{'\n" + "".join(one.format(n=n) for n in router_ports()) + """printf '"":{}}\\n'\n"""
+
+
 def router_sh():
-    return ROUTER_SH_BASE + "".join(f"printf '\\n@@ONT{i}\\n'; cat {shlex.quote(o['path'])} 2>/dev/null || echo '{{}}'\n"
+    return ROUTER_SH_BASE + ports_sh() + "".join(f"printf '\\n@@ONT{i}\\n'; cat {shlex.quote(o['path'])} 2>/dev/null || echo '{{}}'\n"
                                     for i, o in enumerate(ONT_CACHES)) + WIFI_SH
 
 
@@ -431,7 +487,7 @@ def collect_router():
 
     ports = []
     devs = jload(sec.get("DEV"), {}) or {}
-    for name in ROUTER.get("ports", ["wan", "lan1", "lan2", "lan3", "lan4", "br-lan"]):
+    for name in router_ports():
         d = devs.get(name)
         if d:
             st = d.get("statistics", {})
@@ -631,6 +687,14 @@ def vlan_body(native, untag, tag):
     # Omada rejects the native network inside the untagged/tagged lists on write (it adds it back on read).
     return {"nativeNetworkId": native, "networkTagsSetting": 2,
             "untagNetworkIds": [i for i in untag if i != native], "tagNetworkIds": [i for i in tag if i != native]}
+
+
+def port_vlan_body(port, native, untag, tag):
+    """VLAN write for a single switch port. Omada 6.x answers "-1 General error" unless the port's
+    name, profile and profile-override flag come with the VLAN fields (LAGs don't need them).
+    The current values are sent back unchanged, so only the VLANs change."""
+    return {"name": port.get("name") or f"Port{port['port']}", "profileId": port["profile_id"],
+            "profileOverrideEnable": bool(port.get("override")), **vlan_body(native, untag, tag)}
 
 
 NETMETA = VAR / "networks.json"  # NOC-side DHCP plans per Omada network id
@@ -947,7 +1011,7 @@ def plan_action(kind, p):
             native, untag, tag, vd = plan_vlans(cur, p["vlans"], nets)
             detail += vd
             path, method = f"/switches/{SWITCH_MAC}/ports/{port}", "PATCH"
-            body = vlan_body(native, untag, tag)  # only VLAN fields; profile/override left untouched
+            body = port_vlan_body(cur, native, untag, tag)  # VLANs change; name/profile/override sent back as they are
         elif "disable" in p:
             detail.append(f"Port state: {'disabled' if cur['disabled'] else 'enabled'} -> {'disabled' if p['disable'] else 'enabled'}")
             path, method, body = f"/switches/{SWITCH_MAC}/ports/{port}/status", "PUT", {"status": 0 if p["disable"] else 1}
@@ -1152,7 +1216,8 @@ def plan_action(kind, p):
                     untag = [v for v in x["untag_ids"] if v != nid]
                     tag = [v for v in x["tag_ids"] if v != nid]
                     path = f"/switches/{SWITCH_MAC}/lags/{i}" if k == "lag" else f"/switches/{SWITCH_MAC}/ports/{i}"
-                    OMADA.call("PATCH", path, json=vlan_body(x["native_id"], untag, tag))
+                    OMADA.call("PATCH", path, json=vlan_body(x["native_id"], untag, tag) if k == "lag"
+                               else port_vlan_body(x, x["native_id"], untag, tag))
                     read = (lambda i=i: port_details([i])["_lags"].get(i, {})) if k == "lag" else (lambda i=i: port_details().get(i, {}))
                     verify_vlans(read, x["native_id"], untag, tag, f"{k} {i}")
                 OMADA.call("DELETE", f"/lan-networks/{cur['id']}")
@@ -1378,6 +1443,7 @@ def plan_action(kind, p):
 
 # ---------------------------------------------------------------- app + auth
 app = FastAPI(title="NOC", docs_url=None, redoc_url=None)
+app.add_middleware(GZipMiddleware, minimum_size=1024)  # the page is ~160 KB, ~35 KB gzipped
 TG = notify.Telegram(sys.modules[__name__])
 
 
@@ -1606,9 +1672,7 @@ def api_proxmox():
 
 @app.get("/api/audit")
 def api_audit():
-    if not AUDIT.exists():
-        return []
-    return [json.loads(l) for l in AUDIT.read_text().splitlines()[-100:]][::-1]
+    return tail_jsonl(AUDIT, 100)
 
 
 @app.get("/api/alerts")

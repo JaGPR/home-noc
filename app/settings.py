@@ -13,10 +13,15 @@ import re
 import subprocess
 
 NAME = re.compile(r"[\w .()+-]{1,40}")
+LABEL = re.compile(r"[^\"'<>\\\r\n]{1,60}")  # free-text labels: any text except quotes, < >, backslash, line breaks
 HOST = re.compile(r"[A-Za-z0-9]([A-Za-z0-9.-]{0,252}[A-Za-z0-9])?")
 URL = re.compile(r"https?://[A-Za-z0-9.-]+(:\d{1,5})?/?")
 MAC = re.compile(r"([0-9a-f]{2}:){5}[0-9a-f]{2}")
 PATH = re.compile(r"/[\w./-]{1,200}")
+
+
+MONITORING_DEFAULTS = {"check_every_s": 30, "confirm_checks": 2, "ont_stale_s": 180,
+                       "backup_alerts": True, "backup_success": True, "backup_store_warn_pct": 85, "backup_long_h": 4}
 
 
 def _secret_set(noc, key):
@@ -26,7 +31,7 @@ def _secret_set(noc, key):
 def current(noc):
     """Values for the Settings tab. Secrets are reported only as set / not set."""
     C, R = noc.C, noc.ROUTER
-    tg = {**{"check_every_s": 30, "confirm_checks": 2, "ont_stale_s": 180}, **(C.get("telegram") or {})}
+    tg = {**MONITORING_DEFAULTS, **(C.get("telegram") or {})}
     om, pv, sw = C.get("omada") or {}, C.get("proxmox") or {}, C.get("switch") or {}
     return {
         "general": {"site_name": noc.SITE_NAME},
@@ -40,7 +45,7 @@ def current(noc):
                         "omada_client_set": _secret_set(noc, "OMADA_CLIENT_ID") and _secret_set(noc, "OMADA_CLIENT_SECRET"),
                         "proxmox_url": pv.get("url", ""), "proxmox_node": pv.get("node", ""),
                         "pve_token_set": _secret_set(noc, "PVE_TOKEN")},
-        "monitoring": {k: tg[k] for k in ("check_every_s", "confirm_checks", "ont_stale_s")},
+        "monitoring": {k: tg[k] for k in MONITORING_DEFAULTS},
         "onts": [{"name": o["name"], "path": o["path"]} for o in noc.ONT_CACHES],
         "protected_ports": {str(k): v for k, v in sorted(noc.PROTECTED_PORTS.items())},
         "wan": {"groups": noc.wan_groups(), "paths": R.get("wan_paths") or {},
@@ -241,7 +246,10 @@ def plan(noc, kind, p):
 
     if kind == "settings_monitoring":
         limits = {"check_every_s": (10, 600, "Check every (s)"), "confirm_checks": (1, 10, "Checks in a row before alerting"),
-                  "ont_stale_s": (60, 3600, "ONT reading counts as stale after (s)")}
+                  "ont_stale_s": (60, 3600, "ONT reading counts as stale after (s)"),
+                  "backup_store_warn_pct": (50, 99, "Backup storage warning at (% used)"),
+                  "backup_long_h": (1, 48, "Backup counts as stuck after (hours)")}
+        flags = {"backup_alerts": "Backup alerts", "backup_success": "Message on successful backups"}
         cur = current(noc)["monitoring"]
         new = {}
         for k, (lo, hi, label) in limits.items():
@@ -250,6 +258,12 @@ def plan(noc, kind, p):
                 raise ValueError(f"{label}: must be {lo}-{hi}")
             new[k] = n
             _change(detail, label, str(cur[k]), str(n))
+        for k, label in flags.items():
+            v = p.get(k, cur[k])
+            if not isinstance(v, bool):
+                raise ValueError(f"{label}: must be on or off")
+            new[k] = v
+            _change(detail, label, "on" if cur[k] else "off", "on" if v else "off")
         if not detail:
             raise ValueError("nothing changed")
         return "Update monitoring", detail, None, commit(lambda: C.setdefault("telegram", {}).update(new)), []
@@ -295,8 +309,10 @@ def plan(noc, kind, p):
             n, label = int(port), str(label or "").strip()
             if not 1 <= n <= noc.SWITCH_PORTS:
                 raise ValueError(f"port {n}: must be 1-{noc.SWITCH_PORTS}")
-            if not NAME.fullmatch(label):
+            if not label:
                 raise ValueError(f"port {n}: give it a short label (what is plugged in)")
+            if not LABEL.fullmatch(label):
+                raise ValueError(f"port {n}: label must be up to 60 characters, without quotes, < > or backslash")
             new[str(n)] = label
         old = {str(k): v for k, v in noc.PROTECTED_PORTS.items()}
         for k in sorted(set(old) | set(new), key=int):

@@ -1247,7 +1247,7 @@ function renderAlertStatus(d) {
     <div class="kv" style="max-width:520px"><dt>Watcher</dt><dd>${d.running ? `${d.checks} checks · last run ${last}` : 'not running'}</dd>
       <dt>Interval</dt><dd>every ${d.settings.check_every_s} s · alert after ${d.settings.confirm_checks} checks in a row</dd>
       ${d.outbox ? `<dt>Waiting to send</dt><dd>${d.outbox} message(s)</dd>` : ''}</div>
-    ${d.watch_error ? `<div class="err">Watcher: ${esc(d.watch_error)}</div>` : ''}${d.bot_error && d.token_set ? `<div class="err">Bot: ${esc(d.bot_error)}</div>` : ''}
+    ${d.watch_error ? `<div class="err">Watcher: ${esc(d.watch_error)}</div>` : ''}${d.bot_error && d.token_set ? `<div class="err">Bot: ${esc(d.bot_error)}</div>` : ''}${d.backup_error ? `<div class="err">Backup checks: ${esc(d.backup_error)}</div>` : ''}
     <div id="tg-pairbox"></div>
     ${d.token_set ? '' : `<div class="small" style="margin-top:8px"><b>Set up:</b> in Telegram, message <b>@BotFather</b>, send <code>/newbot</code> and copy the token it gives you.
       On the NOC container run <code>nano /etc/noc/secrets.env</code> and add the line <code>TELEGRAM_BOT_TOKEN=&lt;token&gt;</code>. The NOC picks it up within a minute; then press Pair.</div>`}`;
@@ -1638,6 +1638,10 @@ const VIEWS = {
         <label for="mon-every">Check every (seconds)</label><input type="number" id="mon-every" min="10" max="600" value="${d.monitoring.check_every_s}">
         <label for="mon-confirm">Checks in a row before alerting</label><input type="number" id="mon-confirm" min="1" max="10" value="${d.monitoring.confirm_checks}">
         <label for="mon-stale">ONT reading is stale after (seconds)</label><input type="number" id="mon-stale" min="60" max="3600" value="${d.monitoring.ont_stale_s}">
+        <label for="mon-bk">Proxmox backup alerts</label><span><input type="checkbox" id="mon-bk" ${d.monitoring.backup_alerts ? 'checked' : ''}> failed, stuck or missed backups; storage full or offline</span>
+        <label for="mon-bkok">Message on successful backups</label><span><input type="checkbox" id="mon-bkok" ${d.monitoring.backup_success ? 'checked' : ''}> one message per backup run</span>
+        <label for="mon-bkpct">Backup storage warning at (% used)</label><input type="number" id="mon-bkpct" min="50" max="99" value="${d.monitoring.backup_store_warn_pct}">
+        <label for="mon-bklong">Backup counts as stuck after (hours)</label><input type="number" id="mon-bklong" min="1" max="48" value="${d.monitoring.backup_long_h}">
       </div></div>
 
       <div class="card"><h2>General <span class="spacer"></span>${save('gen-save')}</h2><div class="frm">
@@ -1746,7 +1750,8 @@ const VIEWS = {
     $('#pp-save').onclick = () => act('settings_protected', {ports: Object.fromEntries(pp.filter(x => x.port).map(x => [x.port, x.label.trim()]))});
 
     // ---- simple forms
-    $('#mon-save').onclick = () => act('settings_monitoring', {check_every_s: +$('#mon-every').value, confirm_checks: +$('#mon-confirm').value, ont_stale_s: +$('#mon-stale').value});
+    $('#mon-save').onclick = () => act('settings_monitoring', {check_every_s: +$('#mon-every').value, confirm_checks: +$('#mon-confirm').value, ont_stale_s: +$('#mon-stale').value,
+      backup_alerts: $('#mon-bk').checked, backup_success: $('#mon-bkok').checked, backup_store_warn_pct: +$('#mon-bkpct').value, backup_long_h: +$('#mon-bklong').value});
     $('#gen-save').onclick = () => act('settings_general', {site_name: $('#gen-name').value.trim()});
     $('#pw-save').onclick = async () => {
       const cur = $('#pw-cur').value, nw = $('#pw-new').value;
