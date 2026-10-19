@@ -181,6 +181,16 @@ class Telegram:
                     timer = f", back on in {int(n['timer']) // 60 + 1} min" if n.get("timer") else ""
                     out[f"block:{n['name']}"] = (n.get("blocking") == "enabled", f"Ad-blocking on {n['name']}: {n.get('blocking')}{timer}")
             vip = d.get("vip_owner")
+            if d.get("vip6"):
+                # the IPv6 VIP must answer, and sit on the same Pi-hole as the IPv4 one
+                # (both are in one keepalived instance; a split means keepalived is confused)
+                o6, names = d.get("vip6_owner"), {n["name"] for n in d.get("nodes", [])}
+                if o6 not in names:
+                    out["dns:vip6"] = (False, f"IPv6 DNS VIP {d['vip6']}: no Pi-hole answers it ({o6})")
+                elif vip in names and o6 != vip:
+                    out["dns:vip6"] = (False, f"IPv6 DNS VIP {d['vip6']} is on {o6} but the IPv4 VIP is on {vip}")
+                else:
+                    out["dns:vip6"] = (True, f"IPv6 DNS VIP {d['vip6']} on {o6}")
         except Exception as ex:
             out["source:dns"] = (False, f"DNS checks failed: {ex}")
 
@@ -542,6 +552,8 @@ class Telegram:
     def cmd_dns(self, _):
         d = self.noc.cached("dns", 10, self.noc.collect_dns)
         lines = [f"<b>DNS</b> · VIP {e(str(d.get('vip')))} on <b>{e(str(d.get('vip_owner')))}</b>"]
+        if d.get("vip6"):
+            lines.append(f"IPv6 VIP {e(d['vip6'])} on <b>{e(str(d.get('vip6_owner')))}</b>")
         for n in d.get("nodes", []):
             if n.get("ok"):
                 lines.append(f"{'🟢' if n.get('blocking') == 'enabled' else '🟠'} {e(n['name'])}: blocking {e(str(n.get('blocking')))}"

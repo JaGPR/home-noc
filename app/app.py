@@ -63,11 +63,12 @@ C = json.loads((ETC / "config.json").read_text())
 
 
 def derive_settings():
-    global SITE_NAME, DNS, DNS_VIP, VIP_MACS, ROUTER, ROUTER_HOST, AP_HOST, LAN_IFACE, TRUNK_DEV
+    global SITE_NAME, DNS, DNS_VIP, DNS_VIP6, VIP_MACS, ROUTER, ROUTER_HOST, AP_HOST, LAN_IFACE, TRUNK_DEV
     global ONT_CACHES, SW, SWITCH_MAC, SWITCH_PORTS, PROTECTED_PORTS, NEWNET
     SITE_NAME = C.get("site_name", "Home NOC")
     DNS = C.setdefault("dns", {})
     DNS_VIP = DNS.get("vip")
+    DNS_VIP6 = DNS.get("vip6")  # optional IPv6 DNS VIP (keepalived, same instance as the IPv4 one)
     VIP_MACS = {p["mac"].lower(): p["name"] for p in DNS.get("piholes", []) if p.get("mac")}
     ROUTER = C.setdefault("router", {})
     ROUTER_HOST = ROUTER.get("host")
@@ -250,16 +251,28 @@ def audit_entry(ip, via, action, summary, result):
 
 
 # ---------------------------------------------------------------- ping / VIP
+def split_target(t):
+    """Check target -> (host, port or None). "192.0.2.5", "192.0.2.5:443", "2001:db8::5" and
+    "[2001:db8::5]:443" are all valid: an IPv6 address needs brackets only when a port follows."""
+    if t.startswith("["):
+        host, _, rest = t[1:].partition("]")
+        return host, int(rest[1:]) if rest.startswith(":") else None
+    if t.count(":") == 1:
+        host, port = t.split(":")
+        return host, int(port)
+    return t, None
+
+
 def ping(ip):
-    if ":" in ip:  # "host:port" -> TCP connect check
-        host, port = ip.rsplit(":", 1)
+    host, port = split_target(ip)
+    if port:  # TCP connect check
         t = time.time()
         try:
-            socket.create_connection((host, int(port)), timeout=2).close()
+            socket.create_connection((host, port), timeout=2).close()
             return {"up": True, "ms": round((time.time() - t) * 1000, 1)}
         except OSError:
             return {"up": False, "ms": None}
-    r = subprocess.run(["ping", "-c", "1", "-W", "1", ip], capture_output=True, text=True)
+    r = subprocess.run(["ping", "-c", "1", "-W", "1", host], capture_output=True, text=True)
     m = re.search(r"time=([\d.]+)", r.stdout)
     return {"up": r.returncode == 0, "ms": float(m.group(1)) if m else None}
 
@@ -329,7 +342,7 @@ def resolve_device(d, macs):
             return None, None
         return (f"{ip}:{d['port']}" if d.get("port") else ip), ip
     t = d.get("target") or d.get("ip", "")
-    return t, t.rsplit(":", 1)[0] if t.count(":") == 1 else t
+    return t, split_target(t)[0] if t else t
 
 
 def collect_ping():
@@ -358,6 +371,16 @@ def vip_owner():
         if parts[0] == DNS_VIP:
             return VIP_MACS.get(parts[3].lower(), parts[3])
     return "unknown"
+
+
+def vip6_owner():
+    """Which Pi-hole answers neighbour discovery for the IPv6 DNS VIP (None if none configured)."""
+    if not DNS_VIP6:
+        return None
+    subprocess.run(["ping", "-c", "1", "-W", "1", DNS_VIP6], capture_output=True)
+    r = subprocess.run(["ip", "-6", "neigh", "show", DNS_VIP6], capture_output=True, text=True)
+    m = re.search(r"lladdr ([0-9a-fA-F:]{17})", r.stdout)
+    return VIP_MACS.get(m.group(1).lower(), m.group(1)) if m else "unknown"
 
 
 # ---------------------------------------------------------------- OpenWrt
@@ -472,10 +495,14 @@ def collect_router():
         if i.get("interface") == "loopback":
             continue
         addr = (i.get("ipv4-address") or [{}])[0]
+        a6 = (i.get("ipv6-address") or [{}])[0]
+        p6 = (i.get("ipv6-prefix") or i.get("ipv6-prefix-assignment") or [{}])[0]
         gw = next((r.get("nexthop") for r in i.get("route", []) if r.get("target") == "0.0.0.0"), None)
         ifaces.append({"name": i.get("interface"), "up": i.get("up"), "proto": i.get("proto"),
                        "device": i.get("l3_device") or i.get("device"), "uptime": i.get("uptime"),
                        "ip": f"{addr.get('address')}/{addr.get('mask')}" if addr.get("address") else "",
+                       "ip6": f"{a6.get('address')}/{a6.get('mask')}" if a6.get("address") else "",
+                       "prefix6": f"{p6.get('address')}/{p6.get('mask')}" if p6.get("address") else "",
                        "gateway": gw, "dns": i.get("dns-server", []), "metric": i.get("metric"),
                        "restartable": i.get("interface") in wans, "group": wan_group_of(i.get("interface"))})
 
@@ -596,10 +623,10 @@ def collect_pihole_one(p):
 
 def collect_dns():
     if not PIHOLES:
-        return {"vip": DNS_VIP, "vip_owner": "no Pi-holes configured", "nodes": []}
+        return {"vip": DNS_VIP, "vip_owner": "no Pi-holes configured", "vip6": DNS_VIP6, "vip6_owner": None, "nodes": []}
     with cf.ThreadPoolExecutor(len(PIHOLES)) as ex:
         nodes = list(ex.map(collect_pihole_one, PIHOLES))
-    return {"vip": DNS_VIP, "vip_owner": vip_owner(), "nodes": nodes}
+    return {"vip": DNS_VIP, "vip_owner": vip_owner(), "vip6": DNS_VIP6, "vip6_owner": vip6_owner(), "nodes": nodes}
 
 
 # ---------------------------------------------------------------- Omada
@@ -1329,10 +1356,11 @@ def plan_action(kind, p):
             how = f"follows MAC {mac} (currently {now or 'not seen on the network'})"
         else:
             try:
-                ip = str(ipaddress.ip_address((p.get("ip") or "").strip()))
+                addr = ipaddress.ip_address((p.get("ip") or "").strip())
             except ValueError:
-                raise ValueError("enter a valid IPv4 address")
-            entry["target"] = f"{ip}:{port}" if port else ip
+                raise ValueError("enter a valid IPv4 or IPv6 address")
+            ip = str(addr)
+            entry["target"] = (f"[{ip}]:{port}" if addr.version == 6 else f"{ip}:{port}") if port else ip
             how = f"checks {entry['target']}" + (" (TCP)" if port else " (ping)")
         detail = [f"{'Track' if kind == 'device_add' else 'Update'} '{name}' [{group}]: {how}"]
         if kind == "device_edit":
@@ -1617,7 +1645,7 @@ def api_overview():
     router = r["router"] if "error" not in r["router"] else {}
     q = r["wanq"] if "error" not in r["wanq"] else {}
     return {"devices": r["ping"],
-            "wans": [{"name": i["name"], "up": i["up"], "ip": i["ip"], "uptime": i["uptime"],
+            "wans": [{"name": i["name"], "up": i["up"], "ip": i["ip"], "ip6": i.get("ip6", ""), "uptime": i["uptime"],
                       **(router.get("mwan", {}).get(i["name"], {})), **q.get(i["name"], {})}
                      for i in router.get("interfaces", []) if i["name"] in wan_ifaces()],
             "onts": router.get("onts", []), "router_system": router.get("system"),

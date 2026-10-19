@@ -432,7 +432,7 @@ function editDevice(name, prefill) {
   const dlg = $('#ddlg');
   $('#ddlg-title').textContent = name ? `Edit ${name}` : 'Track a device';
   $('#ddlg-group').innerHTML = DV.groups.map(g => `<option ${g === (d.group || 'other') ? 'selected' : ''}>${g}</option>`).join('');
-  const [tip, tport] = (d.target || '').split(':');
+  const [tip, tport] = splitTarget(d.target);
   $('#ddlg-name').value = d.name || '';
   $('#ddlg-mode').value = d.mac ? 'mac' : (d.target ? 'ip' : 'mac');
   $('#ddlg-mac').value = d.mac || '';
@@ -452,7 +452,7 @@ function editDevice(name, prefill) {
                mac: $('#ddlg-mac').value.trim(), ip: $('#ddlg-ip').value.trim(), port: $('#ddlg-port').value.trim() || null};
     if (!p.name) return err('Enter a name.');
     if (p.mode === 'mac' && !/^([0-9a-f]{2}[:-]){5}[0-9a-f]{2}$/i.test(p.mac)) return err('MAC must look like aa:bb:cc:dd:ee:ff');
-    if (p.mode === 'ip' && !/^\d{1,3}(\.\d{1,3}){3}$/.test(p.ip)) return err('Enter a valid IPv4 address.');
+    if (p.mode === 'ip' && !isIP(p.ip)) return err('Enter a valid IPv4 or IPv6 address.');
     if (p.port && !(+p.port >= 1 && +p.port <= 65535)) return err('Port must be 1–65535.');
     dlg.close();
     if (name) act('device_edit', {...p, original_name: name}); else act('device_add', p);
@@ -608,6 +608,10 @@ function editVlans(kind, id) {
     else act('switch_port', {port: id, vlans: {native_id, untag_ids, tag_ids}});
   };
 }
+// check target -> [host, port]: "192.0.2.5", "192.0.2.5:443", "2001:db8::5", "[2001:db8::5]:443"
+const splitTarget = t => { t = t || ''; if (t.startsWith('[')) { const [h, r] = t.slice(1).split(']'); return [h, (r || '').startsWith(':') ? r.slice(1) : '']; }
+  return (t.match(/:/g) || []).length === 1 ? t.split(':') : [t, '']; };
+const isIP = v => /^\d{1,3}(\.\d{1,3}){3}$/.test(v) || (/^[0-9a-fA-F:]+$/.test(v) && (v.match(/:/g) || []).length >= 2);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pill = (ok, yes='up', no='down') => `<span class="pill ${ok ? 'ok' : 'bad'}">${ok ? yes : no}</span>`;
 const dur = s => { if (s == null) return '–'; s = +s; const d = Math.floor(s/86400), h = Math.floor(s%86400/3600), m = Math.floor(s%3600/60);
@@ -1327,7 +1331,7 @@ const VIEWS = {
           <div class="small">${down.length ? 'Down: ' + down.map(x => esc(x.name)).join(', ') : 'all responding'}</div></div>
         <div class="card kpi"><div class="kpi-l">${ICON.dns} DNS</div>
           <div class="kpi-row"><div><div class="big" style="font-size:20px">${esc(dns.vip_owner || '–')}</div>
-            <div class="small">holds ${esc(dns.vip || '–')}</div>
+            <div class="small">holds ${esc(dns.vip || '–')}${dns.vip6 ? ' · ' + esc(dns.vip6) : ''}</div>
             <div style="margin-top:6px">${blockingOn ? '<span class="pill ok">blocking on</span>' : '<span class="pill warn">blocking paused / off</span>'}</div></div>
             <div class="rings">${ring(holder.percent, 'blocked')}</div></div></div>
         <div class="card kpi"><div class="kpi-l">${ICON.router} Router</div>
@@ -1351,7 +1355,7 @@ const VIEWS = {
         ${Object.entries(byGroup).map(([g, ws]) => `<div class="tgroup"><div class="tgroup-h"><span>${esc(g)}</span><span class="small">${ws.filter(wanOk).length}/${ws.length} online</span></div>
           <div class="tiles">${ws.map(w => { const ok = wanOk(w); return `<button class="tile ${ok ? '' : 'down'}" data-diag="${esc(w.name)}" title="Diagnose ${esc(w.name)}">
             <div class="tile-h"><span class="dot ${ok ? 'ok' : 'bad'}"></span><b>${esc(w.name)}</b><span class="pill ${ok ? 'ok' : 'bad'}">${esc(w.status || (w.up ? 'up' : 'down'))}</span></div>
-            <div class="mono small">${esc((w.ip || '').split('/')[0] || 'no address')}</div>
+            <div class="mono small">${esc((w.ip || w.ip6 || '').split('/')[0] || 'no address')}</div>
             <div class="tile-m"><span>${w.latency != null ? w.latency + ' ms' : '– ms'}</span><span>${w.loss != null ? w.loss + '% loss' : ''}</span><span>${w.uptime ? 'up ' + dur(w.uptime) : ''}</span></div></button>`; }).join('')}</div></div>`).join('')}
       </div>
 
@@ -1368,7 +1372,7 @@ const VIEWS = {
     const d = await api('/api/dns');
     $('#view').innerHTML = `<div class="grid">
       <div class="card wide"><h2>Control</h2><div class="row">
-        <span>VIP <b>${esc(d.vip || '–')}</b> is on <b>${esc(d.vip_owner)}</b></span><span class="spacer"></span>
+        <span>VIP <b>${esc(d.vip || '–')}</b> is on <b>${esc(d.vip_owner)}</b></span>${d.vip6 ? `<span>IPv6 VIP <b>${esc(d.vip6)}</b> is on <b>${esc(d.vip6_owner)}</b></span>` : ''}<span class="spacer"></span>
         <label class="small">Pause for</label><select id="mins"><option value="5">5 min</option><option value="15">15 min</option><option value="30">30 min</option><option value="60">1 hour</option><option value="0">until resumed</option></select>
         <button class="act" id="pause">Pause blocking</button><button class="act primary" id="resume">Resume blocking</button></div>
         <div class="small" style="margin-top:6px">Applies to both Pi-holes so blocking stays consistent whichever one holds the VIP.</div></div>
@@ -1467,7 +1471,7 @@ const VIEWS = {
       ${cfgOk ? '' : `<div class="card wide err">Router config not readable: ${esc(c.error)}. Editing is unavailable.</div>`}
       <div class="card wide"><h2>Interfaces <span class="spacer"></span>${cfgOk ? '<button class="act primary" id="if-new">+ Create interface</button>' : ''}</h2><div class="scroll"><table>
         <tr><th>Name</th><th>State</th><th>Proto</th><th>Device</th><th>IP</th><th>Gateway</th><th>Zone</th><th>mwan3</th><th>Up for</th><th></th></tr>
-        ${d.interfaces.map(i => { const m = d.mwan[i.name], ci = cif[i.name] || {}; return `<tr><td><b>${esc(i.name)}</b></td><td>${pill(i.up)}</td><td>${esc(i.proto)}</td><td>${esc(i.device)}</td><td>${esc(i.ip || '–')}</td><td>${esc(i.gateway || '–')}</td>
+        ${d.interfaces.map(i => { const m = d.mwan[i.name], ci = cif[i.name] || {}; return `<tr><td><b>${esc(i.name)}</b></td><td>${pill(i.up)}</td><td>${esc(i.proto)}</td><td>${esc(i.device)}</td><td>${esc(i.ip || (i.ip6 ? '' : '–'))}${i.ip6 ? `${i.ip ? '<br>' : ''}<span class="mono small">${esc(i.ip6)}</span>` : ''}${i.prefix6 ? `<br><span class="small">prefix ${esc(i.prefix6)}</span>` : ''}</td><td>${esc(i.gateway || '–')}</td>
           <td>${ci.zone ? `<span class="pill ${ci.zone === 'wan' ? 'warn' : 'ok'}">${esc(ci.zone)}</span>` : '<span class="small">–</span>'}</td>
           <td>${m ? `<span class="pill ${m.status === 'online' ? 'ok' : 'bad'}">${esc(m.status)}</span> <span class="small">${m.latency ?? '–'} ms · ${m.loss ?? '–'}%</span>` : '–'}</td><td>${dur(i.uptime)}</td>
           <td><div class="row">${i.restartable ? `<button class="act sm" data-diag="${esc(i.name)}">Diagnose</button><button class="act sm" data-restart="${esc(i.name)}">Restart</button>` : ''}
@@ -1567,7 +1571,7 @@ const VIEWS = {
       <div class="card wide"><h2>Tracked devices <span class="spacer"></span><button class="act primary" id="dev-add">+ Track a device</button></h2>
         <div class="scroll"><table><tr><th>Device</th><th>Group</th><th>Tracking</th><th>Checked at</th><th>Status</th><th></th></tr>
         ${d.devices.map(x => `<tr><td><b>${esc(x.name)}</b></td><td>${esc(x.group || 'other')}</td>
-          <td class="small">${x.mac ? `MAC <code>${esc(x.mac)}</code>${x.port ? ' · TCP ' + x.port : ''}` : `IP <code>${esc(x.target)}</code>${(x.target || '').includes(':') ? ' (TCP)' : ''}`}</td>
+          <td class="small">${x.mac ? `MAC <code>${esc(x.mac)}</code>${x.port ? ' · TCP ' + x.port : ''}` : `IP <code>${esc(x.target)}</code>${splitTarget(x.target)[1] ? ' (TCP)' : ''}`}</td>
           <td>${esc(x.current_ip || '–')}${x.note ? `<div class="small" style="color:var(--warn)">${esc(x.note)}</div>` : ''}</td>
           <td>${x.up === undefined || x.up === null ? '<span class="pill mut">–</span>' : pill(x.up)}${x.ms != null ? ` <span class="small">${x.ms} ms</span>` : ''}</td>
           <td><div class="row"><button class="act" data-devedit="${esc(x.name)}">Edit</button><button class="act" data-devdel="${esc(x.name)}">Remove</button></div></td></tr>`).join('') || '<tr><td class="small">No devices tracked yet.</td></tr>'}
@@ -1622,6 +1626,7 @@ const VIEWS = {
 
       <div class="card wide"><h2>DNS servers <span class="spacer"></span><button class="act" id="ph-add">+ Add Pi-hole</button>${save('ph-save')}</h2>
         <div class="row" style="margin-bottom:8px"><label class="small" for="dns-vip">Shared DNS address (VIP)</label>${inp('dns-vip', d.dns.vip, 'placeholder="none" style="width:150px"')}
+          <label class="small" for="dns-vip6">IPv6 VIP</label>${inp('dns-vip6', d.dns.vip6, 'placeholder="none" style="width:210px"')}
           <span class="small">the address clients use; keepalived moves it between the Pi-holes</span></div>
         <div class="scroll"><table id="ph-table"></table></div>
         <div class="small" style="margin-top:6px">URL is the Pi-hole web address (e.g. http://192.0.2.11 or http://192.0.2.9:8080). MAC lets the NOC tell which Pi-hole holds the VIP. The password is the Pi-hole <b>app password</b> (Settings → Web interface / API → Configure app password); the preview tests the login.</div></div>
@@ -1687,7 +1692,7 @@ const VIEWS = {
     $('#ph-table').oninput = ev => { const t = ev.target; if (t.dataset.ph !== undefined) ph[+t.dataset.ph][t.dataset.k] = t.value; };
     $('#ph-table').onclick = ev => { const b = ev.target.closest('[data-phdel]'); if (b) { ph.splice(+b.dataset.phdel, 1); drawPh(); } };
     $('#ph-add').onclick = () => { ph.push({name: '', url: '', mac: '', password: '', password_set: false}); drawPh(); };
-    $('#ph-save').onclick = () => act('settings_dns', {vip: $('#dns-vip').value.trim(),
+    $('#ph-save').onclick = () => act('settings_dns', {vip: $('#dns-vip').value.trim(), vip6: $('#dns-vip6').value.trim(),
       piholes: ph.map(x => ({name: x.name.trim(), url: x.url.trim(), mac: x.mac.trim(), password: x.password, original_name: x.original_name}))});
 
     // ---- WAN groups and paths

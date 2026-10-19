@@ -14,10 +14,10 @@ Plus the field notes that came with it: a **highly available Pi-hole** kit and a
 
 | Tab | You see | You can do (always preview → confirm) |
 |---|---|---|
-| **Overview** | Every device up/down (ping or TCP), all WAN links with mwan3 latency/loss, which Pi-hole holds the DNS VIP, fibre signal (Rx/Tx/temp/state) from your ONT, Proxmox and router health | — |
+| **Overview** | Every device up/down (ping or TCP), all WAN links with mwan3 latency/loss, which Pi-hole holds the DNS VIP (and the IPv6 VIP), fibre signal (Rx/Tx/temp/state) from your ONT, Proxmox and router health | — |
 | **DNS** | Each Pi-hole: queries, % blocked, blocklist size, top blocked domains, top clients | Pause blocking (5/15/30/60 min or until resumed) and resume, on all Pi-holes at once |
 | **Switch** | Every port: link, speed, PoE, profile, **native / untagged / tagged VLANs**; LAGs; networks with their DHCP source | Edit a port's VLANs or profile, enable/disable a port, edit a LAG's VLANs, create/edit/delete networks (VLANs); a new network can also tag a LAG and set up the router side (device, interface, DHCP) in one step, undone if any step fails |
-| **Router** | Interfaces (IP, gateway, zone, measured latency/loss), network devices, physical ports, ONT details and alarms, DHCP leases | Restart or diagnose a WAN; create / edit / delete devices and interfaces with a LuCI-style wizard (device → interface → firewall + DHCP → mwan3), applied with automatic rollback. See [docs/openwrt.md](docs/openwrt.md) |
+| **Router** | Interfaces (IPv4 and IPv6 addresses and prefixes, gateway, zone, measured latency/loss), network devices, physical ports, ONT details and alarms, DHCP leases | Restart or diagnose a WAN; create / edit / delete devices and interfaces with a LuCI-style wizard (device → interface → firewall + DHCP → mwan3), applied with automatic rollback. See [docs/openwrt.md](docs/openwrt.md) |
 | **MultiWAN** | mwan3 interfaces with live status, members, policies, rules in order | Edit tracking; create / edit / delete members, policies and rules; reorder rules |
 | **Alerts** | Telegram setup and pairing, open problems (with the diagnosed cause), recent alerts | Pair / unpair Telegram, send a test |
 | **Settings** | Every setting the NOC uses; secrets shown only as set / not set | Edit DNS servers (Pi-holes, VIP, app passwords), WAN groups and their diagnosis paths, fibre ONT sources, protected ports, router/AP/Omada/Proxmox connections, alert timing, site name. Changes apply live. Change the NOC password; a forgotten one is reset with a one-time code sent to Telegram (or `noc-passwd` on the console) |
@@ -74,11 +74,12 @@ deploy/              create-lxc.sh, install.sh, noc.service, proxmox-token.sh
 pihole-ha/           keepalived health check + configs, nebula-sync service, gravity cron
 docs/
   deployment.md      install, configure, connect each system, Cloudflare Access
-  pihole-ha.md       two-node Pi-hole with VIP failover and sync, plus pitfalls
+  pihole-ha.md       two-node Pi-hole with VIP failover and sync, IPv6 DNS VIP, plus pitfalls
   network-audit.md   read-only audit checklist with commands and red flags
   architecture.md    reference layout, NOC data flow, single points of failure
   telegram.md        alerts, bot commands, pairing, WAN groups
   openwrt.md         router and mwan3 editing, apply-with-rollback
+  ipv6-multiwan.md   IPv6 load balancing over several WAN sessions with mwan3 and NAT66
   daily-publish-task.md  the scheduled task that publishes the live NOC here each morning
 ```
 

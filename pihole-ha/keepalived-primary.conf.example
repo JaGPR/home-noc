@@ -38,4 +38,11 @@ vrrp_instance VI_1 {
   virtual_ipaddress {
     192.0.2.10/24                 # the DNS address your DHCP hands out
   }
+
+  # Optional IPv6 DNS VIP (see docs/pihole-ha.md, "IPv6 DNS VIP"). Use an address from the
+  # LAN's ULA prefix so it never changes. "excluded" addresses are not sent in the IPv4 VRRP
+  # adverts but are added and removed with this instance's state, so both VIPs always move together.
+  #virtual_ipaddress_excluded {
+  #  fd00:db8:1::10/64 dev eth0
+  #}
 }

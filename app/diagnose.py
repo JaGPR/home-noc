@@ -82,9 +82,60 @@ def sections(text):
     return {k: "\n".join(v) for k, v in out.items()}
 
 
+V6_SH = r"""
+printf '@@STATUS
+'; ubus call network.interface.__IF__ status 2>/dev/null || echo '{}'
+printf '
+@@MWAN
+'; ubus call mwan3 status 2>/dev/null || echo '{}'
+"""
+
+
+def diagnose_v6(noc, iface, parent):
+    """An IPv6 session (wanN_6, DHCPv6 over the PPPoE link of wanN) can only work when its IPv4
+    session does: diagnose that first, then add the IPv6 layers."""
+    d = diagnose(noc, parent)
+    d["iface"], d["group"] = iface, noc.wan_group_of(iface)
+    if d["layer"]:
+        d["verdict"] = f"IPv6 rides on {parent}, which is down. {d['verdict']}"
+        return d
+    try:
+        sec = sections(noc.ssh(noc.ROUTER_HOST, V6_SH.replace("__IF__", iface), timeout=20))
+    except Exception as ex:
+        d["steps"].append({"layer": "IPv6 session", "ok": None, "detail": f"router not reachable ({ex})"})
+        return d
+    st = noc.jload(sec.get("STATUS"), {}) or {}
+    mw = ((noc.jload(sec.get("MWAN"), {}) or {}).get("interfaces") or {}).get(iface) or {}
+    addr = ((st.get("ipv6-address") or [{}])[0]).get("address")
+    pfx = (st.get("ipv6-prefix") or [{}])[0]
+    if not st:
+        ok, detail = False, f"interface '{iface}' doesn't exist on the router"
+    elif not st.get("up"):
+        ok, detail = False, f"DHCPv6 on {iface} is not up: the ISP sends no IPv6 lease on this session"
+    elif not addr:
+        ok, detail = False, f"{iface} is up but got no IPv6 address (DHCPv6 lease missing)"
+    else:
+        ok, detail = True, f"address {addr}" + (f", prefix {pfx.get('address')}/{pfx.get('mask')}" if pfx.get("address") else "")
+    d["steps"].append({"layer": "IPv6 session", "ok": ok, "detail": detail})
+    if ok:
+        status = mw.get("status")
+        if status == "online":
+            d["steps"].append({"layer": "IPv6 tracking", "ok": True, "detail": "mwan3 reaches the IPv6 track targets"})
+        else:
+            d["steps"].append({"layer": "IPv6 tracking", "ok": False, "detail":
+                               f"mwan3 says {status or 'unknown'}: pings to the IPv6 track targets fail. Check the session's "
+                               f"IPv6 default route (route6 '::/0' on {iface}) and that the ISP routes IPv6 on it"})
+    cause = next((s for s in d["steps"] if s["ok"] is False), None)
+    d["layer"] = cause["layer"] if cause else None
+    d["verdict"] = f"{cause['layer']}: {cause['detail']}" if cause else d["verdict"]
+    return d
+
+
 def diagnose(noc, iface):
     if not re.fullmatch(r"[A-Za-z0-9_]{1,32}", iface or ""):
         raise ValueError("invalid interface name")
+    if iface.endswith("_6") and len(iface) > 2:
+        return diagnose_v6(noc, iface, iface[:-2])
     group = noc.wan_group_of(iface)
     path = (noc.ROUTER.get("wan_paths") or {}).get(group or "", {}) or (noc.ROUTER.get("wan_paths") or {}).get(iface, {})
     steps = []

@@ -35,7 +35,7 @@ def current(noc):
     om, pv, sw = C.get("omada") or {}, C.get("proxmox") or {}, C.get("switch") or {}
     return {
         "general": {"site_name": noc.SITE_NAME},
-        "dns": {"vip": noc.DNS_VIP or "",
+        "dns": {"vip": noc.DNS_VIP or "", "vip6": noc.DNS_VIP6 or "",
                 "piholes": [{"name": p["name"], "url": p.get("url", ""), "mac": p.get("mac", ""),
                              "password_set": _secret_set(noc, p.get("password_env"))}
                             for p in noc.DNS.get("piholes", [])]},
@@ -137,6 +137,12 @@ def plan(noc, kind, p):
         vip = (p.get("vip") or "").strip()
         if vip:
             _ipv4(vip, "VIP")
+        vip6 = (p.get("vip6", noc.DNS_VIP6 or "") or "").strip()
+        if vip6:
+            try:
+                vip6 = str(ipaddress.IPv6Address(vip6))
+            except ValueError:
+                raise ValueError("IPv6 VIP must be an IPv6 address, e.g. fd00:db8:1::10") from None
         old = {x["name"]: x for x in noc.DNS.get("piholes", [])}
         new, secrets, names = [], {}, set()
         for x in p.get("piholes") or []:
@@ -179,11 +185,13 @@ def plan(noc, kind, p):
         kept = {x.get("original_name") or x.get("name") for x in p.get("piholes") or []}
         detail += [f"Remove {n}" for n in old if n not in kept]
         _change(detail, "VIP", noc.DNS_VIP, vip)
+        _change(detail, "IPv6 VIP", noc.DNS_VIP6, vip6)
         if not detail:
             raise ValueError("nothing changed")
 
         def mutate():
             C.setdefault("dns", {})["vip"] = vip or None
+            C["dns"]["vip6"] = vip6 or None
             C["dns"]["piholes"] = new
         return "Update DNS servers", detail, None, commit(mutate, secrets), ["dns"]
 

@@ -722,4 +722,63 @@ try:
 finally:
     noc.LOG_MAX = real_max
 
+# IPv6: check targets, device form, router interface addresses, IPv6 DNS VIP, IPv6 session diagnosis
+assert noc.split_target("192.0.2.5") == ("192.0.2.5", None)
+assert noc.split_target("192.0.2.5:443") == ("192.0.2.5", 443)
+assert noc.split_target("2001:db8::5") == ("2001:db8::5", None), "a bare IPv6 address is a ping, not host:port"
+assert noc.split_target("[2001:db8::5]:53") == ("2001:db8::5", 53)
+assert noc.resolve_device({"name": "x", "target": "[2001:db8::5]:53"}, {}) == ("[2001:db8::5]:53", "2001:db8::5")
+r = pv("device_add", {"name": "V6 check", "mode": "ip", "ip": "2001:db8::5", "group": "dns"})
+assert r.status_code == 200 and "checks 2001:db8::5 (ping)" in " ".join(r.json()["detail"]), r.text
+r = pv("device_add", {"name": "V6 tcp", "mode": "ip", "ip": "2001:db8::5", "port": 53, "group": "dns"})
+assert "checks [2001:db8::5]:53 (TCP)" in " ".join(r.json()["detail"]), r.text
+
+real_ssh = noc.ssh
+iface_json = json.dumps({"interface": [
+    {"interface": "wan1_6", "up": True, "proto": "dhcpv6", "l3_device": "pppoe-wan1", "uptime": 60,
+     "ipv6-address": [{"address": "2001:db8:ffff::5", "mask": 128}], "ipv6-prefix": [{"address": "2001:db8:1:2::", "mask": 64}],
+     "route": []}]})
+noc.ssh = lambda host, script, timeout=20: "@@IF\n" + iface_json + "\n@@MWAN\n{}\n"
+try:
+    i6 = next(i for i in noc.collect_router()["interfaces"] if i["name"] == "wan1_6")
+    assert i6["ip"] == "" and i6["ip6"] == "2001:db8:ffff::5/128" and i6["prefix6"] == "2001:db8:1:2::/64", i6
+finally:
+    noc.ssh = real_ssh
+
+cur = noc.settings.current(noc)["dns"]
+keep = [{"name": x["name"], "url": x["url"], "mac": x["mac"], "original_name": x["name"]} for x in cur["piholes"]]
+assert pv("settings_dns", {"vip": cur["vip"], "vip6": "not-an-ip", "piholes": keep}).status_code == 400
+r = pv("settings_dns", {"vip": cur["vip"], "vip6": "fd00:db8:1::10", "piholes": keep})
+assert r.status_code == 200 and "IPv6 VIP: (none) → fd00:db8:1::10" in r.json()["detail"], r.text
+
+now = time.time() + 1e6
+dns_base = {"vip": "192.0.2.10", "vip_owner": "Pi-hole A", "vip6": "fd00:db8:1::10", "nodes": [
+    {"name": "Pi-hole A", "ok": True, "blocking": "enabled"}, {"name": "Pi-hole B", "ok": True, "blocking": "enabled"}]}
+noc._cache["backup_store"] = (now, {})
+for owner6, ok in (("Pi-hole A", True), ("Pi-hole B", False), ("unknown", False)):
+    noc._cache["dns"] = (now, {**dns_base, "vip6_owner": owner6})
+    readings, _ = tg.evaluate()
+    assert readings["dns:vip6"][0] is ok, (owner6, readings["dns:vip6"])
+noc._cache["dns"] = (now, {**dns_base, "vip6_owner": "Pi-hole B"})
+assert "IPv6 VIP fd00:db8:1::10 on <b>Pi-hole B</b>" in tg.cmd_dns(""), tg.cmd_dns("")
+noc._cache.pop("dns", None)
+
+real_diag = diagnose.diagnose
+v6_ok = json.dumps({"up": True, "ipv6-address": [{"address": "2001:db8:ffff::5", "mask": 128}],
+                    "ipv6-prefix": [{"address": "2001:db8:1:2::", "mask": 64}]})
+try:
+    diagnose.diagnose = lambda n, i: {"iface": i, "group": None, "ts": 0, "steps": [{"layer": "Router config", "ok": True, "detail": "ok"}],
+                                      "layer": None, "verdict": "No fault found right now"}
+    noc.ssh = lambda host, script, timeout=20: f"@@STATUS\n{v6_ok}\n@@MWAN\n" + json.dumps({"interfaces": {"wan1_6": {"status": "offline"}}})
+    d = diagnose.diagnose_v6(noc, "wan1_6", "wan1")
+    assert d["iface"] == "wan1_6" and d["layer"] == "IPv6 tracking", d
+    noc.ssh = lambda host, script, timeout=20: "@@STATUS\n" + json.dumps({"up": False}) + "\n@@MWAN\n{}"
+    assert diagnose.diagnose_v6(noc, "wan1_6", "wan1")["layer"] == "IPv6 session"
+    diagnose.diagnose = lambda n, i: {"iface": i, "group": None, "ts": 0, "steps": [{"layer": "PPPoE", "ok": False, "detail": "auth failed"}],
+                                      "layer": "PPPoE", "verdict": "PPPoE: auth failed"}
+    d = diagnose.diagnose_v6(noc, "wan1_6", "wan1")
+    assert d["layer"] == "PPPoE" and d["verdict"].startswith("IPv6 rides on wan1"), d
+finally:
+    diagnose.diagnose, noc.ssh = real_diag, real_ssh
+
 print("smoke test: all checks passed")

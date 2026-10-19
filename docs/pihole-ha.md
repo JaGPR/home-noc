@@ -71,6 +71,43 @@ within ~4 s, then the primary takes the VIP back ~3 s after Pi-hole is healthy.
 From a client, keep querying a fresh name through the VIP during the test, e.g.
 `while :; do dig +short @192.0.2.10 $RANDOM.example.com; sleep 1; done`.
 
+## 6. IPv6 DNS VIP (optional)
+Give the Pi-holes an IPv6 DNS address that, like the IPv4 VIP, never changes and fails over.
+
+1. **A stable prefix on the LAN.** A delegated ISP prefix can change on every reconnect, so put
+   a ULA next to it on the router (OpenWrt), then reload the network:
+   ```sh
+   uci set network.globals.ula_prefix='fd00:db8:1::/48'   # generate your own random fdXX:XXXX:XXXX::/48
+   uci add_list network.lan.ip6class='local'              # keep the ISP class too (e.g. 'wan_6')
+   uci commit network && ubus call network reload
+   ```
+   Devices then get one address from each prefix: the ISP one for the internet and the ULA one for
+   the LAN. A LAN with *only* a ULA makes clients prefer IPv4 for internet sites (RFC 6724), so
+   keep both.
+2. **The VIP in keepalived (both nodes).** Add it to the existing instance as an *excluded*
+   address (see the commented block in `keepalived-*.conf.example`), test, reload:
+   ```
+   virtual_ipaddress_excluded {
+     fd00:db8:1::10/64 dev eth0
+   }
+   ```
+   `keepalived -t -f /etc/keepalived/keepalived.conf && systemctl reload keepalived`.
+   Reload the backup first; a reload on the master keeps it master, so DNS does not drop.
+3. **Advertise it** as the IPv6 DNS server (router advertisement RDNSS), once the VIP answers:
+   ```sh
+   uci add_list dhcp.lan.dns='fd00:db8:1::10'
+   uci set dhcp.lan.dns_service='1'
+   uci commit dhcp && /etc/init.d/odhcpd reload
+   ```
+   Until then keep `dns_service '0'`, so clients are never told about a DNS server that doesn't answer yet.
+4. **Answer only local networks** now that the nodes may have public IPv6 addresses:
+   `sudo pihole-FTL --config dns.listeningMode LOCAL` on the primary. nebula-sync copies it to the
+   replica (`SYNC_CONFIG_DNS` excludes only `interface,port`), so setting it on the replica alone
+   is undone at the next sync. Clients that reach the VIP through a Tailscale subnet router still
+   work, because the subnet router translates them to its own LAN address.
+
+Check from a client: `nslookup -type=AAAA doubleclick.net fd00:db8:1::10` must return `::`.
+
 ## Pitfalls
 - **Static IP + DHCP at the same time (Ubuntu/netplan + NetworkManager).** A profile with
   `ipv4.method: auto` *and* a static address gets both, so a second, changing IP appears.
@@ -80,5 +117,10 @@ From a client, keep querying a fresh name through the VIP during the test, e.g.
   node first** (raise its priority temporarily), then fix the profile with
   `nmcli con mod <profile> ipv4.method manual` and `nmcli con up <profile>`.
 - **app_sudo** is required on the replica (see step 4), or every sync fails with 403.
+- **Stray IPv6 routers on the LAN.** A freshly flashed OpenWrt box or an access point with its own
+  ULA and `odhcpd` can advertise prefixes (and itself as DNS) next to your router, letting clients
+  bypass the Pi-holes over IPv6. On access points: remove `network.globals.ula_prefix` and
+  `lan.ip6assign`, set `dhcp.lan.ignore '1'` and `/etc/init.d/odhcpd disable`. To see who
+  advertises: `tcpdump -i br-lan -n -e -v 'icmp6 and ip6[40] == 134'`.
 - **Boot race:** without `wait-for-pihole.conf`, the first sync after boot fails until the restart timer kicks in.
 - A hot Raspberry Pi throttles (`vcgencmd get_throttled`). Add a heatsink if it's the backup you rely on.
