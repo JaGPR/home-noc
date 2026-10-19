@@ -77,6 +77,35 @@ config rule 'policy_all_v6'
 Apply with `uci commit` and `reload_config`, then `/etc/init.d/mwan3 restart` once all `_6`
 interfaces are up. Changing `ipv6` on a PPPoE interface reconnects that session.
 
+## DHCP (Ethernet / VLAN) WANs as IPv6 failover
+A WAN that gets IPv4 by DHCP (e.g. `isp_b` on `trunk.200`) gets IPv6 the same way, with two differences:
+```sh
+uci set network.isp_b_6=interface
+uci set network.isp_b_6.proto='dhcpv6'
+uci set network.isp_b_6.device='@isp_b'
+uci set network.isp_b_6.reqaddress='try'
+uci set network.isp_b_6.reqprefix='auto'
+uci set network.isp_b_6.sourcefilter='0'
+uci set network.isp_b_6.peerdns='0'
+uci set network.isp_b_6.delegate='0'
+uci set network.isp_b_6.clientid="00030001$(cat /sys/class/net/trunk.200/address | tr -d :)"
+# Ethernet is not point-to-point: the default route needs the ISP router's link-local address
+# (read it from: ubus call network.interface.isp_b_6 status, route ::/0 nexthop)
+uci set network.v6default_isp_b=route6
+uci set network.v6default_isp_b.interface='isp_b_6'
+uci set network.v6default_isp_b.target='::/0'
+uci set network.v6default_isp_b.gateway='fe80::200:5eff:fe00:5301'
+uci set network.v6default_isp_b.metric='608'
+```
+1. **The VLAN device may have IPv6 off** (`option ipv6 '0'` on its `config device`), so the
+   interface never gets a lease. Remove it from that device.
+2. **Use an explicit default route.** The router-advertised route keeps working while its metric is
+   unique, but another ISP can announce the same metric (512 is common), and then only one of them
+   survives. The `route6` above, with a gateway and its own metric, keeps the link usable either way.
+
+To keep such a link as failover only, give its IPv6 member the same metric as its IPv4 member
+(e.g. 5 or 10 while the main sessions use 1) and add it to the same policy.
+
 ## Pitfalls (all found on a real router)
 1. **Only one session gets IPv6.** Every `odhcp6c` sends the same DUID
    (`network.globals.dhcp_default_duid`), and the ISP's DHCPv6 server answers one "client" only.
