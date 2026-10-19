@@ -618,7 +618,7 @@ function editVlans(kind, id) {
 // check target -> [host, port]: "192.0.2.5", "192.0.2.5:443", "2001:db8::5", "[2001:db8::5]:443"
 const splitTarget = t => { t = t || ''; if (t.startsWith('[')) { const [h, r] = t.slice(1).split(']'); return [h, (r || '').startsWith(':') ? r.slice(1) : '']; }
   return (t.match(/:/g) || []).length === 1 ? t.split(':') : [t, '']; };
-// long IPv6 addresses: keep the first two groups and the distinctive end, e.g. 2401:4900…::119:caa
+// long IPv6 addresses: keep the first two groups and the distinctive end, e.g. 2001:db8…::5:aa
 const shortAddr = a => { a = String(a || '').split('/')[0]; if (!a.includes(':') || a.length <= 24) return a;
   const i = a.lastIndexOf('::'), head = a.split('::')[0].split(':').slice(0, 2).join(':');
   const tail = i > 0 && a.length - i <= 12 ? a.slice(i) : a.split(':').slice(-2).join(':');
