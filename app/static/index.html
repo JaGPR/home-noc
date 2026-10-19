@@ -96,6 +96,8 @@
   tr:last-child td { border-bottom:0; } tr:hover td { background:var(--card-2); }
   td { overflow-wrap:anywhere; }
   td[style*="text-align:right"], td.num, td .pill, td .mono { white-space:nowrap; overflow-wrap:normal; }
+  td.nw { white-space:nowrap; }
+  td.acts { min-width:160px; } td.acts .row { gap:4px; flex-wrap:wrap; }
   td b { overflow-wrap:normal; }
   .span2 { grid-column:span 2; }
   #progress { position:fixed; top:0; left:0; right:0; height:2px; z-index:60; pointer-events:none; opacity:0; transition:opacity .25s;
@@ -159,6 +161,10 @@
   .gm { position:absolute; top:-5px; width:4px; height:20px; margin-left:-2px; border-radius:2px; background:var(--text); box-shadow:0 0 0 2px var(--card); }
   .fstats { display:flex; gap:18px; flex-wrap:wrap; margin-top:10px; font-size:12.5px; color:var(--muted); } .fstats b { color:var(--text); font-variant-numeric:tabular-nums; }
   .tgroup + .tgroup { margin-top:16px; }
+  .tgroups { display:flex; flex-wrap:wrap; gap:16px 14px; }
+  .tgroups .tgroup { flex-grow:1; min-width:0; }
+  .tgroups .tgroup.wide { flex-basis:100% !important; }
+  .tgroups .tgroup + .tgroup { margin-top:0; }
   .tgroup-h { display:flex; align-items:baseline; gap:10px; margin-bottom:8px; font-weight:650; text-transform:capitalize; }
   .tiles { display:grid; gap:10px; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); }
   .tile { all:unset; box-sizing:border-box; display:flex; flex-direction:column; gap:4px; padding:12px 14px; border-radius:12px; background:var(--card-2); border:1px solid var(--border); cursor:pointer;
@@ -166,6 +172,7 @@
   .tile.down { box-shadow:inset 3px 0 0 var(--bad); background:color-mix(in srgb, var(--bad-bg) 55%, var(--card-2)); }
   .tile:hover { transform:translateY(-1px); border-color:var(--border-2); } .tile:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
   .tile-h { display:flex; align-items:center; gap:2px; } .tile-h b { flex:1; }
+  .tile .addr { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
   .tile-m { display:flex; gap:10px; font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; }
   .chips { display:flex; flex-wrap:wrap; gap:8px; }
   .chip { display:inline-flex; align-items:center; gap:2px; padding:6px 11px; border-radius:10px; background:var(--card-2); border:1px solid var(--border); font-size:13px; }
@@ -611,6 +618,11 @@ function editVlans(kind, id) {
 // check target -> [host, port]: "192.0.2.5", "192.0.2.5:443", "2001:db8::5", "[2001:db8::5]:443"
 const splitTarget = t => { t = t || ''; if (t.startsWith('[')) { const [h, r] = t.slice(1).split(']'); return [h, (r || '').startsWith(':') ? r.slice(1) : '']; }
   return (t.match(/:/g) || []).length === 1 ? t.split(':') : [t, '']; };
+// long IPv6 addresses: keep the first two groups and the distinctive end, e.g. 2401:4900…::119:caa
+const shortAddr = a => { a = String(a || '').split('/')[0]; if (!a.includes(':') || a.length <= 24) return a;
+  const i = a.lastIndexOf('::'), head = a.split('::')[0].split(':').slice(0, 2).join(':');
+  const tail = i > 0 && a.length - i <= 12 ? a.slice(i) : a.split(':').slice(-2).join(':');
+  return head + '…' + tail; };
 const isIP = v => /^\d{1,3}(\.\d{1,3}){3}$/.test(v) || (/^[0-9a-fA-F:]+$/.test(v) && (v.match(/:/g) || []).length >= 2);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pill = (ok, yes='up', no='down') => `<span class="pill ${ok ? 'ok' : 'bad'}">${ok ? yes : no}</span>`;
@@ -1290,6 +1302,10 @@ const VIEWS = {
     const groups = al?.groups || {};
     const groupOf = n => Object.keys(groups).find(g => groups[g].includes(n)) || 'other links';
     const byGroup = {}; d.wans.forEach(w => (byGroup[groupOf(w.name)] ||= []).push(w));
+    // configured order, each ISP's IPv6 group right after its IPv4 group (isp, isp-v6, ...)
+    const gOrder = Object.keys(groups).filter(g => !/-v6$/i.test(g));
+    const gRank = g => { const base = g.replace(/-v6$/i, ''), i = gOrder.indexOf(base); return (i < 0 ? 999 : i) * 2 + (base !== g ? 1 : 0); };
+    const wanGroups = Object.entries(byGroup).sort(([a], [b]) => gRank(a) - gRank(b));
     const devGroups = {}; d.devices.forEach(x => (devGroups[x.group || 'other'] ||= []).push(x));
     const checked = al?.last_check ? Math.max(0, Math.round(Date.now() / 1000 - al.last_check)) : null;
     const ring = (pct, label) => { const r = 26, c = 2 * Math.PI * r, v = Math.max(0, Math.min(100, +pct || 0));
@@ -1331,7 +1347,7 @@ const VIEWS = {
           <div class="small">${down.length ? 'Down: ' + down.map(x => esc(x.name)).join(', ') : 'all responding'}</div></div>
         <div class="card kpi"><div class="kpi-l">${ICON.dns} DNS</div>
           <div class="kpi-row"><div><div class="big" style="font-size:20px">${esc(dns.vip_owner || '–')}</div>
-            <div class="small">holds ${esc(dns.vip || '–')}${dns.vip6 ? ' · ' + esc(dns.vip6) : ''}</div>
+            <div class="small">holds ${esc(dns.vip || '–')}${dns.vip6 ? `<br>and <span class="mono">${esc(dns.vip6)}</span>` : ''}</div>
             <div style="margin-top:6px">${blockingOn ? '<span class="pill ok">blocking on</span>' : '<span class="pill warn">blocking paused / off</span>'}</div></div>
             <div class="rings">${ring(holder.percent, 'blocked')}</div></div></div>
         <div class="card kpi"><div class="kpi-l">${ICON.router} Router</div>
@@ -1352,11 +1368,11 @@ const VIEWS = {
           <span>Reading <b>${o.age_s != null ? dur(o.age_s) + ' old' : '–'}</b></span>${o.age_s > 300 ? '<span class="pill warn">stale</span>' : ''}</div></div>`).join('')}</div>` : ''}
 
       <div class="card"><div class="card-h"><h2>${ICON.internet} Internet links</h2><span class="small">click a link to diagnose it</span></div>
-        ${Object.entries(byGroup).map(([g, ws]) => `<div class="tgroup"><div class="tgroup-h"><span>${esc(g)}</span><span class="small">${ws.filter(wanOk).length}/${ws.length} online</span></div>
+        <div class="tgroups">${wanGroups.map(([g, ws]) => `<div class="tgroup${ws.length > 2 ? ' wide' : ''}" style="flex-basis:${ws.length * 205}px"><div class="tgroup-h"><span>${esc(g)}</span><span class="small">${ws.filter(wanOk).length}/${ws.length} online</span></div>
           <div class="tiles">${ws.map(w => { const ok = wanOk(w); return `<button class="tile ${ok ? '' : 'down'}" data-diag="${esc(w.name)}" title="Diagnose ${esc(w.name)}">
             <div class="tile-h"><span class="dot ${ok ? 'ok' : 'bad'}"></span><b>${esc(w.name)}</b><span class="pill ${ok ? 'ok' : 'bad'}">${esc(w.status || (w.up ? 'up' : 'down'))}</span></div>
-            <div class="mono small">${esc((w.ip || w.ip6 || '').split('/')[0] || 'no address')}</div>
-            <div class="tile-m"><span>${w.latency != null ? w.latency + ' ms' : '– ms'}</span><span>${w.loss != null ? w.loss + '% loss' : ''}</span><span>${w.uptime ? 'up ' + dur(w.uptime) : ''}</span></div></button>`; }).join('')}</div></div>`).join('')}
+            <div class="mono small addr" title="${esc((w.ip || w.ip6 || '').split('/')[0])}">${esc(shortAddr(w.ip || w.ip6) || 'no address')}</div>
+            <div class="tile-m"><span>${w.latency != null ? w.latency + ' ms' : '– ms'}</span><span>${w.loss != null ? w.loss + '% loss' : ''}</span><span>${w.uptime ? 'up ' + dur(w.uptime) : ''}</span></div></button>`; }).join('')}</div></div>`).join('')}</div>
       </div>
 
       <div class="card"><div class="card-h"><h2>${ICON.devices} Devices</h2><span class="small">${d.devices.length - down.length} of ${d.devices.length} responding</span></div>
@@ -1372,7 +1388,7 @@ const VIEWS = {
     const d = await api('/api/dns');
     $('#view').innerHTML = `<div class="grid">
       <div class="card wide"><h2>Control</h2><div class="row">
-        <span>VIP <b>${esc(d.vip || '–')}</b> is on <b>${esc(d.vip_owner)}</b></span>${d.vip6 ? `<span>IPv6 VIP <b>${esc(d.vip6)}</b> is on <b>${esc(d.vip6_owner)}</b></span>` : ''}<span class="spacer"></span>
+        <span>VIP <b>${esc(d.vip || '–')}</b> is on <b>${esc(d.vip_owner)}</b></span>${d.vip6 ? `<span class="small" style="color:var(--muted)">·</span><span>IPv6 VIP <b class="mono">${esc(d.vip6)}</b> is on <b>${esc(d.vip6_owner)}</b></span>` : ''}<span class="spacer"></span>
         <label class="small">Pause for</label><select id="mins"><option value="5">5 min</option><option value="15">15 min</option><option value="30">30 min</option><option value="60">1 hour</option><option value="0">until resumed</option></select>
         <button class="act" id="pause">Pause blocking</button><button class="act primary" id="resume">Resume blocking</button></div>
         <div class="small" style="margin-top:6px">Applies to both Pi-holes so blocking stays consistent whichever one holds the VIP.</div></div>
@@ -1471,10 +1487,10 @@ const VIEWS = {
       ${cfgOk ? '' : `<div class="card wide err">Router config not readable: ${esc(c.error)}. Editing is unavailable.</div>`}
       <div class="card wide"><h2>Interfaces <span class="spacer"></span>${cfgOk ? '<button class="act primary" id="if-new">+ Create interface</button>' : ''}</h2><div class="scroll"><table>
         <tr><th>Name</th><th>State</th><th>Proto</th><th>Device</th><th>IP</th><th>Gateway</th><th>Zone</th><th>mwan3</th><th>Up for</th><th></th></tr>
-        ${d.interfaces.map(i => { const m = d.mwan[i.name], ci = cif[i.name] || {}; return `<tr><td><b>${esc(i.name)}</b></td><td>${pill(i.up)}</td><td>${esc(i.proto)}</td><td>${esc(i.device)}</td><td>${esc(i.ip || (i.ip6 ? '' : '–'))}${i.ip6 ? `${i.ip ? '<br>' : ''}<span class="mono small">${esc(i.ip6)}</span>` : ''}${i.prefix6 ? `<br><span class="small">prefix ${esc(i.prefix6)}</span>` : ''}</td><td>${esc(i.gateway || '–')}</td>
+        ${d.interfaces.map(i => { const m = d.mwan[i.name], ci = cif[i.name] || {}; return `<tr><td><b>${esc(i.name)}</b></td><td>${pill(i.up)}</td><td class="nw">${esc(i.proto)}</td><td class="nw">${esc(i.device)}</td><td>${esc(i.ip || (i.ip6 ? '' : '–'))}${i.ip6 ? `${i.ip ? '<br>' : ''}<span class="mono small" title="${esc(i.ip6)}">${esc(shortAddr(i.ip6))}/${esc(i.ip6.split('/')[1] || '')}</span>` : ''}${i.prefix6 ? `<br><span class="small" title="${esc(i.prefix6)}">prefix <span class="mono">${esc(shortAddr(i.prefix6))}/${esc(i.prefix6.split('/')[1] || '')}</span></span>` : ''}</td><td class="nw">${esc(i.gateway || '–')}</td>
           <td>${ci.zone ? `<span class="pill ${ci.zone === 'wan' ? 'warn' : 'ok'}">${esc(ci.zone)}</span>` : '<span class="small">–</span>'}</td>
-          <td>${m ? `<span class="pill ${m.status === 'online' ? 'ok' : 'bad'}">${esc(m.status)}</span> <span class="small">${m.latency ?? '–'} ms · ${m.loss ?? '–'}%</span>` : '–'}</td><td>${dur(i.uptime)}</td>
-          <td><div class="row">${i.restartable ? `<button class="act sm" data-diag="${esc(i.name)}">Diagnose</button><button class="act sm" data-restart="${esc(i.name)}">Restart</button>` : ''}
+          <td>${m ? `<span class="pill ${m.status === 'online' ? 'ok' : 'bad'}">${esc(m.status)}</span> <span class="small">${m.latency ?? '–'} ms · ${m.loss ?? '–'}%</span>` : '–'}</td><td class="nw">${dur(i.uptime)}</td>
+          <td class="acts"><div class="row">${i.restartable ? `<button class="act sm" data-diag="${esc(i.name)}">Diagnose</button><button class="act sm" data-restart="${esc(i.name)}">Restart</button>` : ''}
             ${cfgOk && cif[i.name] ? `<button class="act sm" data-ifedit="${esc(i.name)}">Edit</button>${i.name !== 'lan' ? `<button class="act sm" data-ifdel="${esc(i.name)}">Delete</button>` : ''}` : ''}</div></td></tr>`; }).join('')}</table></div>
         <div class="small" style="margin-top:6px">Changes are applied with automatic rollback: if the router or a working internet link doesn't come back, the previous config is restored within ${c.rollback_s || 90} s.</div></div>
     </div>`;

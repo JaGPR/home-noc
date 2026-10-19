@@ -495,7 +495,7 @@ def collect_router():
         if i.get("interface") == "loopback":
             continue
         addr = (i.get("ipv4-address") or [{}])[0]
-        a6 = (i.get("ipv6-address") or [{}])[0]
+        a6 = next((x for x in i.get("ipv6-address") or [] if not str(x.get("address", "")).lower().startswith("fe80")), {})
         p6 = (i.get("ipv6-prefix") or i.get("ipv6-prefix-assignment") or [{}])[0]
         gw = next((r.get("nexthop") for r in i.get("route", []) if r.get("target") == "0.0.0.0"), None)
         ifaces.append({"name": i.get("interface"), "up": i.get("up"), "proto": i.get("proto"),

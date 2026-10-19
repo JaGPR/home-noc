@@ -736,12 +736,16 @@ assert "checks [2001:db8::5]:53 (TCP)" in " ".join(r.json()["detail"]), r.text
 real_ssh = noc.ssh
 iface_json = json.dumps({"interface": [
     {"interface": "wan1_6", "up": True, "proto": "dhcpv6", "l3_device": "pppoe-wan1", "uptime": 60,
-     "ipv6-address": [{"address": "2001:db8:ffff::5", "mask": 128}], "ipv6-prefix": [{"address": "2001:db8:1:2::", "mask": 64}],
-     "route": []}]})
+     "ipv6-address": [{"address": "fe80::1", "mask": 128}, {"address": "2001:db8:ffff::5", "mask": 128}],
+     "ipv6-prefix": [{"address": "2001:db8:1:2::", "mask": 64}], "route": []},
+    {"interface": "wan1", "up": True, "proto": "pppoe", "l3_device": "pppoe-wan1", "uptime": 60,
+     "ipv4-address": [{"address": "198.51.100.7", "mask": 32}], "ipv6-address": [{"address": "fe80::9c4a:816c", "mask": 128}], "route": []}]})
 noc.ssh = lambda host, script, timeout=20: "@@IF\n" + iface_json + "\n@@MWAN\n{}\n"
 try:
     i6 = next(i for i in noc.collect_router()["interfaces"] if i["name"] == "wan1_6")
     assert i6["ip"] == "" and i6["ip6"] == "2001:db8:ffff::5/128" and i6["prefix6"] == "2001:db8:1:2::/64", i6
+    w1 = next(i for i in noc.collect_router()["interfaces"] if i["name"] == "wan1")
+    assert w1["ip"] == "198.51.100.7/32" and w1["ip6"] == "", "link-local addresses are not shown"
 finally:
     noc.ssh = real_ssh
 
