@@ -16,11 +16,13 @@ jobs:
         with:
           python-version: '3.13'
       - name: Install dependencies
-        run: pip install fastapi uvicorn requests python-multipart httpx
+        run: pip install fastapi uvicorn requests python-multipart httpx ddt
       - name: Compile
         run: for f in app/*.py; do python -m py_compile "$f"; done
       - name: Smoke test (offline, example config)
         run: python tests/smoke_test.py
+      - name: ISP boxes (data-driven, offline)
+        run: python -m unittest tests/test_isp_boxes.py -v
 
   ui:
     name: UI JavaScript

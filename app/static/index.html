@@ -1781,7 +1781,9 @@ const VIEWS = {
   },
 
   async settings() {
-    const d = await api('/api/settings');
+    // devices too: the ISP boxes card lists the tracked devices of the "isp" group
+    const [d, dv] = await Promise.all([api('/api/settings'), api('/api/devices', {noseq: true})]);
+    DV = dv;
     const inp = (id, v, extra = '') => `<input type="text" id="${id}" value="${esc(v ?? '')}" ${extra}>`;
     const secret = (id, isSet) => `<input type="password" id="${id}" autocomplete="new-password" placeholder="${isSet ? 'set: leave empty to keep' : 'not set'}">`;
     const save = id => `<button class="act primary" id="${id}">Save</button>`;
@@ -1794,6 +1796,10 @@ const VIEWS = {
           <span class="small">the address clients use; keepalived moves it between the Pi-holes</span></div>
         <div class="scroll"><table id="ph-table"></table></div>
         <div class="small" style="margin-top:6px">URL is the Pi-hole web address (e.g. http://192.0.2.11 or http://192.0.2.9:8080). MAC lets the NOC tell which Pi-hole holds the VIP. The password is the Pi-hole <b>app password</b> (Settings → Web interface / API → Configure app password); the preview tests the login.</div></div>
+
+      <div class="card wide" id="isp-card"><h2>ISP boxes <span class="spacer"></span><button class="act" id="isp-add">+ Add ISP box</button></h2>
+        <div class="small" style="margin-bottom:8px">Your ISPs' modems, ONTs and fibre sticks. They are tracked on the Overview, and a WAN group's diagnosis checks its ISP box (chosen below). Removing one only stops tracking it; the device itself is not touched.</div>
+        <div class="scroll"><table id="isp-table"></table></div></div>
 
       <div class="card wide" id="wan-card"><h2>WAN groups and paths <span class="spacer"></span><button class="act" id="grp-add">+ Add group</button>${save('grp-save')}</h2>
         <div class="small" style="margin-bottom:8px">A group is the set of router interfaces of one ISP: Telegram <code>/restart &lt;group&gt;</code>, the Restart buttons and alerts use it. The path (switch port, ISP box, fibre ONT) is what the diagnosis checks when a link of that group goes down; the router side is found automatically.</div>
@@ -1893,6 +1899,22 @@ const VIEWS = {
     $('#grp-add').onclick = () => { groups.push({name: 'group' + (groups.length + 1), orig: null, members: [], path: {}}); drawGrp(); };
     $('#grp-save').onclick = () => act('wan_groups_set', {groups: Object.fromEntries(groups.map(g => [g.name, g.members])),
                                                           paths: Object.fromEntries(groups.map(g => [g.name, g.path]))});
+
+    // ---- ISP boxes: tracked devices in the "isp" group
+    const ispBoxes = () => (DV.devices || []).filter(x => x.group === 'isp');
+    const ispUsedBy = n => Object.entries(W.paths || {}).filter(([, path]) => path && path.isp_device === n).map(([g]) => g);
+    const drawIsp = () => { $('#isp-table').innerHTML = `<tr><th>Name</th><th>Tracked by</th><th>Status</th><th>Used by WAN groups</th><th></th></tr>` +
+      (ispBoxes().map(b => `<tr><td><b>${esc(b.name)}</b></td>
+        <td class="mono">${esc(b.mac ? 'MAC ' + b.mac : b.target)}</td>
+        <td>${b.up == null ? '<span class="pill mut">unknown</span>' : pill(b.up)}</td>
+        <td>${ispUsedBy(b.name).map(g => `<span class="pill mut">${esc(g)}</span>`).join(' ') || '<span class="small">none</span>'}</td>
+        <td class="acts"><div class="row"><button class="act sm" data-ispedit="${esc(b.name)}">Edit</button><button class="act sm" data-ispdel="${esc(b.name)}">Remove</button></div></td></tr>`).join('')
+        || '<tr><td class="small" colspan="5">No ISP boxes yet. Add the modem, ONT or fibre stick of each ISP to track it.</td></tr>'); };
+    drawIsp();
+    $('#isp-add').onclick = () => editDevice(null, {group: 'isp'});
+    $('#isp-table').onclick = ev => { const b = ev.target.closest('button'); if (!b) return;
+      if (b.dataset.ispedit) editDevice(b.dataset.ispedit);
+      if (b.dataset.ispdel) act('device_delete', {original_name: b.dataset.ispdel}); };
 
     // ---- Fibre ONT sources
     const onts = d.onts.map(o => ({...o, original_name: o.name}));

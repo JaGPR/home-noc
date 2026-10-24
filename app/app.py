@@ -1321,14 +1321,21 @@ def plan_action(kind, p):
             raise ValueError("unknown device")
         if kind == "device_delete":
             cur = devs[names.index(orig)]
+            # WAN groups whose diagnosis path names this device as their ISP box
+            users = sorted(g for g, path in (ROUTER.get("wan_paths") or {}).items() if (path or {}).get("isp_device") == orig)
 
             def run():
                 C["devices"] = [d for d in C["devices"] if d["name"] != orig]
+                for path in (ROUTER.get("wan_paths") or {}).values():
+                    if (path or {}).get("isp_device") == orig:
+                        path["isp_device"] = None
                 save_config()
                 return {"saved": True}
             how = f"MAC {cur['mac']}" if cur.get("mac") else cur.get("target")
-            return f"Stop tracking {orig}", [f"Removes '{orig}' ({how}) from device health checks",
-                                              "The device itself is not touched"], None, run, ["ping"]
+            detail = [f"Removes '{orig}' ({how}) from device health checks", "The device itself is not touched"]
+            if users:
+                detail.append(f"WAN diagnosis no longer checks it for: {', '.join(users)} (ISP box cleared)")
+            return f"Stop tracking {orig}", detail, None, run, ["ping"]
 
         name = (p.get("name") or "").strip()
         if not 1 <= len(name) <= 64 or not re.fullmatch(r"[\w .\-()/+]+", name):
