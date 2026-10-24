@@ -27,6 +27,8 @@ Plus the field notes that came with it: a **highly available Pi-hole** kit and a
 
 **Telegram alerts and bot** (optional): devices, WAN links, Pi-holes, the DNS VIP and fibre optics are checked every 30 s, and a change that holds for two checks is sent to your paired chat. The bot answers `/status`, `/wan`, `/dns`, `/optics` and more, and can restart a WAN or a whole ISP group or pause ad-blocking, each after a Confirm button. It also reports **Proxmox backups**: each finished run with every guest's result, plus failed, stuck or missed backups and a full or offline backup storage (`/backups` lists each guest's latest backup). See [docs/telegram.md](docs/telegram.md).
 
+**On phones**: below 900 px wide the sidebar becomes a slide-in menu and a bottom bar keeps Overview, Router, Switch and Alerts one tap away; on phones every table turns into one card per row, dialogs open as bottom sheets, and controls are touch-sized (fields use 16 px text so iOS doesn't zoom in). Add it to your home screen for a full-screen app.
+
 ### Safety model
 - **Preview first.** Every change shows exactly what will happen, e.g.
   *"Tagged + IoT (VLAN 20) · Result → untagged: Default | tagged: …"*.
@@ -72,6 +74,7 @@ app/                 NOC backend (app.py), watcher + Telegram bot (notify.py), b
 config/              config.example.json, secrets.env.example
 deploy/              create-lxc.sh, install.sh, noc.service, proxmox-token.sh
 pihole-ha/           keepalived health check + configs, nebula-sync service, gravity cron
+tests/               smoke_test.py (backend), ui/ (browser tests, fixture sanitiser, sample data)
 docs/
   deployment.md      install, configure, connect each system, Cloudflare Access
   pihole-ha.md       two-node Pi-hole with VIP failover and sync, IPv6 DNS VIP, plus pitfalls
@@ -82,6 +85,21 @@ docs/
   ipv6-multiwan.md   IPv6 load balancing over several WAN sessions with mwan3 and NAT66
   daily-publish-task.md  the scheduled task that publishes the live NOC here each morning
 ```
+
+## Tests
+```sh
+python tests/smoke_test.py                                  # backend, offline (needs the app's Python packages)
+pip install ddt playwright && python -m playwright install chromium
+python -m unittest discover -s tests/ui -p "test_*.py"     # UI: ~750 data-driven cases
+```
+The UI tests render the real page in Chromium against `tests/ui/fixtures.sample.json` (no NOC, network or
+credentials needed) and check every tab at phone, tablet and desktop sizes: nothing scrolls sideways or spills out
+of a card, touch targets and text fields are phone-sized, tables become cards, the drawer and bottom bar work,
+dialogs fit the screen, plus unit tests of the page's JavaScript helpers. Without Playwright's Chromium they use an
+installed Chrome or Edge. To refresh the fixtures from your own NOC, save its `/api/*` responses to
+`tests/fixtures.json` (git-ignored) and run `python tests/ui/sanitize.py tests/fixtures.json tests/ui/fixtures.sample.json`:
+it rewrites every address, MAC, ID and name into documentation values and refuses to write while anything real
+survives. Put your own ISP and host names in `tests/ui/sanitize.local.json` (git-ignored; format in `sanitize.py`).
 
 ## API
 All endpoints need a login session. `GET /api/meta`, `/api/overview`, `/api/router`,

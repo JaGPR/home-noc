@@ -1,0 +1,5470 @@
+{
+ "overview": {
+  "devices": [
+   {
+    "name": "Router (AX6000)",
+    "ip": "192.0.2.1",
+    "current_ip": "192.0.2.1",
+    "group": "core",
+    "mac": null,
+    "tracking": "ip",
+    "up": true,
+    "ms": 5.62,
+    "note": ""
+   },
+   {
+    "name": "Access point",
+    "ip": "192.0.2.2",
+    "current_ip": "192.0.2.2",
+    "group": "core",
+    "mac": null,
+    "tracking": "ip",
+    "up": true,
+    "ms": 0.315,
+    "note": ""
+   },
+   {
+    "name": "SG2210P switch",
+    "ip": "192.0.2.114",
+    "current_ip": "192.0.2.114",
+    "group": "core",
+    "mac": null,
+    "tracking": "ip",
+    "up": true,
+    "ms": 7.25,
+    "note": ""
+   },
+   {
+    "name": "Metro ONU (bridge)",
+    "ip": "198.51.100.1",
+    "current_ip": "198.51.100.1",
+    "group": "isp",
+    "mac": null,
+    "tracking": "ip",
+    "up": true,
+    "ms": 2.79,
+    "note": ""
+   },
+   {
+    "name": "VSOL ONT (Skyline)",
+    "ip": "203.0.113.1:80",
+    "current_ip": "203.0.113.1",
+    "group": "isp",
+    "mac": null,
+    "tracking": "ip",
+    "up": true,
+    "ms": 10.6,
+    "note": ""
+   },
+   {
+    "name": "HSGQ stick (Zeta)",
+    "ip": "198.18.0.1",
+    "current_ip": "198.18.0.1",
+    "group": "isp",
+    "mac": null,
+    "tracking": "ip",
+    "up": true,
+    "ms": 4.31,
+    "note": ""
+   },
+   {
+    "name": "DNS VIP",
+    "ip": "192.0.2.10",
+    "current_ip": "192.0.2.10",
+    "group": "dns",
+    "mac": null,
+    "tracking": "ip",
+    "up": true,
+    "ms": 0.086,
+    "note": ""
+   },
+   {
+    "name": "Pi-hole VM",
+    "ip": "192.0.2.11",
+    "current_ip": "192.0.2.11",
+    "group": "dns",
+    "mac": null,
+    "tracking": "ip",
+    "up": true,
+    "ms": 0.048,
+    "note": ""
+   },
+   {
+    "name": "Pi-hole Pi",
+    "ip": "192.0.2.9",
+    "current_ip": "192.0.2.9",
+    "group": "dns",
+    "mac": null,
+    "tracking": "ip",
+    "up": true,
+    "ms": 3.88,
+    "note": ""
+   },
+   {
+    "name": "Proxmox",
+    "ip": "192.0.2.196",
+    "current_ip": "192.0.2.196",
+    "group": "server",
+    "mac": null,
+    "tracking": "ip",
+    "up": true,
+    "ms": 0.013,
+    "note": ""
+   },
+   {
+    "name": "NAS",
+    "ip": "192.0.2.178",
+    "current_ip": "192.0.2.178",
+    "group": "server",
+    "mac": null,
+    "tracking": "ip",
+    "up": true,
+    "ms": 0.082,
+    "note": ""
+   },
+   {
+    "name": "Home Assistant",
+    "ip": "192.0.2.180",
+    "current_ip": "192.0.2.180",
+    "group": "server",
+    "mac": null,
+    "tracking": "ip",
+    "up": true,
+    "ms": 0.109,
+    "note": ""
+   },
+   {
+    "name": "Omada controller",
+    "ip": "192.0.2.240",
+    "current_ip": "192.0.2.240",
+    "group": "server",
+    "mac": null,
+    "tracking": "ip",
+    "up": true,
+    "ms": 0.014,
+    "note": ""
+   },
+   {
+    "name": "qBittorrent",
+    "ip": "192.0.2.106",
+    "current_ip": "192.0.2.106",
+    "group": "server",
+    "mac": null,
+    "tracking": "ip",
+    "up": true,
+    "ms": 0.016,
+    "note": ""
+   },
+   {
+    "name": "NOC",
+    "ip": "192.0.2.20",
+    "current_ip": "192.0.2.20",
+    "group": "server",
+    "mac": null,
+    "tracking": "ip",
+    "up": true,
+    "ms": 0.007,
+    "note": ""
+   },
+   {
+    "name": "WiZ bulb",
+    "ip": "192.0.2.125",
+    "current_ip": "192.0.2.125",
+    "group": "iot",
+    "mac": null,
+    "tracking": "ip",
+    "up": true,
+    "ms": 104.0,
+    "note": ""
+   },
+   {
+    "name": "DNS VIP (IPv6)",
+    "ip": "fd00:db8:20a7::b6",
+    "current_ip": "fd00:db8:20a7::b6",
+    "group": "dns",
+    "mac": null,
+    "tracking": "ip",
+    "up": true,
+    "ms": 0.1,
+    "note": ""
+   },
+   {
+    "name": "Pi-hole VM (IPv6)",
+    "ip": "fd00:db8:20a7:7:7f03:0c84:f1fd:1fc3",
+    "current_ip": "fd00:db8:20a7:7:7f03:0c84:f1fd:1fc3",
+    "group": "dns",
+    "mac": null,
+    "tracking": "ip",
+    "up": true,
+    "ms": 0.023,
+    "note": ""
+   },
+   {
+    "name": "Pi-hole Pi (IPv6)",
+    "ip": "fd00:db8:20a7:7:01e4:a889:0e54:122a",
+    "current_ip": "fd00:db8:20a7:7:01e4:a889:0e54:122a",
+    "group": "dns",
+    "mac": null,
+    "tracking": "ip",
+    "up": true,
+    "ms": 1.3,
+    "note": ""
+   }
+  ],
+  "wans": [
+   {
+    "name": "Skyline",
+    "up": true,
+    "ip": "198.18.1.78/15",
+    "ip6": "",
+    "uptime": 92777,
+    "status": "online",
+    "online": 92727,
+    "score": 10,
+    "latency": 23.0,
+    "loss": 0,
+    "target": "8.8.8.8",
+    "measured": true
+   },
+   {
+    "name": "Skyline_6",
+    "up": true,
+    "ip": "",
+    "ip6": "2001:db8:e0::9:6301/128",
+    "uptime": 92776,
+    "status": "online",
+    "online": 92732,
+    "score": 10,
+    "latency": 39.0,
+    "loss": 0,
+    "target": "2001:db8:fdeb::f056",
+    "measured": true
+   },
+   {
+    "name": "zeta",
+    "up": true,
+    "ip": "198.18.2.99/21",
+    "ip6": "",
+    "uptime": 27796,
+    "status": "online",
+    "online": 1831,
+    "score": 10,
+    "latency": 14.3,
+    "loss": 0,
+    "target": "8.8.8.8",
+    "measured": true
+   },
+   {
+    "name": "zeta_6",
+    "up": true,
+    "ip": "",
+    "ip6": "2001:db8:c4ac:f492:e121:485:4a9f:634b/128",
+    "uptime": 27795,
+    "status": "online",
+    "online": 1834,
+    "score": 10,
+    "latency": 24.1,
+    "loss": 0,
+    "target": "2001:db8:fdeb::f056",
+    "measured": true
+   },
+   {
+    "name": "wan1",
+    "up": true,
+    "ip": "198.18.3.13/32",
+    "ip6": "",
+    "uptime": 92823,
+    "status": "online",
+    "online": 92816,
+    "score": 10,
+    "latency": 20.6,
+    "loss": 0,
+    "target": "8.8.8.8",
+    "measured": true
+   },
+   {
+    "name": "wan1_6",
+    "up": true,
+    "ip": "",
+    "ip6": "2001:db8:864a:16f0::844:43a3/128",
+    "uptime": 92813,
+    "status": "online",
+    "online": 92800,
+    "score": 10,
+    "latency": 13.4,
+    "loss": 0,
+    "target": "2001:db8:fdeb::f056",
+    "measured": true
+   },
+   {
+    "name": "wan2",
+    "up": true,
+    "ip": "198.18.3.31/32",
+    "ip6": "",
+    "uptime": 92806,
+    "status": "online",
+    "online": 92770,
+    "score": 10,
+    "latency": 21.8,
+    "loss": 0,
+    "target": "8.8.8.8",
+    "measured": true
+   },
+   {
+    "name": "wan2_6",
+    "up": true,
+    "ip": "",
+    "ip6": "2001:db8:864a:16f0::844:aae3/128",
+    "uptime": 92801,
+    "status": "online",
+    "online": 92764,
+    "score": 10,
+    "latency": 17.5,
+    "loss": 0,
+    "target": "2001:db8:fdeb::f056",
+    "measured": true
+   },
+   {
+    "name": "wan3",
+    "up": true,
+    "ip": "198.18.3.102/32",
+    "ip6": "",
+    "uptime": 92672,
+    "status": "online",
+    "online": 92657,
+    "score": 10,
+    "latency": 15.8,
+    "loss": 0,
+    "target": "8.8.8.8",
+    "measured": true
+   },
+   {
+    "name": "wan3_6",
+    "up": true,
+    "ip": "",
+    "ip6": "2001:db8:864a:16f0::844:5a4b/128",
+    "uptime": 92662,
+    "status": "online",
+    "online": 92636,
+    "score": 10,
+    "latency": 17.0,
+    "loss": 0,
+    "target": "2001:db8:fdeb::f056",
+    "measured": true
+   },
+   {
+    "name": "wan4",
+    "up": true,
+    "ip": "198.18.3.107/32",
+    "ip6": "",
+    "uptime": 92667,
+    "status": "online",
+    "online": 92649,
+    "score": 10,
+    "latency": 17.3,
+    "loss": 0,
+    "target": "8.8.8.8",
+    "measured": true
+   },
+   {
+    "name": "wan4_6",
+    "up": true,
+    "ip": "",
+    "ip6": "2001:db8:864a:16f0::844:7ea9/128",
+    "uptime": 92658,
+    "status": "online",
+    "online": 92620,
+    "score": 10,
+    "latency": 16.6,
+    "loss": 0,
+    "target": "2001:db8:fdeb::f056",
+    "measured": true
+   },
+   {
+    "name": "wan5",
+    "up": true,
+    "ip": "198.18.3.12/32",
+    "ip6": "",
+    "uptime": 92823,
+    "status": "online",
+    "online": 92821,
+    "score": 10,
+    "latency": 21.8,
+    "loss": 0,
+    "target": "8.8.8.8",
+    "measured": true
+   },
+   {
+    "name": "wan5_6",
+    "up": true,
+    "ip": "",
+    "ip6": "2001:db8:864a:16f0::844:e448/128",
+    "uptime": 92813,
+    "status": "online",
+    "online": 92795,
+    "score": 10,
+    "latency": 18.6,
+    "loss": 0,
+    "target": "2001:db8:fdeb::f056",
+    "measured": true
+   },
+   {
+    "name": "wan6",
+    "up": true,
+    "ip": "198.18.3.101/32",
+    "ip6": "",
+    "uptime": 92672,
+    "status": "online",
+    "online": 92669,
+    "score": 10,
+    "latency": 18.9,
+    "loss": 0,
+    "target": "8.8.8.8",
+    "measured": true
+   },
+   {
+    "name": "wan6_6",
+    "up": true,
+    "ip": "",
+    "ip6": "2001:db8:864a:16f0::844:a252/128",
+    "uptime": 92662,
+    "status": "online",
+    "online": 92630,
+    "score": 10,
+    "latency": 15.9,
+    "loss": 0,
+    "target": "2001:db8:fdeb::f056",
+    "measured": true
+   },
+   {
+    "name": "wan7",
+    "up": true,
+    "ip": "198.18.3.108/32",
+    "ip6": "",
+    "uptime": 92667,
+    "status": "online",
+    "online": 92642,
+    "score": 10,
+    "latency": 18.6,
+    "loss": 0,
+    "target": "8.8.8.8",
+    "measured": true
+   },
+   {
+    "name": "wan7_6",
+    "up": true,
+    "ip": "",
+    "ip6": "2001:db8:864a:16f0::844:abce/128",
+    "uptime": 92658,
+    "status": "online",
+    "online": 92625,
+    "score": 10,
+    "latency": 15.0,
+    "loss": 0,
+    "target": "2001:db8:fdeb::f056",
+    "measured": true
+   }
+  ],
+  "onts": [
+   {
+    "name": "VSOL ONT (Skyline)",
+    "connected": true,
+    "rx_dbm": -22.22,
+    "tx_dbm": 2.36,
+    "temp_c": 30.73,
+    "state": "Registered (O5)",
+    "uptime": "7d 15h 35m",
+    "firmware": "V1.1.8",
+    "model": "XPON+2.5GE+1GE",
+    "fec_uncorrectable": 0,
+    "alarms": {
+     "los": "Clear (Normal)",
+     "lof": "Clear (Normal)",
+     "lom": "Clear (Normal)",
+     "sf": "Clear (Normal)",
+     "sd": "Clear (Normal)"
+    },
+    "ts": 1792805506,
+    "state_code": "O5",
+    "limits": {
+     "rx_pwr_low_alarm": -27.0,
+     "rx_pwr_low_warn": -26.0,
+     "rx_pwr_high_warn": -9.0,
+     "tx_pwr_low_warn": 0.5,
+     "tx_pwr_high_warn": 3.5,
+     "temp_low_warn": 0.0,
+     "temp_high_warn": 65.0
+    },
+    "age_s": 10
+   },
+   {
+    "name": "HSGQ stick (Zeta)",
+    "connected": true,
+    "rx_dbm": -20.51,
+    "tx_dbm": 2.65,
+    "temp_c": 28.46,
+    "state": "Registered (O5)",
+    "uptime": "0d 0h 31m",
+    "firmware": "V1.0- (build #141 Mon Apr 8 14:48:43 CST 2024)",
+    "model": "ODI DFP-34X-2C2",
+    "fec_uncorrectable": 0,
+    "alarms": {
+     "los": "Clear (Normal)",
+     "lof": "Clear (Normal)",
+     "lom": "Clear (Normal)",
+     "sf": "Clear (Normal)",
+     "sd": "Clear (Normal)"
+    },
+    "ts": 1792805504,
+    "state_code": "O5",
+    "limits": {
+     "rx_pwr_low_alarm": -27.0,
+     "rx_pwr_low_warn": -26.0,
+     "rx_pwr_high_warn": -9.0,
+     "tx_pwr_low_warn": 0.5,
+     "tx_pwr_high_warn": 3.5,
+     "temp_low_warn": 0.0,
+     "temp_high_warn": 65.0
+    },
+    "age_s": 12
+   }
+  ],
+  "router_system": {
+   "model": "Homerouter AX6000 JIDU6J01",
+   "release": "OpenWrt 25.12.6 r33311-c07b4efab8",
+   "hostname": "OpenWrt",
+   "uptime": 92916,
+   "load": [
+    1.11,
+    0.77,
+    0.42
+   ],
+   "mem_used_pct": 42.9
+  },
+  "dns": {
+   "vip": "192.0.2.10",
+   "vip_owner": "Pi-hole VM",
+   "vip6": "fd00:db8:20a7::b6",
+   "vip6_owner": "Pi-hole VM",
+   "nodes": [
+    {
+     "name": "Pi-hole VM",
+     "ok": true,
+     "blocking": "enabled",
+     "timer": null,
+     "queries": 175733,
+     "blocked": 21389,
+     "percent": 12.2,
+     "gravity": 2483005,
+     "clients": 23,
+     "top_blocked": [
+      {
+       "domain": "d3.example.com",
+       "count": 4650
+      },
+      {
+       "domain": "db37996f412ac0275a3c35db3e27339c5b00341a8b6f037a31862813336ba372aa4a94a306fd794e0f898e15abd9ed5373.example.com",
+       "count": 1691
+      },
+      {
+       "domain": "da.example.com",
+       "count": 1093
+      },
+      {
+       "domain": "dd37fd151b55.example.com",
+       "count": 1009
+      },
+      {
+       "domain": "d7a4af.example.com",
+       "count": 950
+      },
+      {
+       "domain": "d2ed92b01647069d.example.com",
+       "count": 546
+      },
+      {
+       "domain": "d69758c4.example.com",
+       "count": 468
+      },
+      {
+       "domain": "d6ea6054bb939d.example.com",
+       "count": 466
+      }
+     ],
+     "top_clients": [
+      {
+       "name": "",
+       "ip": "192.0.2.169",
+       "count": 82501
+      },
+      {
+       "name": "",
+       "ip": "fd00:db8:20a7:7:4de9:596a:7948:76a",
+       "count": 29488
+      },
+      {
+       "name": "",
+       "ip": "192.0.2.166",
+       "count": 11290
+      },
+      {
+       "name": "",
+       "ip": "192.0.2.133",
+       "count": 9663
+      },
+      {
+       "name": "",
+       "ip": "192.0.2.145",
+       "count": 9371
+      },
+      {
+       "name": "",
+       "ip": "fd00:db8:20a7:7:2b70:9653:0b82:17d7",
+       "count": 7555
+      },
+      {
+       "name": "",
+       "ip": "192.0.2.180",
+       "count": 6557
+      },
+      {
+       "name": "",
+       "ip": "192.0.2.20",
+       "count": 5954
+      }
+     ]
+    },
+    {
+     "name": "Pi-hole Pi",
+     "ok": true,
+     "blocking": "enabled",
+     "timer": null,
+     "queries": 1011,
+     "blocked": 0,
+     "percent": 0,
+     "gravity": 2459390,
+     "clients": 1,
+     "top_blocked": [],
+     "top_clients": [
+      {
+       "name": "localhost.lan",
+       "ip": "127.0.0.1",
+       "count": 1011
+      }
+     ]
+    }
+   ]
+  },
+  "proxmox": {
+   "node": "PVE-NODE-1",
+   "cpu_pct": 2.3,
+   "mem_pct": 88.4,
+   "uptime": 544730,
+   "version": "pve-manager/9.2.2/b0dc1fc1acef8cf4",
+   "guests": [
+    {
+     "vmid": 100,
+     "name": "pihole",
+     "type": "qemu",
+     "status": "running",
+     "cpu_pct": 0.4,
+     "mem_pct": 82.0,
+     "disk_pct": null,
+     "uptime": 544713
+    },
+    {
+     "vmid": 101,
+     "name": "omada",
+     "type": "lxc",
+     "status": "running",
+     "cpu_pct": 0.4,
+     "mem_pct": 53.4,
+     "disk_pct": 47.6,
+     "uptime": 469130
+    },
+    {
+     "vmid": 102,
+     "name": "VM 102",
+     "type": "qemu",
+     "status": "running",
+     "cpu_pct": 1.0,
+     "mem_pct": 15.1,
+     "disk_pct": null,
+     "uptime": 544710
+    },
+    {
+     "vmid": 103,
+     "name": "haos17-3",
+     "type": "qemu",
+     "status": "running",
+     "cpu_pct": 0.5,
+     "mem_pct": 89.3,
+     "disk_pct": null,
+     "uptime": 544707
+    },
+    {
+     "vmid": 104,
+     "name": "qbittorrent",
+     "type": "lxc",
+     "status": "running",
+     "cpu_pct": 0.3,
+     "mem_pct": 9.0,
+     "disk_pct": 11.1,
+     "uptime": 544703
+    },
+    {
+     "vmid": 105,
+     "name": "nas",
+     "type": "qemu",
+     "status": "running",
+     "cpu_pct": 0.7,
+     "mem_pct": 96.6,
+     "disk_pct": null,
+     "uptime": 363030
+    },
+    {
+     "vmid": 106,
+     "name": "noc",
+     "type": "lxc",
+     "status": "running",
+     "cpu_pct": 0.2,
+     "mem_pct": 3.1,
+     "disk_pct": 5.4,
+     "uptime": 544700
+    }
+   ],
+   "storage": [
+    {
+     "name": "NAS_1",
+     "type": "nfs",
+     "used_pct": 46.9,
+     "total_gb": 2000
+    },
+    {
+     "name": "local-lvm",
+     "type": "lvmthin",
+     "used_pct": 9.6,
+     "total_gb": 876
+    },
+    {
+     "name": "nas_dir",
+     "type": "dir",
+     "used_pct": 37.3,
+     "total_gb": 101
+    },
+    {
+     "name": "local",
+     "type": "dir",
+     "used_pct": 37.3,
+     "total_gb": 101
+    }
+   ]
+  },
+  "switch_ports_up": 6,
+  "errors": {}
+ },
+ "router": {
+  "system": {
+   "model": "Homerouter AX6000 JIDU6J01",
+   "release": "OpenWrt 25.12.6 r33311-c07b4efab8",
+   "hostname": "OpenWrt",
+   "uptime": 92916,
+   "load": [
+    1.11,
+    0.77,
+    0.42
+   ],
+   "mem_used_pct": 43.0
+  },
+  "interfaces": [
+   {
+    "name": "G7",
+    "up": true,
+    "proto": "static",
+    "device": "bond.125",
+    "uptime": 27634,
+    "ip": "198.18.4.3/24",
+    "ip6": "",
+    "prefix6": "",
+    "gateway": "198.18.4.1",
+    "dns": [],
+    "metric": 0,
+    "restartable": false,
+    "group": null
+   },
+   {
+    "name": "Skyline",
+    "up": true,
+    "proto": "dhcp",
+    "device": "bond.3527",
+    "uptime": 92777,
+    "ip": "198.18.1.78/15",
+    "ip6": "",
+    "prefix6": "",
+    "gateway": "198.18.5.1",
+    "dns": [
+     "8.8.8.8",
+     "4.2.2.2"
+    ],
+    "metric": 9,
+    "restartable": true,
+    "group": "skyline"
+   },
+   {
+    "name": "Skyline_6",
+    "up": true,
+    "proto": "dhcpv6",
+    "device": "bond.3527",
+    "uptime": 92776,
+    "ip": "",
+    "ip6": "2001:db8:e0::9:6301/128",
+    "prefix6": "2001:db8:dd:f717::/64",
+    "gateway": null,
+    "dns": [],
+    "metric": 0,
+    "restartable": true,
+    "group": "skyline-v6"
+   },
+   {
+    "name": "VSOL_Management",
+    "up": true,
+    "proto": "static",
+    "device": "bond.123",
+    "uptime": 92788,
+    "ip": "203.0.113.2/29",
+    "ip6": "",
+    "prefix6": "",
+    "gateway": null,
+    "dns": [],
+    "metric": 0,
+    "restartable": false,
+    "group": null
+   },
+   {
+    "name": "zeta",
+    "up": true,
+    "proto": "dhcp",
+    "device": "bond.1015",
+    "uptime": 27796,
+    "ip": "198.18.2.99/21",
+    "ip6": "",
+    "prefix6": "",
+    "gateway": "198.18.6.1",
+    "dns": [
+     "198.18.7.3"
+    ],
+    "metric": 10,
+    "restartable": true,
+    "group": "zeta"
+   },
+   {
+    "name": "zeta_6",
+    "up": true,
+    "proto": "dhcpv6",
+    "device": "bond.1015",
+    "uptime": 27795,
+    "ip": "",
+    "ip6": "2001:db8:c4ac:f492:e121:485:4a9f:634b/128",
+    "prefix6": "2001:db8:c4ac:2604::/64",
+    "gateway": null,
+    "dns": [],
+    "metric": 0,
+    "restartable": true,
+    "group": "zeta-v6"
+   },
+   {
+    "name": "zeta_Management",
+    "up": true,
+    "proto": "static",
+    "device": "bond.124",
+    "uptime": 92788,
+    "ip": "198.18.0.4/24",
+    "ip6": "",
+    "prefix6": "",
+    "gateway": null,
+    "dns": [],
+    "metric": 0,
+    "restartable": false,
+    "group": null
+   },
+   {
+    "name": "lan",
+    "up": true,
+    "proto": "static",
+    "device": "br-lan",
+    "uptime": 92899,
+    "ip": "192.0.2.1/24",
+    "ip6": "",
+    "prefix6": "2001:db8:7009:de0d::/64",
+    "gateway": null,
+    "dns": [],
+    "metric": 0,
+    "restartable": false,
+    "group": null
+   },
+   {
+    "name": "wan",
+    "up": true,
+    "proto": "static",
+    "device": "wan",
+    "uptime": 92899,
+    "ip": "198.51.100.3/24",
+    "ip6": "",
+    "prefix6": "",
+    "gateway": null,
+    "dns": [],
+    "metric": 0,
+    "restartable": false,
+    "group": null
+   },
+   {
+    "name": "wan1",
+    "up": true,
+    "proto": "pppoe",
+    "device": "pppoe-wan1",
+    "uptime": 92823,
+    "ip": "198.18.3.13/32",
+    "ip6": "",
+    "prefix6": "",
+    "gateway": "198.18.8.101",
+    "dns": [
+     "8.8.8.8"
+    ],
+    "metric": 1,
+    "restartable": true,
+    "group": "metro"
+   },
+   {
+    "name": "wan1_6",
+    "up": true,
+    "proto": "dhcpv6",
+    "device": "pppoe-wan1",
+    "uptime": 92813,
+    "ip": "",
+    "ip6": "2001:db8:864a:16f0::844:43a3/128",
+    "prefix6": "2001:db8:7009:de0d::/64",
+    "gateway": null,
+    "dns": [],
+    "metric": 601,
+    "restartable": true,
+    "group": "metro-v6"
+   },
+   {
+    "name": "wan2",
+    "up": true,
+    "proto": "pppoe",
+    "device": "pppoe-wan2",
+    "uptime": 92806,
+    "ip": "198.18.3.31/32",
+    "ip6": "",
+    "prefix6": "",
+    "gateway": "198.18.8.101",
+    "dns": [],
+    "metric": 3,
+    "restartable": true,
+    "group": "metro"
+   },
+   {
+    "name": "wan2_6",
+    "up": true,
+    "proto": "dhcpv6",
+    "device": "pppoe-wan2",
+    "uptime": 92801,
+    "ip": "",
+    "ip6": "2001:db8:864a:16f0::844:aae3/128",
+    "prefix6": "2001:db8:7009:15e6::/64",
+    "gateway": null,
+    "dns": [],
+    "metric": 602,
+    "restartable": true,
+    "group": "metro-v6"
+   },
+   {
+    "name": "wan3",
+    "up": true,
+    "proto": "pppoe",
+    "device": "pppoe-wan3",
+    "uptime": 92672,
+    "ip": "198.18.3.102/32",
+    "ip6": "",
+    "prefix6": "",
+    "gateway": "198.18.8.101",
+    "dns": [],
+    "metric": 2,
+    "restartable": true,
+    "group": "metro"
+   },
+   {
+    "name": "wan3_6",
+    "up": true,
+    "proto": "dhcpv6",
+    "device": "pppoe-wan3",
+    "uptime": 92662,
+    "ip": "",
+    "ip6": "2001:db8:864a:16f0::844:5a4b/128",
+    "prefix6": "2001:db8:7009:d841::/64",
+    "gateway": null,
+    "dns": [],
+    "metric": 603,
+    "restartable": true,
+    "group": "metro-v6"
+   },
+   {
+    "name": "wan4",
+    "up": true,
+    "proto": "pppoe",
+    "device": "pppoe-wan4",
+    "uptime": 92667,
+    "ip": "198.18.3.107/32",
+    "ip6": "",
+    "prefix6": "",
+    "gateway": "198.18.8.101",
+    "dns": [],
+    "metric": 4,
+    "restartable": true,
+    "group": "metro"
+   },
+   {
+    "name": "wan4_6",
+    "up": true,
+    "proto": "dhcpv6",
+    "device": "pppoe-wan4",
+    "uptime": 92658,
+    "ip": "",
+    "ip6": "2001:db8:864a:16f0::844:7ea9/128",
+    "prefix6": "2001:db8:7009:2978::/64",
+    "gateway": null,
+    "dns": [],
+    "metric": 604,
+    "restartable": true,
+    "group": "metro-v6"
+   },
+   {
+    "name": "wan5",
+    "up": true,
+    "proto": "pppoe",
+    "device": "pppoe-wan5",
+    "uptime": 92823,
+    "ip": "198.18.3.12/32",
+    "ip6": "",
+    "prefix6": "",
+    "gateway": "198.18.8.101",
+    "dns": [],
+    "metric": 5,
+    "restartable": true,
+    "group": "metro"
+   },
+   {
+    "name": "wan5_6",
+    "up": true,
+    "proto": "dhcpv6",
+    "device": "pppoe-wan5",
+    "uptime": 92813,
+    "ip": "",
+    "ip6": "2001:db8:864a:16f0::844:e448/128",
+    "prefix6": "2001:db8:7009:0d28::/64",
+    "gateway": null,
+    "dns": [],
+    "metric": 605,
+    "restartable": true,
+    "group": "metro-v6"
+   },
+   {
+    "name": "wan6",
+    "up": true,
+    "proto": "pppoe",
+    "device": "pppoe-wan6",
+    "uptime": 92672,
+    "ip": "198.18.3.101/32",
+    "ip6": "",
+    "prefix6": "",
+    "gateway": "198.18.8.101",
+    "dns": [],
+    "metric": 6,
+    "restartable": true,
+    "group": "metro"
+   },
+   {
+    "name": "wan6_6",
+    "up": true,
+    "proto": "dhcpv6",
+    "device": "pppoe-wan6",
+    "uptime": 92662,
+    "ip": "",
+    "ip6": "2001:db8:864a:16f0::844:a252/128",
+    "prefix6": "2001:db8:7009:382d::/64",
+    "gateway": null,
+    "dns": [],
+    "metric": 606,
+    "restartable": true,
+    "group": "metro-v6"
+   },
+   {
+    "name": "wan7",
+    "up": true,
+    "proto": "pppoe",
+    "device": "pppoe-wan7",
+    "uptime": 92667,
+    "ip": "198.18.3.108/32",
+    "ip6": "",
+    "prefix6": "",
+    "gateway": "198.18.8.101",
+    "dns": [
+     "198.18.9.183",
+     "198.18.9.145"
+    ],
+    "metric": 7,
+    "restartable": true,
+    "group": "metro"
+   },
+   {
+    "name": "wan7_6",
+    "up": true,
+    "proto": "dhcpv6",
+    "device": "pppoe-wan7",
+    "uptime": 92658,
+    "ip": "",
+    "ip6": "2001:db8:864a:16f0::844:abce/128",
+    "prefix6": "2001:db8:7009:cf16::/64",
+    "gateway": null,
+    "dns": [],
+    "metric": 607,
+    "restartable": true,
+    "group": "metro-v6"
+   }
+  ],
+  "mwan": {
+   "wan1": {
+    "status": "online",
+    "online": 92817,
+    "score": 10,
+    "latency": 20.6,
+    "loss": 0,
+    "target": "8.8.8.8",
+    "measured": true
+   },
+   "wan2": {
+    "status": "online",
+    "online": 92771,
+    "score": 10,
+    "latency": 21.8,
+    "loss": 0,
+    "target": "8.8.8.8",
+    "measured": true
+   },
+   "wan3": {
+    "status": "online",
+    "online": 92658,
+    "score": 10,
+    "latency": 15.8,
+    "loss": 0,
+    "target": "8.8.8.8",
+    "measured": true
+   },
+   "wan4": {
+    "status": "online",
+    "online": 92650,
+    "score": 10,
+    "latency": 17.3,
+    "loss": 0,
+    "target": "8.8.8.8",
+    "measured": true
+   },
+   "wan5": {
+    "status": "online",
+    "online": 92822,
+    "score": 10,
+    "latency": 21.8,
+    "loss": 0,
+    "target": "8.8.8.8",
+    "measured": true
+   },
+   "wan6": {
+    "status": "online",
+    "online": 92670,
+    "score": 10,
+    "latency": 18.9,
+    "loss": 0,
+    "target": "8.8.8.8",
+    "measured": true
+   },
+   "Skyline": {
+    "status": "online",
+    "online": 92728,
+    "score": 10,
+    "latency": 23.0,
+    "loss": 0,
+    "target": "8.8.8.8",
+    "measured": true
+   },
+   "zeta": {
+    "status": "online",
+    "online": 1832,
+    "score": 10,
+    "latency": 14.3,
+    "loss": 0,
+    "target": "8.8.8.8",
+    "measured": true
+   },
+   "wan7": {
+    "status": "online",
+    "online": 92643,
+    "score": 10,
+    "latency": 18.6,
+    "loss": 0,
+    "target": "8.8.8.8",
+    "measured": true
+   },
+   "wan1_6": {
+    "status": "online",
+    "online": 92801,
+    "score": 10,
+    "latency": 13.4,
+    "loss": 0,
+    "target": "2001:db8:fdeb::f056",
+    "measured": true
+   },
+   "wan2_6": {
+    "status": "online",
+    "online": 92765,
+    "score": 10,
+    "latency": 17.5,
+    "loss": 0,
+    "target": "2001:db8:fdeb::f056",
+    "measured": true
+   },
+   "wan3_6": {
+    "status": "online",
+    "online": 92637,
+    "score": 10,
+    "latency": 17.0,
+    "loss": 0,
+    "target": "2001:db8:fdeb::f056",
+    "measured": true
+   },
+   "wan4_6": {
+    "status": "online",
+    "online": 92621,
+    "score": 10,
+    "latency": 16.6,
+    "loss": 0,
+    "target": "2001:db8:fdeb::f056",
+    "measured": true
+   },
+   "wan5_6": {
+    "status": "online",
+    "online": 92796,
+    "score": 10,
+    "latency": 18.6,
+    "loss": 0,
+    "target": "2001:db8:fdeb::f056",
+    "measured": true
+   },
+   "wan6_6": {
+    "status": "online",
+    "online": 92631,
+    "score": 10,
+    "latency": 15.9,
+    "loss": 0,
+    "target": "2001:db8:fdeb::f056",
+    "measured": true
+   },
+   "wan7_6": {
+    "status": "online",
+    "online": 92626,
+    "score": 10,
+    "latency": 15.0,
+    "loss": 0,
+    "target": "2001:db8:fdeb::f056",
+    "measured": true
+   },
+   "zeta_6": {
+    "status": "online",
+    "online": 1835,
+    "score": 10,
+    "latency": 24.1,
+    "loss": 0,
+    "target": "2001:db8:fdeb::f056",
+    "measured": true
+   },
+   "Skyline_6": {
+    "status": "online",
+    "online": 92733,
+    "score": 10,
+    "latency": 39.0,
+    "loss": 0,
+    "target": "2001:db8:fdeb::f056",
+    "measured": true
+   }
+  },
+  "ports": [
+   {
+    "name": "wan",
+    "up": true,
+    "carrier": true,
+    "speed": "1000F",
+    "rx_bytes": 23263522461,
+    "tx_bytes": 7010407229,
+    "rx_errors": 0,
+    "tx_errors": 0
+   },
+   {
+    "name": "lan1",
+    "up": true,
+    "carrier": true,
+    "speed": "1000F",
+    "rx_bytes": 10764270053,
+    "tx_bytes": 4198927069,
+    "rx_errors": 0,
+    "tx_errors": 0
+   },
+   {
+    "name": "lan2",
+    "up": true,
+    "carrier": true,
+    "speed": "1000F",
+    "rx_bytes": 722421362,
+    "tx_bytes": 18600594425,
+    "rx_errors": 0,
+    "tx_errors": 0
+   },
+   {
+    "name": "lan3",
+    "up": true,
+    "carrier": true,
+    "speed": "1000F",
+    "rx_bytes": 15900185021,
+    "tx_bytes": 69383024259,
+    "rx_errors": 0,
+    "tx_errors": 0
+   },
+   {
+    "name": "lan4",
+    "up": true,
+    "carrier": true,
+    "speed": "1000F",
+    "rx_bytes": 68466440909,
+    "tx_bytes": 1800193565,
+    "rx_errors": 0,
+    "tx_errors": 0
+   },
+   {
+    "name": "bond",
+    "up": true,
+    "carrier": true,
+    "speed": "2000F",
+    "rx_bytes": 26656317783,
+    "tx_bytes": 73578682092,
+    "rx_errors": 0,
+    "tx_errors": 0
+   },
+   {
+    "name": "br-lan",
+    "up": true,
+    "carrier": true,
+    "speed": "2000F",
+    "rx_bytes": 10440926739,
+    "tx_bytes": 28833036172,
+    "rx_errors": 0,
+    "tx_errors": 0
+   }
+  ],
+  "dhcp_pools": {
+   "lan": {
+    "interface": "lan",
+    "start": "100",
+    "limit": "150",
+    "leasetime": "12h",
+    "dhcpv4": "server"
+   },
+   "wan": {
+    "interface": "wan",
+    "ignore": "1",
+    "leasetime": "12h",
+    "start": "100",
+    "limit": "150"
+   }
+  },
+  "leases": [
+   {
+    "expires": 1792836081,
+    "mac": "00:00:5e:00:53:01",
+    "ip": "192.0.2.106",
+    "name": "qbittorrent"
+   },
+   {
+    "expires": 1792837118,
+    "mac": "00:00:5e:00:53:02",
+    "ip": "192.0.2.114",
+    "name": "SG2210P"
+   },
+   {
+    "expires": 1792843099,
+    "mac": "00:00:5e:00:53:03",
+    "ip": "192.0.2.115",
+    "name": "PRINTER-1"
+   },
+   {
+    "expires": 1792836682,
+    "mac": "00:00:5e:00:53:04",
+    "ip": "192.0.2.125",
+    "name": "bulb_000001"
+   },
+   {
+    "expires": 1792846295,
+    "mac": "00:00:5e:00:53:05",
+    "ip": "192.0.2.133",
+    "name": ""
+   },
+   {
+    "expires": 1792835766,
+    "mac": "00:00:5e:00:53:06",
+    "ip": "192.0.2.145",
+    "name": ""
+   },
+   {
+    "expires": 1792829971,
+    "mac": "00:00:5e:00:53:07",
+    "ip": "192.0.2.166",
+    "name": "Owner"
+   },
+   {
+    "expires": 1792825612,
+    "mac": "00:00:5e:00:53:08",
+    "ip": "192.0.2.169",
+    "name": "WORK-LAPTOP-01"
+   },
+   {
+    "expires": 1792839507,
+    "mac": "00:00:5e:00:53:09",
+    "ip": "192.0.2.178",
+    "name": "NAS"
+   },
+   {
+    "expires": 1792839078,
+    "mac": "00:00:5e:00:53:0a",
+    "ip": "192.0.2.180",
+    "name": "homeassistant"
+   },
+   {
+    "expires": 1792843068,
+    "mac": "00:00:5e:00:53:0b",
+    "ip": "192.0.2.206",
+    "name": "appliance-washer-01-v6-zz"
+   },
+   {
+    "expires": 1792848573,
+    "mac": "00:00:5e:00:53:0c",
+    "ip": "192.0.2.208",
+    "name": "iPhone"
+   },
+   {
+    "expires": 1792846166,
+    "mac": "00:00:5e:00:53:0d",
+    "ip": "192.0.2.218",
+    "name": ""
+   },
+   {
+    "expires": 1792839449,
+    "mac": "00:00:5e:00:53:0e",
+    "ip": "192.0.2.240",
+    "name": "omada"
+   }
+  ],
+  "wifi": [
+   {
+    "iface": "phy0-ap0",
+    "ssid": "Home",
+    "channel": 8,
+    "band": "2.4 GHz",
+    "htmode": "HE20",
+    "txpower": 31,
+    "clients": [
+     {
+      "mac": "00:00:5e:00:53:04",
+      "name": "bulb_000001",
+      "ip": "192.0.2.125",
+      "signal": -36,
+      "rx_mbps": 72,
+      "tx_mbps": 65,
+      "inactive_ms": 630
+     },
+     {
+      "mac": "00:00:5e:00:53:0b",
+      "name": "appliance-washer-01-v6-zz",
+      "ip": "192.0.2.206",
+      "signal": -51,
+      "rx_mbps": 72,
+      "tx_mbps": 65,
+      "inactive_ms": 12300
+     }
+    ]
+   },
+   {
+    "iface": "phy1-ap0",
+    "ssid": "Home",
+    "channel": 112,
+    "band": "5 GHz",
+    "htmode": "HE160",
+    "txpower": 30,
+    "clients": [
+     {
+      "mac": "00:00:5e:00:53:07",
+      "name": "Owner",
+      "ip": "192.0.2.166",
+      "signal": -60,
+      "rx_mbps": 1634,
+      "tx_mbps": 2402,
+      "inactive_ms": 20
+     },
+     {
+      "mac": "00:00:5e:00:53:0d",
+      "name": "",
+      "ip": "192.0.2.218",
+      "signal": -48,
+      "rx_mbps": 1201,
+      "tx_mbps": 1201,
+      "inactive_ms": 79250
+     }
+    ]
+   }
+  ],
+  "onts": [
+   {
+    "name": "VSOL ONT (Skyline)",
+    "connected": true,
+    "rx_dbm": -22.22,
+    "tx_dbm": 2.36,
+    "temp_c": 30.73,
+    "state": "Registered (O5)",
+    "uptime": "7d 15h 35m",
+    "firmware": "V1.1.8",
+    "model": "XPON+2.5GE+1GE",
+    "fec_uncorrectable": 0,
+    "alarms": {
+     "los": "Clear (Normal)",
+     "lof": "Clear (Normal)",
+     "lom": "Clear (Normal)",
+     "sf": "Clear (Normal)",
+     "sd": "Clear (Normal)"
+    },
+    "ts": 1792805506,
+    "state_code": "O5",
+    "limits": {
+     "rx_pwr_low_alarm": -27.0,
+     "rx_pwr_low_warn": -26.0,
+     "rx_pwr_high_warn": -9.0,
+     "tx_pwr_low_warn": 0.5,
+     "tx_pwr_high_warn": 3.5,
+     "temp_low_warn": 0.0,
+     "temp_high_warn": 65.0
+    },
+    "age_s": 10
+   },
+   {
+    "name": "HSGQ stick (Zeta)",
+    "connected": true,
+    "rx_dbm": -20.51,
+    "tx_dbm": 2.65,
+    "temp_c": 28.46,
+    "state": "Registered (O5)",
+    "uptime": "0d 0h 31m",
+    "firmware": "V1.0- (build #141 Mon Apr 8 14:48:43 CST 2024)",
+    "model": "ODI DFP-34X-2C2",
+    "fec_uncorrectable": 0,
+    "alarms": {
+     "los": "Clear (Normal)",
+     "lof": "Clear (Normal)",
+     "lom": "Clear (Normal)",
+     "sf": "Clear (Normal)",
+     "sd": "Clear (Normal)"
+    },
+    "ts": 1792805504,
+    "state_code": "O5",
+    "limits": {
+     "rx_pwr_low_alarm": -27.0,
+     "rx_pwr_low_warn": -26.0,
+     "rx_pwr_high_warn": -9.0,
+     "tx_pwr_low_warn": 0.5,
+     "tx_pwr_high_warn": 3.5,
+     "temp_low_warn": 0.0,
+     "temp_high_warn": 65.0
+    },
+    "age_s": 12
+   }
+  ]
+ },
+ "ap": {
+  "system": {
+   "model": "D-Link AQUILA PRO AI M30 A1",
+   "release": "OpenWrt 25.12.5 r33051-6e6d217449",
+   "hostname": "OpenWrt",
+   "uptime": 93716,
+   "load": [
+    0.06,
+    0.02,
+    0.0
+   ],
+   "mem_used_pct": 21.0
+  },
+  "wifi": [
+   {
+    "iface": "phy1-ap0",
+    "ssid": "Home",
+    "channel": 60,
+    "band": "5 GHz",
+    "htmode": "HE160",
+    "txpower": 26,
+    "clients": [
+     {
+      "mac": "00:00:5e:00:53:06",
+      "name": "",
+      "ip": "192.0.2.145",
+      "signal": -64,
+      "rx_mbps": 540,
+      "tx_mbps": 1201,
+      "inactive_ms": 81120
+     },
+     {
+      "mac": "00:00:5e:00:53:0f",
+      "name": "",
+      "ip": "",
+      "signal": -55,
+      "rx_mbps": 390,
+      "tx_mbps": 390,
+      "inactive_ms": 50
+     },
+     {
+      "mac": "00:00:5e:00:53:0c",
+      "name": "iPhone",
+      "ip": "192.0.2.208",
+      "signal": -59,
+      "rx_mbps": 961,
+      "tx_mbps": 1201,
+      "inactive_ms": 138450
+     },
+     {
+      "mac": "00:00:5e:00:53:05",
+      "name": "",
+      "ip": "192.0.2.133",
+      "signal": -86,
+      "rx_mbps": 288,
+      "tx_mbps": 432,
+      "inactive_ms": 89290
+     },
+     {
+      "mac": "00:00:5e:00:53:03",
+      "name": "PRINTER-1",
+      "ip": "192.0.2.115",
+      "signal": -71,
+      "rx_mbps": 39,
+      "tx_mbps": 58,
+      "inactive_ms": 450
+     }
+    ]
+   }
+  ]
+ },
+ "dns": {
+  "vip": "192.0.2.10",
+  "vip_owner": "Pi-hole VM",
+  "vip6": "fd00:db8:20a7::b6",
+  "vip6_owner": "Pi-hole VM",
+  "nodes": [
+   {
+    "name": "Pi-hole VM",
+    "ok": true,
+    "blocking": "enabled",
+    "timer": null,
+    "queries": 175733,
+    "blocked": 21389,
+    "percent": 12.2,
+    "gravity": 2483005,
+    "clients": 23,
+    "top_blocked": [
+     {
+      "domain": "d3.example.com",
+      "count": 4650
+     },
+     {
+      "domain": "db37996f412ac0275a3c35db3e27339c5b00341a8b6f037a31862813336ba372aa4a94a306fd794e0f898e15abd9ed5373.example.com",
+      "count": 1691
+     },
+     {
+      "domain": "da.example.com",
+      "count": 1093
+     },
+     {
+      "domain": "dd37fd151b55.example.com",
+      "count": 1009
+     },
+     {
+      "domain": "d7a4af.example.com",
+      "count": 950
+     },
+     {
+      "domain": "d2ed92b01647069d.example.com",
+      "count": 546
+     },
+     {
+      "domain": "d69758c4.example.com",
+      "count": 468
+     },
+     {
+      "domain": "d6ea6054bb939d.example.com",
+      "count": 466
+     }
+    ],
+    "top_clients": [
+     {
+      "name": "",
+      "ip": "192.0.2.169",
+      "count": 82501
+     },
+     {
+      "name": "",
+      "ip": "fd00:db8:20a7:7:4de9:596a:7948:76a",
+      "count": 29488
+     },
+     {
+      "name": "",
+      "ip": "192.0.2.166",
+      "count": 11290
+     },
+     {
+      "name": "",
+      "ip": "192.0.2.133",
+      "count": 9663
+     },
+     {
+      "name": "",
+      "ip": "192.0.2.145",
+      "count": 9371
+     },
+     {
+      "name": "",
+      "ip": "fd00:db8:20a7:7:2b70:9653:0b82:17d7",
+      "count": 7555
+     },
+     {
+      "name": "",
+      "ip": "192.0.2.180",
+      "count": 6557
+     },
+     {
+      "name": "",
+      "ip": "192.0.2.20",
+      "count": 5954
+     }
+    ]
+   },
+   {
+    "name": "Pi-hole Pi",
+    "ok": true,
+    "blocking": "enabled",
+    "timer": null,
+    "queries": 1011,
+    "blocked": 0,
+    "percent": 0,
+    "gravity": 2459390,
+    "clients": 1,
+    "top_blocked": [],
+    "top_clients": [
+     {
+      "name": "localhost.lan",
+      "ip": "127.0.0.1",
+      "count": 1011
+     }
+    ]
+   }
+  ]
+ },
+ "switch": {
+  "ports": [
+   {
+    "port": 1,
+    "name": "Port1",
+    "switch": "00-00-5E-00-53-02",
+    "link": false,
+    "speed": "10M",
+    "poe_w": 0.0,
+    "rx": 0,
+    "tx": 0,
+    "profile_id": "ed5660ac156f89b2d4014430",
+    "profile": "All",
+    "override": true,
+    "vlan_source": "port settings",
+    "native_id": "66a84e80ceeba7bb5d06b02d",
+    "native": "Default (VLAN 1)",
+    "untag_ids": [
+     "66a84e80ceeba7bb5d06b02d"
+    ],
+    "tag_ids": [
+     "f44e962391fcba7ddb262f39"
+    ],
+    "untagged": [
+     "Default (VLAN 1)"
+    ],
+    "tagged": [
+     "ZETA (VLAN 1015)"
+    ],
+    "tags_setting": 2,
+    "disabled": false,
+    "lag": null,
+    "sfp": false,
+    "protected": null
+   },
+   {
+    "port": 2,
+    "name": "Port2",
+    "switch": "00-00-5E-00-53-02",
+    "link": false,
+    "speed": "10M",
+    "poe_w": 0.0,
+    "rx": 0,
+    "tx": 0,
+    "profile_id": "ed5660ac156f89b2d4014430",
+    "profile": "All",
+    "override": false,
+    "vlan_source": "port settings",
+    "native_id": "f44e962391fcba7ddb262f39",
+    "native": "ZETA (VLAN 1015)",
+    "untag_ids": [
+     "f44e962391fcba7ddb262f39"
+    ],
+    "tag_ids": [],
+    "untagged": [
+     "ZETA (VLAN 1015)"
+    ],
+    "tagged": [],
+    "tags_setting": 2,
+    "disabled": false,
+    "lag": null,
+    "sfp": false,
+    "protected": null
+   },
+   {
+    "port": 3,
+    "name": "Port3",
+    "switch": "00-00-5E-00-53-02",
+    "link": true,
+    "speed": "1G",
+    "poe_w": 0.0,
+    "rx": 2006285592,
+    "tx": 68918161054,
+    "profile_id": "ed5660ac156f89b2d4014430",
+    "profile": "All",
+    "override": false,
+    "vlan_source": "port settings",
+    "native_id": "1fb24478000e22c3f07faee1",
+    "native": "VSOL_Management (VLAN 123)",
+    "untag_ids": [
+     "1fb24478000e22c3f07faee1"
+    ],
+    "tag_ids": [
+     "df4b5528b53b0248c1438cb7"
+    ],
+    "untagged": [
+     "VSOL_Management (VLAN 123)"
+    ],
+    "tagged": [
+     "Skyline (VLAN 3527)"
+    ],
+    "tags_setting": 2,
+    "disabled": false,
+    "lag": null,
+    "sfp": false,
+    "protected": "VSOL ONT (Skyline)"
+   },
+   {
+    "port": 4,
+    "name": "Port4",
+    "switch": "00-00-5E-00-53-02",
+    "link": true,
+    "speed": "1G",
+    "poe_w": 0.0,
+    "rx": 4222494242,
+    "tx": 11030796058,
+    "profile_id": "ed5660ac156f89b2d4014430",
+    "profile": "All",
+    "override": false,
+    "vlan_source": "LAG 1 settings",
+    "native_id": "66a84e80ceeba7bb5d06b02d",
+    "native": "Default (VLAN 1)",
+    "untag_ids": [
+     "66a84e80ceeba7bb5d06b02d"
+    ],
+    "tag_ids": [
+     "1fb24478000e22c3f07faee1",
+     "f44e962391fcba7ddb262f39",
+     "4f28c88b1f703641f273da73",
+     "df4b5528b53b0248c1438cb7",
+     "7cb8da2cb6ac17496262a187",
+     "ffdcf02bf3849a0cb3c8118c"
+    ],
+    "untagged": [
+     "Default (VLAN 1)"
+    ],
+    "tagged": [
+     "VSOL_Management (VLAN 123)",
+     "ZETA (VLAN 1015)",
+     "HSGQ_Management (VLAN 124)",
+     "Skyline (VLAN 3527)",
+     "transit (VLAN 350)",
+     "G7_Mgmnt (VLAN 125)"
+    ],
+    "tags_setting": 2,
+    "disabled": false,
+    "lag": 1,
+    "sfp": false,
+    "protected": "LAG to router"
+   },
+   {
+    "port": 5,
+    "name": "Port5",
+    "switch": "00-00-5E-00-53-02",
+    "link": true,
+    "speed": "1G",
+    "poe_w": 0.0,
+    "rx": 69738586422,
+    "tx": 17835710794,
+    "profile_id": "ed5660ac156f89b2d4014430",
+    "profile": "All",
+    "override": false,
+    "vlan_source": "LAG 1 settings",
+    "native_id": "66a84e80ceeba7bb5d06b02d",
+    "native": "Default (VLAN 1)",
+    "untag_ids": [
+     "66a84e80ceeba7bb5d06b02d"
+    ],
+    "tag_ids": [
+     "1fb24478000e22c3f07faee1",
+     "f44e962391fcba7ddb262f39",
+     "4f28c88b1f703641f273da73",
+     "df4b5528b53b0248c1438cb7",
+     "7cb8da2cb6ac17496262a187",
+     "ffdcf02bf3849a0cb3c8118c"
+    ],
+    "untagged": [
+     "Default (VLAN 1)"
+    ],
+    "tagged": [
+     "VSOL_Management (VLAN 123)",
+     "ZETA (VLAN 1015)",
+     "HSGQ_Management (VLAN 124)",
+     "Skyline (VLAN 3527)",
+     "transit (VLAN 350)",
+     "G7_Mgmnt (VLAN 125)"
+    ],
+    "tags_setting": 2,
+    "disabled": false,
+    "lag": 1,
+    "sfp": false,
+    "protected": "LAG to router"
+   },
+   {
+    "port": 6,
+    "name": "Port6",
+    "switch": "00-00-5E-00-53-02",
+    "link": true,
+    "speed": "1G",
+    "poe_w": 0.0,
+    "rx": 93479709,
+    "tx": 102658851,
+    "profile_id": "ed5660ac156f89b2d4014430",
+    "profile": "All",
+    "override": false,
+    "vlan_source": "port settings",
+    "native_id": "66a84e80ceeba7bb5d06b02d",
+    "native": "Default (VLAN 1)",
+    "untag_ids": [
+     "66a84e80ceeba7bb5d06b02d"
+    ],
+    "tag_ids": [],
+    "untagged": [
+     "Default (VLAN 1)"
+    ],
+    "tagged": [],
+    "tags_setting": 2,
+    "disabled": false,
+    "lag": null,
+    "sfp": false,
+    "protected": "Raspberry Pi"
+   },
+   {
+    "port": 7,
+    "name": "Port7",
+    "switch": "00-00-5E-00-53-02",
+    "link": false,
+    "speed": "10M",
+    "poe_w": 0.0,
+    "rx": 55187264,
+    "tx": 6001775,
+    "profile_id": "ed5660ac156f89b2d4014430",
+    "profile": "All",
+    "override": false,
+    "vlan_source": "port settings",
+    "native_id": "ffdcf02bf3849a0cb3c8118c",
+    "native": "G7_Mgmnt (VLAN 125)",
+    "untag_ids": [
+     "ffdcf02bf3849a0cb3c8118c"
+    ],
+    "tag_ids": [
+     "f44e962391fcba7ddb262f39"
+    ],
+    "untagged": [
+     "G7_Mgmnt (VLAN 125)"
+    ],
+    "tagged": [
+     "ZETA (VLAN 1015)"
+    ],
+    "tags_setting": 2,
+    "disabled": false,
+    "lag": null,
+    "sfp": false,
+    "protected": null
+   },
+   {
+    "port": 8,
+    "name": "Port8",
+    "switch": "00-00-5E-00-53-02",
+    "link": true,
+    "speed": "1G",
+    "poe_w": 0.0,
+    "rx": 26391616216,
+    "tx": 4715929605,
+    "profile_id": "ed5660ac156f89b2d4014430",
+    "profile": "All",
+    "override": false,
+    "vlan_source": "port settings",
+    "native_id": "7cb8da2cb6ac17496262a187",
+    "native": "transit (VLAN 350)",
+    "untag_ids": [
+     "7cb8da2cb6ac17496262a187"
+    ],
+    "tag_ids": [],
+    "untagged": [
+     "transit (VLAN 350)"
+    ],
+    "tagged": [],
+    "tags_setting": 2,
+    "disabled": false,
+    "lag": null,
+    "sfp": false,
+    "protected": null
+   },
+   {
+    "port": 9,
+    "name": "Port9",
+    "switch": "00-00-5E-00-53-02",
+    "link": true,
+    "speed": "1G",
+    "poe_w": null,
+    "rx": 203583036,
+    "tx": 186246628,
+    "profile_id": "ed5660ac156f89b2d4014430",
+    "profile": "All",
+    "override": false,
+    "vlan_source": "port settings",
+    "native_id": "4f28c88b1f703641f273da73",
+    "native": "HSGQ_Management (VLAN 124)",
+    "untag_ids": [
+     "4f28c88b1f703641f273da73"
+    ],
+    "tag_ids": [
+     "f44e962391fcba7ddb262f39"
+    ],
+    "untagged": [
+     "HSGQ_Management (VLAN 124)"
+    ],
+    "tagged": [
+     "ZETA (VLAN 1015)"
+    ],
+    "tags_setting": 2,
+    "disabled": false,
+    "lag": null,
+    "sfp": true,
+    "protected": "HSGQ stick (Zeta, SFP)"
+   },
+   {
+    "port": 10,
+    "name": "Port10",
+    "switch": "00-00-5E-00-53-02",
+    "link": false,
+    "speed": "10M",
+    "poe_w": null,
+    "rx": 0,
+    "tx": 0,
+    "profile_id": "ed5660ac156f89b2d4014430",
+    "profile": "All",
+    "override": false,
+    "vlan_source": "port settings",
+    "native_id": "66a84e80ceeba7bb5d06b02d",
+    "native": "Default (VLAN 1)",
+    "untag_ids": [
+     "66a84e80ceeba7bb5d06b02d"
+    ],
+    "tag_ids": [
+     "f44e962391fcba7ddb262f39"
+    ],
+    "untagged": [
+     "Default (VLAN 1)"
+    ],
+    "tagged": [
+     "ZETA (VLAN 1015)"
+    ],
+    "tags_setting": 2,
+    "disabled": false,
+    "lag": null,
+    "sfp": true,
+    "protected": null
+   }
+  ],
+  "lags": [
+   {
+    "lag": 1,
+    "name": "LAG1",
+    "ports": [
+     4,
+     5
+    ],
+    "type": "LACP active",
+    "disabled": false,
+    "members_up": 2,
+    "native_id": "66a84e80ceeba7bb5d06b02d",
+    "native": "Default (VLAN 1)",
+    "untag_ids": [
+     "66a84e80ceeba7bb5d06b02d"
+    ],
+    "tag_ids": [
+     "1fb24478000e22c3f07faee1",
+     "f44e962391fcba7ddb262f39",
+     "4f28c88b1f703641f273da73",
+     "df4b5528b53b0248c1438cb7",
+     "7cb8da2cb6ac17496262a187",
+     "ffdcf02bf3849a0cb3c8118c"
+    ],
+    "untagged": [
+     "Default (VLAN 1)"
+    ],
+    "tagged": [
+     "VSOL_Management (VLAN 123)",
+     "ZETA (VLAN 1015)",
+     "HSGQ_Management (VLAN 124)",
+     "Skyline (VLAN 3527)",
+     "transit (VLAN 350)",
+     "G7_Mgmnt (VLAN 125)"
+    ],
+    "protected": "the only link between switch and router"
+   }
+  ],
+  "dhcp_devices": {
+   "omada_gateway": false,
+   "switch": false
+  },
+  "networks": [
+   {
+    "id": "66a84e80ceeba7bb5d06b02d",
+    "name": "Default",
+    "vlan": 1,
+    "kind": "interface (built-in)",
+    "editable": false,
+    "igmp": false,
+    "dhcp": {
+     "device": "OpenWrt router",
+     "detail": "192.0.2.1/24 · 192.0.2.100 – 192.0.2.249, lease 12h",
+     "status": "live",
+     "note": "router LAN"
+    },
+    "dhcp_plan": null,
+    "used_by": [
+     "LAG 1 (native)",
+     "port 1 (native)",
+     "port 6 (native)",
+     "port 10 (native)"
+    ]
+   },
+   {
+    "id": "1fb24478000e22c3f07faee1",
+    "name": "VSOL_Management",
+    "vlan": 123,
+    "kind": "VLAN only (switch)",
+    "editable": true,
+    "igmp": false,
+    "dhcp": {
+     "device": "none (static IPs)",
+     "detail": "",
+     "status": "recorded",
+     "note": ""
+    },
+    "dhcp_plan": {
+     "device": "none"
+    },
+    "used_by": [
+     "LAG 1 (tagged)",
+     "port 3 (native)"
+    ]
+   },
+   {
+    "id": "f44e962391fcba7ddb262f39",
+    "name": "ZETA",
+    "vlan": 1015,
+    "kind": "VLAN only (switch)",
+    "editable": true,
+    "igmp": false,
+    "dhcp": {
+     "device": "upstream device",
+     "detail": "router is a DHCP client here (zeta: 198.18.2.99/21)",
+     "status": "live",
+     "note": ""
+    },
+    "dhcp_plan": null,
+    "used_by": [
+     "LAG 1 (tagged)",
+     "port 1 (tagged)",
+     "port 2 (native)",
+     "port 7 (tagged)",
+     "port 9 (tagged)",
+     "port 10 (tagged)"
+    ]
+   },
+   {
+    "id": "df4b5528b53b0248c1438cb7",
+    "name": "Skyline",
+    "vlan": 3527,
+    "kind": "VLAN only (switch)",
+    "editable": true,
+    "igmp": false,
+    "dhcp": {
+     "device": "none (static IPs)",
+     "detail": "",
+     "status": "recorded",
+     "note": ""
+    },
+    "dhcp_plan": {
+     "device": "none"
+    },
+    "used_by": [
+     "LAG 1 (tagged)",
+     "port 3 (tagged)"
+    ]
+   },
+   {
+    "id": "4f28c88b1f703641f273da73",
+    "name": "HSGQ_Management",
+    "vlan": 124,
+    "kind": "VLAN only (switch)",
+    "editable": true,
+    "igmp": false,
+    "dhcp": {
+     "device": "none (static)",
+     "detail": "router zeta_Management: 198.18.0.4/24",
+     "status": "live",
+     "note": ""
+    },
+    "dhcp_plan": null,
+    "used_by": [
+     "LAG 1 (tagged)",
+     "port 9 (native)"
+    ]
+   },
+   {
+    "id": "7cb8da2cb6ac17496262a187",
+    "name": "transit",
+    "vlan": 350,
+    "kind": "VLAN only (switch)",
+    "editable": true,
+    "igmp": false,
+    "dhcp": {
+     "device": "not set",
+     "detail": "no router interface on this VLAN",
+     "status": "unknown",
+     "note": ""
+    },
+    "dhcp_plan": null,
+    "used_by": [
+     "LAG 1 (tagged)",
+     "port 8 (native)"
+    ]
+   },
+   {
+    "id": "ffdcf02bf3849a0cb3c8118c",
+    "name": "G7_Mgmnt",
+    "vlan": 125,
+    "kind": "VLAN only (switch)",
+    "editable": true,
+    "igmp": false,
+    "dhcp": {
+     "device": "none (static)",
+     "detail": "router G7: 198.18.4.3/24",
+     "status": "live",
+     "note": ""
+    },
+    "dhcp_plan": null,
+    "used_by": [
+     "LAG 1 (tagged)",
+     "port 7 (native)"
+    ]
+   }
+  ],
+  "profiles": [
+   {
+    "id": "ed5660ac156f89b2d4014430",
+    "name": "All",
+    "untagged": [],
+    "tagged": [
+     "VSOL_Management (VLAN 123)",
+     "ZETA (VLAN 1015)",
+     "Skyline (VLAN 3527)",
+     "HSGQ_Management (VLAN 124)",
+     "transit (VLAN 350)",
+     "G7_Mgmnt (VLAN 125)"
+    ],
+    "native": "Default (VLAN 1)"
+   },
+   {
+    "id": "208d74b22e2887e5fc8d450f",
+    "name": "Default",
+    "untagged": [],
+    "tagged": [],
+    "native": "Default (VLAN 1)"
+   },
+   {
+    "id": "51d44deab8623cb662335614",
+    "name": "Disable",
+    "untagged": [],
+    "tagged": [],
+    "native": "none"
+   }
+  ],
+  "devices": [
+   {
+    "name": "00-00-5E-00-53-02",
+    "model": "SG2210P v5.20",
+    "ip": "192.0.2.114",
+    "status": 1,
+    "firmware": "5.20.25 Build 20260509 Rel.23533",
+    "uptime": "1day(s) 2h 44s",
+    "cpu": 9,
+    "mem": 53
+   }
+  ]
+ },
+ "proxmox": {
+  "node": "PVE-NODE-1",
+  "cpu_pct": 2.3,
+  "mem_pct": 88.4,
+  "uptime": 544730,
+  "version": "pve-manager/9.2.2/b0dc1fc1acef8cf4",
+  "guests": [
+   {
+    "vmid": 100,
+    "name": "pihole",
+    "type": "qemu",
+    "status": "running",
+    "cpu_pct": 0.4,
+    "mem_pct": 82.0,
+    "disk_pct": null,
+    "uptime": 544713
+   },
+   {
+    "vmid": 101,
+    "name": "omada",
+    "type": "lxc",
+    "status": "running",
+    "cpu_pct": 0.4,
+    "mem_pct": 53.4,
+    "disk_pct": 47.6,
+    "uptime": 469130
+   },
+   {
+    "vmid": 102,
+    "name": "VM 102",
+    "type": "qemu",
+    "status": "running",
+    "cpu_pct": 1.0,
+    "mem_pct": 15.1,
+    "disk_pct": null,
+    "uptime": 544710
+   },
+   {
+    "vmid": 103,
+    "name": "haos17-3",
+    "type": "qemu",
+    "status": "running",
+    "cpu_pct": 0.5,
+    "mem_pct": 89.3,
+    "disk_pct": null,
+    "uptime": 544707
+   },
+   {
+    "vmid": 104,
+    "name": "qbittorrent",
+    "type": "lxc",
+    "status": "running",
+    "cpu_pct": 0.3,
+    "mem_pct": 9.0,
+    "disk_pct": 11.1,
+    "uptime": 544703
+   },
+   {
+    "vmid": 105,
+    "name": "nas",
+    "type": "qemu",
+    "status": "running",
+    "cpu_pct": 0.7,
+    "mem_pct": 96.6,
+    "disk_pct": null,
+    "uptime": 363030
+   },
+   {
+    "vmid": 106,
+    "name": "noc",
+    "type": "lxc",
+    "status": "running",
+    "cpu_pct": 0.2,
+    "mem_pct": 3.1,
+    "disk_pct": 5.4,
+    "uptime": 544700
+   }
+  ],
+  "storage": [
+   {
+    "name": "NAS_1",
+    "type": "nfs",
+    "used_pct": 46.9,
+    "total_gb": 2000
+   },
+   {
+    "name": "local-lvm",
+    "type": "lvmthin",
+    "used_pct": 9.6,
+    "total_gb": 876
+   },
+   {
+    "name": "nas_dir",
+    "type": "dir",
+    "used_pct": 37.3,
+    "total_gb": 101
+   },
+   {
+    "name": "local",
+    "type": "dir",
+    "used_pct": 37.3,
+    "total_gb": 101
+   }
+  ]
+ },
+ "devices": {
+  "groups": [
+   "core",
+   "isp",
+   "dns",
+   "server",
+   "iot",
+   "client",
+   "other"
+  ],
+  "devices": [
+   {
+    "name": "Router (AX6000)",
+    "target": "192.0.2.1",
+    "group": "core",
+    "up": true,
+    "ms": 5.62,
+    "current_ip": "192.0.2.1",
+    "note": ""
+   },
+   {
+    "name": "Access point",
+    "target": "192.0.2.2",
+    "group": "core",
+    "up": true,
+    "ms": 0.315,
+    "current_ip": "192.0.2.2",
+    "note": ""
+   },
+   {
+    "name": "SG2210P switch",
+    "target": "192.0.2.114",
+    "group": "core",
+    "up": true,
+    "ms": 7.25,
+    "current_ip": "192.0.2.114",
+    "note": ""
+   },
+   {
+    "name": "Metro ONU (bridge)",
+    "target": "198.51.100.1",
+    "group": "isp",
+    "up": true,
+    "ms": 2.79,
+    "current_ip": "198.51.100.1",
+    "note": ""
+   },
+   {
+    "name": "VSOL ONT (Skyline)",
+    "target": "203.0.113.1:80",
+    "group": "isp",
+    "up": true,
+    "ms": 10.6,
+    "current_ip": "203.0.113.1",
+    "note": ""
+   },
+   {
+    "name": "HSGQ stick (Zeta)",
+    "target": "198.18.0.1",
+    "group": "isp",
+    "up": true,
+    "ms": 4.31,
+    "current_ip": "198.18.0.1",
+    "note": ""
+   },
+   {
+    "name": "DNS VIP",
+    "target": "192.0.2.10",
+    "group": "dns",
+    "up": true,
+    "ms": 0.086,
+    "current_ip": "192.0.2.10",
+    "note": ""
+   },
+   {
+    "name": "Pi-hole VM",
+    "target": "192.0.2.11",
+    "group": "dns",
+    "up": true,
+    "ms": 0.048,
+    "current_ip": "192.0.2.11",
+    "note": ""
+   },
+   {
+    "name": "Pi-hole Pi",
+    "target": "192.0.2.9",
+    "group": "dns",
+    "up": true,
+    "ms": 3.88,
+    "current_ip": "192.0.2.9",
+    "note": ""
+   },
+   {
+    "name": "Proxmox",
+    "target": "192.0.2.196",
+    "group": "server",
+    "up": true,
+    "ms": 0.013,
+    "current_ip": "192.0.2.196",
+    "note": ""
+   },
+   {
+    "name": "NAS",
+    "target": "192.0.2.178",
+    "group": "server",
+    "up": true,
+    "ms": 0.082,
+    "current_ip": "192.0.2.178",
+    "note": ""
+   },
+   {
+    "name": "Home Assistant",
+    "target": "192.0.2.180",
+    "group": "server",
+    "up": true,
+    "ms": 0.109,
+    "current_ip": "192.0.2.180",
+    "note": ""
+   },
+   {
+    "name": "Omada controller",
+    "target": "192.0.2.240",
+    "group": "server",
+    "up": true,
+    "ms": 0.014,
+    "current_ip": "192.0.2.240",
+    "note": ""
+   },
+   {
+    "name": "qBittorrent",
+    "target": "192.0.2.106",
+    "group": "server",
+    "up": true,
+    "ms": 0.016,
+    "current_ip": "192.0.2.106",
+    "note": ""
+   },
+   {
+    "name": "NOC",
+    "target": "192.0.2.20",
+    "group": "server",
+    "up": true,
+    "ms": 0.007,
+    "current_ip": "192.0.2.20",
+    "note": ""
+   },
+   {
+    "name": "WiZ bulb",
+    "target": "192.0.2.125",
+    "group": "iot",
+    "up": true,
+    "ms": 104.0,
+    "current_ip": "192.0.2.125",
+    "note": ""
+   },
+   {
+    "name": "DNS VIP (IPv6)",
+    "group": "dns",
+    "target": "fd00:db8:20a7::b6",
+    "up": true,
+    "ms": 0.1,
+    "current_ip": "fd00:db8:20a7::b6",
+    "note": ""
+   },
+   {
+    "name": "Pi-hole VM (IPv6)",
+    "group": "dns",
+    "target": "fd00:db8:20a7:7:7f03:0c84:f1fd:1fc3",
+    "up": true,
+    "ms": 0.023,
+    "current_ip": "fd00:db8:20a7:7:7f03:0c84:f1fd:1fc3",
+    "note": ""
+   },
+   {
+    "name": "Pi-hole Pi (IPv6)",
+    "group": "dns",
+    "target": "fd00:db8:20a7:7:01e4:a889:0e54:122a",
+    "up": true,
+    "ms": 1.3,
+    "current_ip": "fd00:db8:20a7:7:01e4:a889:0e54:122a",
+    "note": ""
+   }
+  ],
+  "suggestions": [
+   {
+    "expires": 1792843099,
+    "mac": "00:00:5e:00:53:03",
+    "ip": "192.0.2.115",
+    "name": "PRINTER-1"
+   },
+   {
+    "expires": 1792846295,
+    "mac": "00:00:5e:00:53:05",
+    "ip": "192.0.2.133",
+    "name": ""
+   },
+   {
+    "expires": 1792835766,
+    "mac": "00:00:5e:00:53:06",
+    "ip": "192.0.2.145",
+    "name": ""
+   },
+   {
+    "expires": 1792829971,
+    "mac": "00:00:5e:00:53:07",
+    "ip": "192.0.2.166",
+    "name": "Owner"
+   },
+   {
+    "expires": 1792825612,
+    "mac": "00:00:5e:00:53:08",
+    "ip": "192.0.2.169",
+    "name": "WORK-LAPTOP-01"
+   },
+   {
+    "expires": 1792843068,
+    "mac": "00:00:5e:00:53:0b",
+    "ip": "192.0.2.206",
+    "name": "appliance-washer-01-v6-zz"
+   },
+   {
+    "expires": 1792848573,
+    "mac": "00:00:5e:00:53:0c",
+    "ip": "192.0.2.208",
+    "name": "iPhone"
+   },
+   {
+    "expires": 1792846166,
+    "mac": "00:00:5e:00:53:0d",
+    "ip": "192.0.2.218",
+    "name": ""
+   }
+  ]
+ },
+ "openwrt": {
+  "devices": [
+   {
+    "id": "cfg030f15",
+    "name": "br-lan",
+    "type": "bridge",
+    "base": "",
+    "vid": "",
+    "ports": [
+     "bond",
+     "lan2",
+     "lan4"
+    ],
+    "macaddr": "",
+    "ipv6": true,
+    "mtu": "",
+    "mode": "",
+    "used_by": [
+     "interface lan"
+    ]
+   },
+   {
+    "id": "cfg040f15",
+    "name": "lan2",
+    "type": "ethernet",
+    "base": "",
+    "vid": "",
+    "ports": [],
+    "macaddr": "00:00:5E:00:53:10",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "",
+    "used_by": [
+     "br-lan port"
+    ]
+   },
+   {
+    "id": "cfg050f15",
+    "name": "lan4",
+    "type": "ethernet",
+    "base": "",
+    "vid": "",
+    "ports": [],
+    "macaddr": "00:00:5E:00:53:11",
+    "ipv6": true,
+    "mtu": "",
+    "mode": "",
+    "used_by": [
+     "br-lan port"
+    ]
+   },
+   {
+    "id": "cfg070f15",
+    "name": "wan",
+    "type": "ethernet",
+    "base": "",
+    "vid": "",
+    "ports": [],
+    "macaddr": "00:00:5e:00:53:12",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "",
+    "used_by": [
+     "interface wan",
+     "interface wan1",
+     "base of wan.100",
+     "base of wanmac0",
+     "base of wanmac1",
+     "base of wanmac2",
+     "base of wanmac3",
+     "base of wanmac4",
+     "base of wanmac5"
+    ]
+   },
+   {
+    "id": "cfg100f15",
+    "name": "bond",
+    "type": "bonding",
+    "base": "",
+    "vid": "",
+    "ports": [
+     "lan1",
+     "lan3"
+    ],
+    "macaddr": "00:00:5E:00:53:13",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "",
+    "used_by": [
+     "br-lan port",
+     "base of bond.123",
+     "base of bond.1015",
+     "base of bond.124",
+     "base of bond.3527",
+     "base of bond.350",
+     "base of bond.125"
+    ]
+   },
+   {
+    "id": "cfg110f15",
+    "name": "bond.123",
+    "type": "8021q",
+    "base": "bond",
+    "vid": "123",
+    "ports": [],
+    "macaddr": "",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "",
+    "used_by": [
+     "interface VSOL_Management"
+    ]
+   },
+   {
+    "id": "cfg120f15",
+    "name": "wan.100",
+    "type": "8021q",
+    "base": "wan",
+    "vid": "100",
+    "ports": [],
+    "macaddr": "00:00:5E:00:53:14",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "",
+    "used_by": [
+     "base of wan.100mac0",
+     "base of wan.100mac1",
+     "base of wan.100mac2",
+     "base of wan.100mac3",
+     "base of wan.100mac4",
+     "base of wan.100mac5"
+    ]
+   },
+   {
+    "id": "cfg130f15",
+    "name": "wan.100mac0",
+    "type": "macvlan",
+    "base": "wan.100",
+    "vid": "",
+    "ports": [],
+    "macaddr": "00:00:5e:00:53:15",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "vepa",
+    "used_by": []
+   },
+   {
+    "id": "cfg140f15",
+    "name": "wan.100mac1",
+    "type": "macvlan",
+    "base": "wan.100",
+    "vid": "",
+    "ports": [],
+    "macaddr": "00:00:5E:00:53:16",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "vepa",
+    "used_by": []
+   },
+   {
+    "id": "cfg150f15",
+    "name": "wan.100mac2",
+    "type": "macvlan",
+    "base": "wan.100",
+    "vid": "",
+    "ports": [],
+    "macaddr": "00:00:5E:00:53:17",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "vepa",
+    "used_by": []
+   },
+   {
+    "id": "cfg160f15",
+    "name": "wan.100mac3",
+    "type": "macvlan",
+    "base": "wan.100",
+    "vid": "",
+    "ports": [],
+    "macaddr": "00:00:5E:00:53:18",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "vepa",
+    "used_by": []
+   },
+   {
+    "id": "cfg170f15",
+    "name": "wan.100mac4",
+    "type": "macvlan",
+    "base": "wan.100",
+    "vid": "",
+    "ports": [],
+    "macaddr": "00:00:5E:00:53:19",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "vepa",
+    "used_by": []
+   },
+   {
+    "id": "cfg180f15",
+    "name": "wan.100mac5",
+    "type": "macvlan",
+    "base": "wan.100",
+    "vid": "",
+    "ports": [],
+    "macaddr": "",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "vepa",
+    "used_by": []
+   },
+   {
+    "id": "cfg1a0f15",
+    "name": "bond.1015",
+    "type": "8021q",
+    "base": "bond",
+    "vid": "1015",
+    "ports": [],
+    "macaddr": "00:00:5E:00:53:1A",
+    "ipv6": true,
+    "mtu": "",
+    "mode": "",
+    "used_by": [
+     "interface zeta"
+    ]
+   },
+   {
+    "id": "cfg1b0f15",
+    "name": "bond.100mac0",
+    "type": "macvlan",
+    "base": "bond.100",
+    "vid": "",
+    "ports": [],
+    "macaddr": "",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "vepa",
+    "used_by": []
+   },
+   {
+    "id": "cfg1c0f15",
+    "name": "bond.100mac1",
+    "type": "macvlan",
+    "base": "bond.100",
+    "vid": "",
+    "ports": [],
+    "macaddr": "",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "vepa",
+    "used_by": []
+   },
+   {
+    "id": "cfg1d0f15",
+    "name": "bond.100mac2",
+    "type": "macvlan",
+    "base": "bond.100",
+    "vid": "",
+    "ports": [],
+    "macaddr": "",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "vepa",
+    "used_by": []
+   },
+   {
+    "id": "cfg1e0f15",
+    "name": "bond.100mac3",
+    "type": "macvlan",
+    "base": "bond.100",
+    "vid": "",
+    "ports": [],
+    "macaddr": "",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "vepa",
+    "used_by": []
+   },
+   {
+    "id": "cfg1f0f15",
+    "name": "bond.100mac4",
+    "type": "macvlan",
+    "base": "bond.100",
+    "vid": "",
+    "ports": [],
+    "macaddr": "",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "vepa",
+    "used_by": []
+   },
+   {
+    "id": "cfg200f15",
+    "name": "bond.124",
+    "type": "8021q",
+    "base": "bond",
+    "vid": "124",
+    "ports": [],
+    "macaddr": "",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "",
+    "used_by": [
+     "interface zeta_Management"
+    ]
+   },
+   {
+    "id": "cfg220f15",
+    "name": "bond.3527",
+    "type": "8021q",
+    "base": "bond",
+    "vid": "3527",
+    "ports": [],
+    "macaddr": "00:00:5E:00:53:1B",
+    "ipv6": true,
+    "mtu": "",
+    "mode": "",
+    "used_by": [
+     "interface Skyline"
+    ]
+   },
+   {
+    "id": "cfg230f15",
+    "name": "wanmac0",
+    "type": "macvlan",
+    "base": "wan",
+    "vid": "",
+    "ports": [],
+    "macaddr": "00:00:5E:00:53:14",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "vepa",
+    "used_by": []
+   },
+   {
+    "id": "cfg240f15",
+    "name": "wanmac1",
+    "type": "macvlan",
+    "base": "wan",
+    "vid": "",
+    "ports": [],
+    "macaddr": "00:00:5E:00:53:15",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "vepa",
+    "used_by": [
+     "interface wan2"
+    ]
+   },
+   {
+    "id": "cfg250f15",
+    "name": "wanmac2",
+    "type": "macvlan",
+    "base": "wan",
+    "vid": "",
+    "ports": [],
+    "macaddr": "00:00:5E:00:53:16",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "vepa",
+    "used_by": []
+   },
+   {
+    "id": "cfg260f15",
+    "name": "wanmac3",
+    "type": "macvlan",
+    "base": "wan",
+    "vid": "",
+    "ports": [],
+    "macaddr": "00:00:5E:00:53:17",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "vepa",
+    "used_by": []
+   },
+   {
+    "id": "cfg270f15",
+    "name": "wanmac4",
+    "type": "macvlan",
+    "base": "wan",
+    "vid": "",
+    "ports": [],
+    "macaddr": "00:00:5E:00:53:18",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "vepa",
+    "used_by": [
+     "interface wan5"
+    ]
+   },
+   {
+    "id": "cfg280f15",
+    "name": "wanmac5",
+    "type": "macvlan",
+    "base": "wan",
+    "vid": "",
+    "ports": [],
+    "macaddr": "00:00:5e:00:53:1c",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "vepa",
+    "used_by": [
+     "interface wan8"
+    ]
+   },
+   {
+    "id": "cfg2a0f15",
+    "name": "bond.350",
+    "type": "8021q",
+    "base": "bond",
+    "vid": "350",
+    "ports": [],
+    "macaddr": "00:00:5E:00:53:19",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "",
+    "used_by": [
+     "interface wan6",
+     "base of bond.350mac0",
+     "base of bond.350mac1",
+     "base of bond.350mac2"
+    ]
+   },
+   {
+    "id": "cfg2b0f15",
+    "name": "bond.350mac0",
+    "type": "macvlan",
+    "base": "bond.350",
+    "vid": "",
+    "ports": [],
+    "macaddr": "00:00:5E:00:53:17",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "vepa",
+    "used_by": [
+     "interface wan3"
+    ]
+   },
+   {
+    "id": "cfg2c0f15",
+    "name": "bond.350mac1",
+    "type": "macvlan",
+    "base": "bond.350",
+    "vid": "",
+    "ports": [],
+    "macaddr": "00:00:5E:00:53:16",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "vepa",
+    "used_by": [
+     "interface wan4"
+    ]
+   },
+   {
+    "id": "cfg2d0f15",
+    "name": "bond.350mac2",
+    "type": "macvlan",
+    "base": "bond.350",
+    "vid": "",
+    "ports": [],
+    "macaddr": "00:00:5e:00:53:1d",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "vepa",
+    "used_by": [
+     "interface wan7"
+    ]
+   },
+   {
+    "id": "cfg420f15",
+    "name": "bond.125",
+    "type": "8021q",
+    "base": "bond",
+    "vid": "125",
+    "ports": [],
+    "macaddr": "",
+    "ipv6": false,
+    "mtu": "",
+    "mode": "",
+    "used_by": [
+     "interface G7"
+    ]
+   }
+  ],
+  "interfaces": [
+   {
+    "device": "br-lan",
+    "proto": "static",
+    "ip6assign": "64",
+    "multipath": "off",
+    "delegate": "0",
+    "ipaddr": [
+     "192.0.2.1/24"
+    ],
+    "ip6class": [
+     "wan1_6",
+     "local"
+    ],
+    "name": "lan",
+    "password_set": false,
+    "dns": [],
+    "zone": "lan",
+    "mwan": false
+   },
+   {
+    "device": "wan",
+    "proto": "static",
+    "netmask": "255.255.255.0",
+    "multipath": "off",
+    "defaultroute": "0",
+    "ipaddr": [
+     "198.51.100.3"
+    ],
+    "gateway": "198.51.100.1",
+    "name": "wan",
+    "password_set": false,
+    "dns": [],
+    "zone": "wan",
+    "mwan": false
+   },
+   {
+    "proto": "pppoe",
+    "device": "wan",
+    "username": "user@example.net",
+    "ipv6": "1",
+    "multipath": "off",
+    "sourcefilter": "0",
+    "delegate": "0",
+    "peerdns": "0",
+    "metric": "1",
+    "dns": [
+     "8.8.8.8"
+    ],
+    "name": "wan1",
+    "password_set": true,
+    "ipaddr": [],
+    "zone": "wan",
+    "mwan": true
+   },
+   {
+    "proto": "pppoe",
+    "device": "wanmac1",
+    "username": "user@example.net",
+    "ipv6": "1",
+    "peerdns": "0",
+    "multipath": "off",
+    "sourcefilter": "0",
+    "delegate": "0",
+    "metric": "3",
+    "name": "wan2",
+    "password_set": true,
+    "ipaddr": [],
+    "dns": [],
+    "zone": "wan",
+    "mwan": true
+   },
+   {
+    "proto": "pppoe",
+    "device": "bond.350mac0",
+    "username": "user@example.net",
+    "ipv6": "1",
+    "peerdns": "0",
+    "multipath": "off",
+    "sourcefilter": "0",
+    "delegate": "0",
+    "metric": "2",
+    "name": "wan3",
+    "password_set": true,
+    "ipaddr": [],
+    "dns": [],
+    "zone": "wan",
+    "mwan": true
+   },
+   {
+    "proto": "pppoe",
+    "device": "bond.350mac1",
+    "username": "user@example.net",
+    "ipv6": "1",
+    "peerdns": "0",
+    "multipath": "off",
+    "sourcefilter": "0",
+    "delegate": "0",
+    "metric": "4",
+    "name": "wan4",
+    "password_set": true,
+    "ipaddr": [],
+    "dns": [],
+    "zone": "wan",
+    "mwan": true
+   },
+   {
+    "proto": "pppoe",
+    "device": "wanmac4",
+    "username": "user@example.net",
+    "ipv6": "1",
+    "peerdns": "0",
+    "multipath": "off",
+    "sourcefilter": "0",
+    "delegate": "0",
+    "metric": "5",
+    "name": "wan5",
+    "password_set": true,
+    "ipaddr": [],
+    "dns": [],
+    "zone": "wan",
+    "mwan": true
+   },
+   {
+    "proto": "pppoe",
+    "device": "bond.350",
+    "username": "user@example.net",
+    "ipv6": "1",
+    "peerdns": "0",
+    "multipath": "off",
+    "sourcefilter": "0",
+    "delegate": "0",
+    "metric": "6",
+    "name": "wan6",
+    "password_set": true,
+    "ipaddr": [],
+    "dns": [],
+    "zone": "wan",
+    "mwan": true
+   },
+   {
+    "proto": "dhcp",
+    "device": "bond.3527",
+    "multipath": "off",
+    "metric": "9",
+    "name": "Skyline",
+    "password_set": false,
+    "ipaddr": [],
+    "dns": [],
+    "zone": "wan",
+    "mwan": true
+   },
+   {
+    "proto": "dhcp",
+    "device": "bond.1015",
+    "multipath": "off",
+    "clientid": "e8edc7bdf3fc6e",
+    "metric": "10",
+    "name": "zeta",
+    "password_set": false,
+    "ipaddr": [],
+    "dns": [],
+    "zone": "wan",
+    "mwan": true
+   },
+   {
+    "proto": "static",
+    "device": "bond.124",
+    "ipaddr": [
+     "198.18.0.4"
+    ],
+    "netmask": "255.255.255.0",
+    "gateway": "198.18.0.1",
+    "multipath": "off",
+    "defaultroute": "0",
+    "name": "zeta_Management",
+    "password_set": false,
+    "dns": [],
+    "zone": "wan",
+    "mwan": false
+   },
+   {
+    "proto": "static",
+    "device": "bond.123",
+    "ipaddr": [
+     "203.0.113.2"
+    ],
+    "netmask": "255.255.255.248",
+    "gateway": "203.0.113.1",
+    "multipath": "off",
+    "defaultroute": "0",
+    "name": "VSOL_Management",
+    "password_set": false,
+    "dns": [],
+    "zone": "wan",
+    "mwan": false
+   },
+   {
+    "proto": "pppoe",
+    "device": "bond.350mac2",
+    "username": "user@example.net",
+    "ipv6": "1",
+    "metric": "7",
+    "multipath": "off",
+    "name": "wan7",
+    "password_set": true,
+    "ipaddr": [],
+    "dns": [],
+    "zone": "wan",
+    "mwan": true
+   },
+   {
+    "proto": "pppoe",
+    "device": "wanmac5",
+    "username": "user@example.net",
+    "ipv6": "0",
+    "metric": "8",
+    "multipath": "off",
+    "auto": "0",
+    "disabled": "1",
+    "name": "wan8",
+    "password_set": true,
+    "ipaddr": [],
+    "dns": [],
+    "zone": "wan",
+    "mwan": false
+   },
+   {
+    "proto": "dhcpv6",
+    "device": "@wan1",
+    "reqaddress": "try",
+    "reqprefix": "auto",
+    "sourcefilter": "0",
+    "peerdns": "0",
+    "delegate": "1",
+    "clientid": "270b50031aab3ce56d6a",
+    "metric": "601",
+    "name": "wan1_6",
+    "password_set": false,
+    "ipaddr": [],
+    "dns": [],
+    "zone": "wan",
+    "mwan": true
+   },
+   {
+    "proto": "dhcpv6",
+    "device": "@wan2",
+    "reqaddress": "try",
+    "reqprefix": "auto",
+    "sourcefilter": "0",
+    "peerdns": "0",
+    "delegate": "0",
+    "clientid": "ea72f61b7a4e33447512",
+    "metric": "602",
+    "name": "wan2_6",
+    "password_set": false,
+    "ipaddr": [],
+    "dns": [],
+    "zone": "wan",
+    "mwan": true
+   },
+   {
+    "proto": "dhcpv6",
+    "device": "@wan3",
+    "reqaddress": "try",
+    "reqprefix": "auto",
+    "sourcefilter": "0",
+    "peerdns": "0",
+    "delegate": "0",
+    "clientid": "8f66eaa1dd3cc24a5834",
+    "metric": "603",
+    "name": "wan3_6",
+    "password_set": false,
+    "ipaddr": [],
+    "dns": [],
+    "zone": "wan",
+    "mwan": true
+   },
+   {
+    "proto": "dhcpv6",
+    "device": "@wan4",
+    "reqaddress": "try",
+    "reqprefix": "auto",
+    "sourcefilter": "0",
+    "peerdns": "0",
+    "delegate": "0",
+    "clientid": "2c4343bda863683fe97f",
+    "metric": "604",
+    "name": "wan4_6",
+    "password_set": false,
+    "ipaddr": [],
+    "dns": [],
+    "zone": "wan",
+    "mwan": true
+   },
+   {
+    "proto": "dhcpv6",
+    "device": "@wan5",
+    "reqaddress": "try",
+    "reqprefix": "auto",
+    "sourcefilter": "0",
+    "peerdns": "0",
+    "delegate": "0",
+    "clientid": "70adb61d8e6c9236a344",
+    "metric": "605",
+    "name": "wan5_6",
+    "password_set": false,
+    "ipaddr": [],
+    "dns": [],
+    "zone": "wan",
+    "mwan": true
+   },
+   {
+    "proto": "dhcpv6",
+    "device": "@wan6",
+    "reqaddress": "try",
+    "reqprefix": "auto",
+    "sourcefilter": "0",
+    "peerdns": "0",
+    "delegate": "0",
+    "clientid": "c7f55cfc3c18e677d0f3",
+    "metric": "606",
+    "name": "wan6_6",
+    "password_set": false,
+    "ipaddr": [],
+    "dns": [],
+    "zone": "wan",
+    "mwan": true
+   },
+   {
+    "proto": "dhcpv6",
+    "device": "@wan7",
+    "reqaddress": "try",
+    "reqprefix": "auto",
+    "sourcefilter": "0",
+    "peerdns": "0",
+    "delegate": "0",
+    "clientid": "5e8d8a22fb2a2549b059",
+    "metric": "607",
+    "name": "wan7_6",
+    "password_set": false,
+    "ipaddr": [],
+    "dns": [],
+    "zone": "wan",
+    "mwan": true
+   },
+   {
+    "proto": "dhcpv6",
+    "device": "@zeta",
+    "reqaddress": "try",
+    "reqprefix": "auto",
+    "sourcefilter": "0",
+    "peerdns": "0",
+    "delegate": "0",
+    "clientid": "7283e18f6d4588c84a69",
+    "name": "zeta_6",
+    "password_set": false,
+    "ipaddr": [],
+    "dns": [],
+    "zone": "wan",
+    "mwan": true
+   },
+   {
+    "proto": "dhcpv6",
+    "device": "@Skyline",
+    "reqaddress": "try",
+    "reqprefix": "auto",
+    "sourcefilter": "0",
+    "peerdns": "0",
+    "delegate": "0",
+    "clientid": "3bd02051bd8a61db0cb9",
+    "name": "Skyline_6",
+    "password_set": false,
+    "ipaddr": [],
+    "dns": [],
+    "zone": "wan",
+    "mwan": true
+   },
+   {
+    "proto": "static",
+    "device": "bond.125",
+    "ipaddr": [
+     "198.18.4.3"
+    ],
+    "netmask": "255.255.255.0",
+    "gateway": "198.18.4.1",
+    "multipath": "off",
+    "name": "G7",
+    "password_set": false,
+    "dns": [],
+    "zone": "wan",
+    "mwan": false
+   }
+  ],
+  "zones": [
+   {
+    "id": "cfg02dc81",
+    "name": "lan",
+    "network": [
+     "lan"
+    ],
+    "input": "ACCEPT",
+    "output": "ACCEPT",
+    "forward": "ACCEPT",
+    "masq": false
+   },
+   {
+    "id": "cfg03dc81",
+    "name": "wan",
+    "network": [
+     "wan1",
+     "wan2",
+     "wan3",
+     "wan4",
+     "wan5",
+     "wan6",
+     "Skyline",
+     "wan",
+     "zeta",
+     "zeta_Management",
+     "VSOL_Management",
+     "wan7",
+     "wan8",
+     "wan1_6",
+     "wan2_6",
+     "wan3_6",
+     "wan4_6",
+     "wan5_6",
+     "wan6_6",
+     "wan7_6",
+     "zeta_6",
+     "Skyline_6",
+     "G7"
+    ],
+    "input": "REJECT",
+    "output": "ACCEPT",
+    "forward": "DROP",
+    "masq": true
+   }
+  ],
+  "dhcp": [
+   {
+    "id": "lan",
+    "interface": "lan",
+    "start": "100",
+    "limit": "150",
+    "leasetime": "12h",
+    "ignore": false
+   },
+   {
+    "id": "wan",
+    "interface": "wan",
+    "start": "100",
+    "limit": "150",
+    "leasetime": "12h",
+    "ignore": true
+   }
+  ],
+  "mwan": {
+   "interfaces": [
+    {
+     "enabled": "1",
+     "initial_state": "online",
+     "family": "ipv4",
+     "track_method": "ping",
+     "reliability": "1",
+     "count": "1",
+     "size": "56",
+     "max_ttl": "60",
+     "timeout": "4",
+     "interval": "10",
+     "failure_interval": "5",
+     "recovery_interval": "5",
+     "down": "5",
+     "up": "5",
+     "track_ip": [
+      "8.8.8.8",
+      "1.1.1.1"
+     ],
+     "name": "wan1",
+     "status": "online"
+    },
+    {
+     "enabled": "1",
+     "initial_state": "online",
+     "family": "ipv4",
+     "track_ip": [
+      "8.8.8.8",
+      "1.1.1.1"
+     ],
+     "track_method": "ping",
+     "reliability": "1",
+     "count": "1",
+     "size": "56",
+     "max_ttl": "60",
+     "timeout": "4",
+     "interval": "10",
+     "failure_interval": "5",
+     "recovery_interval": "5",
+     "down": "5",
+     "up": "5",
+     "name": "wan2",
+     "status": "online"
+    },
+    {
+     "enabled": "1",
+     "initial_state": "online",
+     "family": "ipv4",
+     "track_ip": [
+      "8.8.8.8",
+      "1.1.1.1"
+     ],
+     "track_method": "ping",
+     "reliability": "1",
+     "count": "1",
+     "size": "56",
+     "max_ttl": "60",
+     "timeout": "4",
+     "interval": "10",
+     "failure_interval": "5",
+     "recovery_interval": "5",
+     "down": "5",
+     "up": "5",
+     "name": "wan3",
+     "status": "online"
+    },
+    {
+     "enabled": "1",
+     "initial_state": "online",
+     "family": "ipv4",
+     "track_ip": [
+      "8.8.8.8",
+      "1.1.1.1"
+     ],
+     "track_method": "ping",
+     "reliability": "1",
+     "count": "1",
+     "size": "56",
+     "max_ttl": "60",
+     "timeout": "4",
+     "interval": "10",
+     "failure_interval": "5",
+     "recovery_interval": "5",
+     "down": "5",
+     "up": "5",
+     "name": "wan4",
+     "status": "online"
+    },
+    {
+     "enabled": "1",
+     "initial_state": "online",
+     "family": "ipv4",
+     "track_ip": [
+      "8.8.8.8",
+      "1.1.1.1"
+     ],
+     "track_method": "ping",
+     "reliability": "1",
+     "count": "1",
+     "size": "56",
+     "max_ttl": "60",
+     "timeout": "4",
+     "interval": "10",
+     "failure_interval": "5",
+     "recovery_interval": "5",
+     "down": "5",
+     "up": "5",
+     "name": "wan5",
+     "status": "online"
+    },
+    {
+     "enabled": "1",
+     "initial_state": "online",
+     "family": "ipv4",
+     "track_ip": [
+      "8.8.8.8",
+      "1.1.1.1"
+     ],
+     "track_method": "ping",
+     "reliability": "1",
+     "count": "1",
+     "size": "56",
+     "max_ttl": "60",
+     "timeout": "4",
+     "interval": "10",
+     "failure_interval": "5",
+     "recovery_interval": "5",
+     "down": "5",
+     "up": "5",
+     "name": "wan6",
+     "status": "online"
+    },
+    {
+     "enabled": "1",
+     "initial_state": "online",
+     "family": "ipv4",
+     "track_ip": [
+      "8.8.8.8",
+      "1.1.1.1"
+     ],
+     "track_method": "ping",
+     "reliability": "1",
+     "count": "1",
+     "size": "56",
+     "max_ttl": "60",
+     "timeout": "4",
+     "interval": "10",
+     "failure_interval": "5",
+     "recovery_interval": "5",
+     "down": "5",
+     "up": "5",
+     "name": "Skyline",
+     "status": "online"
+    },
+    {
+     "enabled": "1",
+     "initial_state": "online",
+     "family": "ipv4",
+     "track_ip": [
+      "8.8.8.8",
+      "1.1.1.1"
+     ],
+     "track_method": "ping",
+     "reliability": "1",
+     "count": "1",
+     "size": "56",
+     "max_ttl": "60",
+     "timeout": "4",
+     "interval": "10",
+     "failure_interval": "5",
+     "recovery_interval": "5",
+     "down": "5",
+     "up": "5",
+     "name": "zeta",
+     "status": "online"
+    },
+    {
+     "enabled": "1",
+     "initial_state": "online",
+     "family": "ipv4",
+     "track_ip": [
+      "8.8.8.8",
+      "1.1.1.1"
+     ],
+     "track_method": "ping",
+     "reliability": "1",
+     "count": "1",
+     "size": "56",
+     "max_ttl": "60",
+     "timeout": "4",
+     "interval": "10",
+     "failure_interval": "5",
+     "recovery_interval": "5",
+     "down": "5",
+     "up": "5",
+     "name": "wan7",
+     "status": "online"
+    },
+    {
+     "enabled": "1",
+     "family": "ipv6",
+     "track_ip": [
+      "2001:db8:fdeb::f056",
+      "2001:db8:b3d3::8964"
+     ],
+     "reliability": "1",
+     "interval": "10",
+     "failure_interval": "5",
+     "recovery_interval": "5",
+     "down": "5",
+     "up": "5",
+     "name": "wan1_6",
+     "status": "online"
+    },
+    {
+     "enabled": "1",
+     "family": "ipv6",
+     "track_ip": [
+      "2001:db8:fdeb::f056",
+      "2001:db8:b3d3::8964"
+     ],
+     "reliability": "1",
+     "interval": "10",
+     "failure_interval": "5",
+     "recovery_interval": "5",
+     "down": "5",
+     "up": "5",
+     "name": "wan2_6",
+     "status": "online"
+    },
+    {
+     "enabled": "1",
+     "family": "ipv6",
+     "track_ip": [
+      "2001:db8:fdeb::f056",
+      "2001:db8:b3d3::8964"
+     ],
+     "reliability": "1",
+     "interval": "10",
+     "failure_interval": "5",
+     "recovery_interval": "5",
+     "down": "5",
+     "up": "5",
+     "name": "wan3_6",
+     "status": "online"
+    },
+    {
+     "enabled": "1",
+     "family": "ipv6",
+     "track_ip": [
+      "2001:db8:fdeb::f056",
+      "2001:db8:b3d3::8964"
+     ],
+     "reliability": "1",
+     "interval": "10",
+     "failure_interval": "5",
+     "recovery_interval": "5",
+     "down": "5",
+     "up": "5",
+     "name": "wan4_6",
+     "status": "online"
+    },
+    {
+     "enabled": "1",
+     "family": "ipv6",
+     "track_ip": [
+      "2001:db8:fdeb::f056",
+      "2001:db8:b3d3::8964"
+     ],
+     "reliability": "1",
+     "interval": "10",
+     "failure_interval": "5",
+     "recovery_interval": "5",
+     "down": "5",
+     "up": "5",
+     "name": "wan5_6",
+     "status": "online"
+    },
+    {
+     "enabled": "1",
+     "family": "ipv6",
+     "track_ip": [
+      "2001:db8:fdeb::f056",
+      "2001:db8:b3d3::8964"
+     ],
+     "reliability": "1",
+     "interval": "10",
+     "failure_interval": "5",
+     "recovery_interval": "5",
+     "down": "5",
+     "up": "5",
+     "name": "wan6_6",
+     "status": "online"
+    },
+    {
+     "enabled": "1",
+     "family": "ipv6",
+     "track_ip": [
+      "2001:db8:fdeb::f056",
+      "2001:db8:b3d3::8964"
+     ],
+     "reliability": "1",
+     "interval": "10",
+     "failure_interval": "5",
+     "recovery_interval": "5",
+     "down": "5",
+     "up": "5",
+     "name": "wan7_6",
+     "status": "online"
+    },
+    {
+     "enabled": "1",
+     "family": "ipv6",
+     "track_ip": [
+      "2001:db8:fdeb::f056",
+      "2001:db8:b3d3::8964"
+     ],
+     "reliability": "1",
+     "interval": "10",
+     "failure_interval": "5",
+     "recovery_interval": "5",
+     "down": "5",
+     "up": "5",
+     "name": "zeta_6",
+     "status": "online"
+    },
+    {
+     "enabled": "1",
+     "family": "ipv6",
+     "track_ip": [
+      "2001:db8:fdeb::f056",
+      "2001:db8:b3d3::8964"
+     ],
+     "reliability": "1",
+     "interval": "10",
+     "failure_interval": "5",
+     "recovery_interval": "5",
+     "down": "5",
+     "up": "5",
+     "name": "Skyline_6",
+     "status": "online"
+    }
+   ],
+   "members": [
+    {
+     "name": "mwan1",
+     "interface": "wan1",
+     "metric": "1",
+     "weight": "4"
+    },
+    {
+     "name": "mwan2",
+     "interface": "wan2",
+     "metric": "1",
+     "weight": "4"
+    },
+    {
+     "name": "mwan3",
+     "interface": "wan3",
+     "metric": "1",
+     "weight": "3"
+    },
+    {
+     "name": "mwan4",
+     "interface": "wan4",
+     "metric": "1",
+     "weight": "3"
+    },
+    {
+     "name": "mwan5",
+     "interface": "wan5",
+     "metric": "1",
+     "weight": "4"
+    },
+    {
+     "name": "mwan6",
+     "interface": "wan6",
+     "metric": "1",
+     "weight": "3"
+    },
+    {
+     "name": "m_zeta",
+     "interface": "zeta",
+     "metric": "10",
+     "weight": "1"
+    },
+    {
+     "name": "m_skyline",
+     "interface": "Skyline",
+     "metric": "5",
+     "weight": "1"
+    },
+    {
+     "name": "mwan7",
+     "interface": "wan7",
+     "metric": "1",
+     "weight": "3"
+    },
+    {
+     "name": "mwan1_6",
+     "interface": "wan1_6",
+     "metric": "1",
+     "weight": "4"
+    },
+    {
+     "name": "mwan2_6",
+     "interface": "wan2_6",
+     "metric": "1",
+     "weight": "4"
+    },
+    {
+     "name": "mwan3_6",
+     "interface": "wan3_6",
+     "metric": "1",
+     "weight": "3"
+    },
+    {
+     "name": "mwan4_6",
+     "interface": "wan4_6",
+     "metric": "1",
+     "weight": "3"
+    },
+    {
+     "name": "mwan5_6",
+     "interface": "wan5_6",
+     "metric": "1",
+     "weight": "4"
+    },
+    {
+     "name": "mwan6_6",
+     "interface": "wan6_6",
+     "metric": "1",
+     "weight": "3"
+    },
+    {
+     "name": "mwan7_6",
+     "interface": "wan7_6",
+     "metric": "1",
+     "weight": "3"
+    },
+    {
+     "name": "m_zeta_6",
+     "interface": "zeta_6",
+     "metric": "10",
+     "weight": "1"
+    },
+    {
+     "name": "m_skyline_6",
+     "interface": "Skyline_6",
+     "metric": "5",
+     "weight": "1"
+    }
+   ],
+   "policies": [
+    {
+     "name": "balanced",
+     "use_member": [
+      "mwan1",
+      "mwan2",
+      "mwan3",
+      "mwan4",
+      "mwan5",
+      "mwan6",
+      "mwan7",
+      "m_skyline",
+      "m_zeta",
+      "mwan1_6",
+      "mwan2_6",
+      "mwan3_6",
+      "mwan4_6",
+      "mwan5_6",
+      "mwan6_6",
+      "mwan7_6",
+      "m_skyline_6",
+      "m_zeta_6"
+     ],
+     "last_resort": "unreachable"
+    },
+    {
+     "name": "office",
+     "use_member": [
+      "m_skyline",
+      "mwan1",
+      "m_zeta"
+     ],
+     "last_resort": "unreachable"
+    },
+    {
+     "name": "NAS",
+     "use_member": [
+      "m_zeta",
+      "m_skyline"
+     ],
+     "last_resort": "unreachable"
+    },
+    {
+     "name": "Game",
+     "use_member": [
+      "m_zeta"
+     ],
+     "last_resort": "unreachable"
+    }
+   ],
+   "rules": [
+    {
+     "proto": "all",
+     "src_ip": "192.0.2.169/32",
+     "dest_ip": "0.0.0.0/0",
+     "sticky": "0",
+     "use_policy": "office",
+     "family": "ipv4",
+     "name": "policy_office"
+    },
+    {
+     "family": "ipv4",
+     "proto": "all",
+     "src_ip": "192.0.2.106/32",
+     "dest_ip": "0.0.0.0/0",
+     "sticky": "0",
+     "use_policy": "NAS",
+     "name": "policy_NAS"
+    },
+    {
+     "family": "ipv4",
+     "proto": "all",
+     "dest_ip": "0.0.0.0/0",
+     "sticky": "0",
+     "use_policy": "Game",
+     "src_ip": "192.0.2.16/32",
+     "name": "policy_game"
+    },
+    {
+     "family": "ipv4",
+     "proto": "all",
+     "dest_ip": "0.0.0.0/0",
+     "sticky": "0",
+     "use_policy": "balanced",
+     "name": "policy_all"
+    },
+    {
+     "family": "ipv6",
+     "proto": "all",
+     "dest_ip": "::/0",
+     "sticky": "0",
+     "use_policy": "balanced",
+     "name": "policy_all_v6"
+    }
+   ]
+  },
+  "trunk": "bond",
+  "rollback_s": 90
+ },
+ "settings": {
+  "general": {
+   "site_name": "Home NOC"
+  },
+  "dns": {
+   "vip": "192.0.2.10",
+   "vip6": "fd00:db8:20a7::b6",
+   "piholes": [
+    {
+     "name": "Pi-hole VM",
+     "url": "http://192.0.2.11",
+     "mac": "00:00:5e:00:53:1e",
+     "password_set": true
+    },
+    {
+     "name": "Pi-hole Pi",
+     "url": "http://192.0.2.9:8080",
+     "mac": "00:00:5e:00:53:1f",
+     "password_set": true
+    }
+   ]
+  },
+  "connections": {
+   "router_host": "192.0.2.1",
+   "ap_host": "192.0.2.2",
+   "switch_mac": "00-00-5E-00-53-02",
+   "switch_ports": 10,
+   "omada_url": "https://192.0.2.240:8043",
+   "omadac_id": "7868b68d9cdbbf415e9e4a913427ab98",
+   "site_id": "a918d2aa82e1bbcf704495c3",
+   "omada_client_set": true,
+   "proxmox_url": "https://192.0.2.196:8006",
+   "proxmox_node": "PVE-NODE-1",
+   "pve_token_set": true
+  },
+  "monitoring": {
+   "check_every_s": 30,
+   "confirm_checks": 2,
+   "ont_stale_s": 180,
+   "backup_alerts": true,
+   "backup_success": true,
+   "backup_store_warn_pct": 85,
+   "backup_long_h": 4
+  },
+  "onts": [
+   {
+    "name": "VSOL ONT (Skyline)",
+    "path": "/tmp/vsol_ddm_cache.json"
+   },
+   {
+    "name": "HSGQ stick (Zeta)",
+    "path": "/tmp/hsgq_ddm_cache.json"
+   }
+  ],
+  "protected_ports": {
+   "3": "VSOL ONT (Skyline)",
+   "4": "LAG to router",
+   "5": "LAG to router",
+   "6": "Raspberry Pi",
+   "9": "HSGQ stick (Zeta, SFP)"
+  },
+  "wan": {
+   "groups": {
+    "metro": [
+     "wan1",
+     "wan2",
+     "wan3",
+     "wan4",
+     "wan5",
+     "wan6",
+     "wan7"
+    ],
+    "skyline": [
+     "Skyline"
+    ],
+    "zeta": [
+     "zeta"
+    ],
+    "metro-v6": [
+     "wan1_6",
+     "wan2_6",
+     "wan3_6",
+     "wan4_6",
+     "wan5_6",
+     "wan6_6",
+     "wan7_6"
+    ],
+    "skyline-v6": [
+     "Skyline_6"
+    ],
+    "zeta-v6": [
+     "zeta_6"
+    ]
+   },
+   "paths": {
+    "metro": {
+     "isp_device": "Metro ONU (bridge)"
+    },
+    "skyline": {
+     "switch_port": 3,
+     "isp_device": "VSOL ONT (Skyline)",
+     "ont": "VSOL ONT (Skyline)"
+    },
+    "zeta": {
+     "switch_port": 10,
+     "isp_device": "HSGQ stick (Zeta)",
+     "ont": "HSGQ stick (Zeta)"
+    }
+   },
+   "candidates": [
+    "G7",
+    "Skyline",
+    "Skyline_6",
+    "VSOL_Management",
+    "zeta",
+    "zeta_6",
+    "zeta_Management",
+    "wan",
+    "wan1",
+    "wan1_6",
+    "wan2",
+    "wan2_6",
+    "wan3",
+    "wan3_6",
+    "wan4",
+    "wan4_6",
+    "wan5",
+    "wan5_6",
+    "wan6",
+    "wan6_6",
+    "wan7",
+    "wan7_6"
+   ],
+   "devices": [
+    "Router (AX6000)",
+    "Access point",
+    "SG2210P switch",
+    "Metro ONU (bridge)",
+    "VSOL ONT (Skyline)",
+    "HSGQ stick (Zeta)",
+    "DNS VIP",
+    "Pi-hole VM",
+    "Pi-hole Pi",
+    "Proxmox",
+    "NAS",
+    "Home Assistant",
+    "Omada controller",
+    "qBittorrent",
+    "NOC",
+    "WiZ bulb",
+    "DNS VIP (IPv6)",
+    "Pi-hole VM (IPv6)",
+    "Pi-hole Pi (IPv6)"
+   ],
+   "onts": [
+    "VSOL ONT (Skyline)",
+    "HSGQ stick (Zeta)"
+   ],
+   "switch_ports": 10
+  }
+ },
+ "alerts": {
+  "token_set": true,
+  "paired": true,
+  "bot": null,
+  "running": false,
+  "last_check": null,
+  "checks": 0,
+  "watch_error": null,
+  "bot_error": null,
+  "backup_error": null,
+  "outbox": 0,
+  "settings": {
+   "check_every_s": 30,
+   "confirm_checks": 2,
+   "ont_stale_s": 180,
+   "backup_alerts": true,
+   "backup_success": true,
+   "backup_store_warn_pct": 85,
+   "backup_long_h": 4,
+   "chat_id": null,
+   "mgmt_grace": {
+    "VSOL ONT (Skyline)": 300
+   }
+  },
+  "problems": [],
+  "recent": [
+   {
+    "ts": "2026-10-24 06:32:16",
+    "key": "wan:zeta_6",
+    "ok": true,
+    "text": "zeta_6 [zeta-v6]: online",
+    "lasted_s": 60
+   },
+   {
+    "ts": "2026-10-24 06:32:16",
+    "key": "wan:zeta",
+    "ok": true,
+    "text": "zeta [zeta]: online, 198.18.2.99",
+    "lasted_s": 89
+   },
+   {
+    "ts": "2026-10-24 06:31:46",
+    "key": "device:HSGQ stick (Zeta)",
+    "ok": true,
+    "text": "HSGQ stick (Zeta) (198.18.0.1)",
+    "lasted_s": 89
+   },
+   {
+    "ts": "2026-10-24 06:31:19",
+    "key": "wan:zeta_6",
+    "ok": false,
+    "text": "zeta_6 [zeta-v6]: connecting",
+    "lasted_s": 25889
+   },
+   {
+    "ts": "2026-10-24 06:30:52",
+    "key": "wan:zeta",
+    "ok": false,
+    "text": "zeta [zeta]: offline",
+    "lasted_s": 90
+   },
+   {
+    "ts": "2026-10-24 06:30:17",
+    "key": "device:HSGQ stick (Zeta)",
+    "ok": false,
+    "text": "HSGQ stick (Zeta) (198.18.0.1)",
+    "lasted_s": 16771
+   },
+   {
+    "ts": "2026-10-24 06:29:16",
+    "key": "wan:zeta",
+    "ok": true,
+    "text": "zeta [zeta]: online, 198.18.2.99",
+    "lasted_s": 90
+   },
+   {
+    "ts": "2026-10-24 06:27:51",
+    "key": "wan:zeta",
+    "ok": false,
+    "text": "zeta [zeta]: offline",
+    "lasted_s": 7380
+   },
+   {
+    "ts": "2026-10-24 04:24:46",
+    "key": "wan:zeta",
+    "ok": true,
+    "text": "zeta [zeta]: online, 198.18.2.99",
+    "lasted_s": 90
+   },
+   {
+    "ts": "2026-10-24 04:23:19",
+    "key": "wan:zeta",
+    "ok": false,
+    "text": "zeta [zeta]: offline",
+    "lasted_s": 18268
+   },
+   {
+    "ts": "2026-10-24 03:31:46",
+    "key": "backup",
+    "ok": true,
+    "text": "✅ Home NOC: backup finished · 1/1 guests · 16s",
+    "lasted_s": 0
+   },
+   {
+    "ts": "2026-10-24 02:03:46",
+    "key": "backup",
+    "ok": true,
+    "text": "✅ Home NOC: backup finished · 6/6 guests · 2m 26s",
+    "lasted_s": 0
+   },
+   {
+    "ts": "2026-10-24 01:56:46",
+    "key": "ont:HSGQ stick (Zeta):link",
+    "ok": true,
+    "text": "HSGQ stick (Zeta): Registered (O5)",
+    "lasted_s": 10019
+   },
+   {
+    "ts": "2026-10-24 01:50:45",
+    "key": "ont:HSGQ stick (Zeta):poll",
+    "ok": true,
+    "text": "HSGQ stick (Zeta): reporting again",
+    "lasted_s": 7858
+   },
+   {
+    "ts": "2026-10-24 01:50:45",
+    "key": "device:HSGQ stick (Zeta)",
+    "ok": true,
+    "text": "HSGQ stick (Zeta) (198.18.0.1)",
+    "lasted_s": 8038
+   },
+   {
+    "ts": "2026-10-23 23:39:47",
+    "key": "ont:HSGQ stick (Zeta):poll",
+    "ok": false,
+    "text": "HSGQ stick (Zeta): no reading from its router poller for 3m",
+    "lasted_s": 510
+   },
+   {
+    "ts": "2026-10-23 23:36:47",
+    "key": "device:HSGQ stick (Zeta)",
+    "ok": false,
+    "text": "HSGQ stick (Zeta) (198.18.0.1)",
+    "lasted_s": 390
+   },
+   {
+    "ts": "2026-10-23 23:31:16",
+    "key": "ont:HSGQ stick (Zeta):poll",
+    "ok": true,
+    "text": "HSGQ stick (Zeta): reporting again",
+    "lasted_s": 748
+   },
+   {
+    "ts": "2026-10-23 23:30:16",
+    "key": "device:HSGQ stick (Zeta)",
+    "ok": true,
+    "text": "HSGQ stick (Zeta) (198.18.0.1)",
+    "lasted_s": 838
+   },
+   {
+    "ts": "2026-10-23 23:19:47",
+    "key": "wan:zeta_6",
+    "ok": true,
+    "text": "zeta_6 [zeta-v6]: online",
+    "lasted_s": 570
+   },
+   {
+    "ts": "2026-10-23 23:18:47",
+    "key": "ont:HSGQ stick (Zeta):poll",
+    "ok": false,
+    "text": "HSGQ stick (Zeta): no reading from its router poller for 3m",
+    "lasted_s": 15031
+   },
+   {
+    "ts": "2026-10-23 23:18:47",
+    "key": "wan:zeta",
+    "ok": true,
+    "text": "zeta [zeta]: online, 198.18.2.99",
+    "lasted_s": 511
+   },
+   {
+    "ts": "2026-10-23 23:16:17",
+    "key": "device:HSGQ stick (Zeta)",
+    "ok": false,
+    "text": "HSGQ stick (Zeta) (198.18.0.1)",
+    "lasted_s": 14941
+   },
+   {
+    "ts": "2026-10-23 23:10:21",
+    "key": "wan:zeta_6",
+    "ok": false,
+    "text": "zeta_6 [zeta-v6]: offline",
+    "lasted_s": 14550
+   },
+   {
+    "ts": "2026-10-23 23:10:21",
+    "key": "wan:zeta",
+    "ok": false,
+    "text": "zeta [zeta]: offline",
+    "lasted_s": 14580
+   },
+   {
+    "ts": "2026-10-23 23:09:46",
+    "key": "ont:HSGQ stick (Zeta):link",
+    "ok": false,
+    "text": "HSGQ stick (Zeta): Not Registered, alarms LOS, LOF, LOM",
+    "lasted_s": 14490
+   },
+   {
+    "ts": "2026-10-23 19:08:16",
+    "key": "ont:HSGQ stick (Zeta):link",
+    "ok": true,
+    "text": "HSGQ stick (Zeta): Registered (O5)",
+    "lasted_s": 4079
+   },
+   {
+    "ts": "2026-10-23 19:08:16",
+    "key": "ont:HSGQ stick (Zeta):poll",
+    "ok": true,
+    "text": "HSGQ stick (Zeta): reporting again",
+    "lasted_s": 119
+   },
+   {
+    "ts": "2026-10-23 19:07:45",
+    "key": "wan:zeta_6",
+    "ok": true,
+    "text": "zeta_6 [zeta-v6]: online",
+    "lasted_s": 4049
+   },
+   {
+    "ts": "2026-10-23 19:07:15",
+    "key": "wan:zeta",
+    "ok": true,
+    "text": "zeta [zeta]: online, 198.18.2.99",
+    "lasted_s": 4019
+   },
+   {
+    "ts": "2026-10-23 19:07:15",
+    "key": "device:HSGQ stick (Zeta)",
+    "ok": true,
+    "text": "HSGQ stick (Zeta) (198.18.0.1)",
+    "lasted_s": 268
+   },
+   {
+    "ts": "2026-10-23 19:06:16",
+    "key": "ont:HSGQ stick (Zeta):poll",
+    "ok": false,
+    "text": "HSGQ stick (Zeta): no reading from its router poller for 4m",
+    "lasted_s": 49859
+   },
+   {
+    "ts": "2026-10-23 19:02:47",
+    "key": "device:HSGQ stick (Zeta)",
+    "ok": false,
+    "text": "HSGQ stick (Zeta) (198.18.0.1)",
+    "lasted_s": 50129
+   },
+   {
+    "ts": "2026-10-23 18:00:21",
+    "key": "ont:HSGQ stick (Zeta):link",
+    "ok": false,
+    "text": "HSGQ stick (Zeta): Not Registered, alarms LOS, LOF, LOM",
+    "lasted_s": 344037
+   },
+   {
+    "ts": "2026-10-23 18:00:21",
+    "key": "wan:zeta_6",
+    "ok": false,
+    "text": "zeta_6 [zeta-v6]: offline",
+    "lasted_s": 46319
+   },
+   {
+    "ts": "2026-10-23 18:00:21",
+    "key": "wan:zeta",
+    "ok": false,
+    "text": "zeta [zeta]: offline",
+    "lasted_s": 46349
+   },
+   {
+    "ts": "2026-10-23 05:19:15",
+    "key": "wan:wan4_6",
+    "ok": true,
+    "text": "wan4_6 [metro-v6]: online",
+    "lasted_s": 298
+   },
+   {
+    "ts": "2026-10-23 05:18:45",
+    "key": "wan:wan7_6",
+    "ok": true,
+    "text": "wan7_6 [metro-v6]: online",
+    "lasted_s": 1075
+   },
+   {
+    "ts": "2026-10-23 05:18:45",
+    "key": "wan:wan7",
+    "ok": true,
+    "text": "wan7 [metro]: online, 198.18.3.108",
+    "lasted_s": 1075
+   },
+   {
+    "ts": "2026-10-23 05:18:45",
+    "key": "wan:wan6_6",
+    "ok": true,
+    "text": "wan6_6 [metro-v6]: online",
+    "lasted_s": 268
+   },
+   {
+    "ts": "2026-10-23 05:18:45",
+    "key": "wan:wan6",
+    "ok": true,
+    "text": "wan6 [metro]: online, 198.18.3.101",
+    "lasted_s": 268
+   },
+   {
+    "ts": "2026-10-23 05:18:45",
+    "key": "wan:wan4",
+    "ok": true,
+    "text": "wan4 [metro]: online, 198.18.3.107",
+    "lasted_s": 268
+   },
+   {
+    "ts": "2026-10-23 05:18:45",
+    "key": "wan:wan3_6",
+    "ok": true,
+    "text": "wan3_6 [metro-v6]: online",
+    "lasted_s": 268
+   },
+   {
+    "ts": "2026-10-23 05:18:45",
+    "key": "wan:wan3",
+    "ok": true,
+    "text": "wan3 [metro]: online, 198.18.3.102",
+    "lasted_s": 268
+   },
+   {
+    "ts": "2026-10-23 05:16:52",
+    "key": "wan:wan2_6",
+    "ok": true,
+    "text": "wan2_6 [metro-v6]: online",
+    "lasted_s": 155
+   },
+   {
+    "ts": "2026-10-23 05:16:52",
+    "key": "wan:wan2",
+    "ok": true,
+    "text": "wan2 [metro]: online, 198.18.3.31",
+    "lasted_s": 155
+   },
+   {
+    "ts": "2026-10-23 05:16:22",
+    "key": "wan:wan5_6",
+    "ok": true,
+    "text": "wan5_6 [metro-v6]: online",
+    "lasted_s": 125
+   },
+   {
+    "ts": "2026-10-23 05:16:22",
+    "key": "wan:wan1_6",
+    "ok": true,
+    "text": "wan1_6 [metro-v6]: online",
+    "lasted_s": 125
+   },
+   {
+    "ts": "2026-10-23 05:15:46",
+    "key": "wan:wan5",
+    "ok": true,
+    "text": "wan5 [metro]: online, 198.18.3.12",
+    "lasted_s": 89
+   },
+   {
+    "ts": "2026-10-23 05:15:46",
+    "key": "wan:wan1",
+    "ok": true,
+    "text": "wan1 [metro]: online, 198.18.3.13",
+    "lasted_s": 89
+   }
+  ],
+  "groups": {
+   "metro": [
+    "wan1",
+    "wan2",
+    "wan3",
+    "wan4",
+    "wan5",
+    "wan6",
+    "wan7"
+   ],
+   "skyline": [
+    "Skyline"
+   ],
+   "zeta": [
+    "zeta"
+   ],
+   "metro-v6": [
+    "wan1_6",
+    "wan2_6",
+    "wan3_6",
+    "wan4_6",
+    "wan5_6",
+    "wan6_6",
+    "wan7_6"
+   ],
+   "skyline-v6": [
+    "Skyline_6"
+   ],
+   "zeta-v6": [
+    "zeta_6"
+   ]
+  },
+  "monitored": [
+   "Skyline",
+   "Skyline_6",
+   "zeta",
+   "zeta_6",
+   "wan1",
+   "wan1_6",
+   "wan2",
+   "wan2_6",
+   "wan3",
+   "wan3_6",
+   "wan4",
+   "wan4_6",
+   "wan5",
+   "wan5_6",
+   "wan6",
+   "wan6_6",
+   "wan7",
+   "wan7_6"
+  ],
+  "candidates": [
+   {
+    "name": "G7",
+    "proto": "static"
+   },
+   {
+    "name": "Skyline",
+    "proto": "dhcp"
+   },
+   {
+    "name": "Skyline_6",
+    "proto": "dhcpv6"
+   },
+   {
+    "name": "VSOL_Management",
+    "proto": "static"
+   },
+   {
+    "name": "zeta",
+    "proto": "dhcp"
+   },
+   {
+    "name": "zeta_6",
+    "proto": "dhcpv6"
+   },
+   {
+    "name": "zeta_Management",
+    "proto": "static"
+   },
+   {
+    "name": "wan",
+    "proto": "static"
+   },
+   {
+    "name": "wan1",
+    "proto": "pppoe"
+   },
+   {
+    "name": "wan1_6",
+    "proto": "dhcpv6"
+   },
+   {
+    "name": "wan2",
+    "proto": "pppoe"
+   },
+   {
+    "name": "wan2_6",
+    "proto": "dhcpv6"
+   },
+   {
+    "name": "wan3",
+    "proto": "pppoe"
+   },
+   {
+    "name": "wan3_6",
+    "proto": "dhcpv6"
+   },
+   {
+    "name": "wan4",
+    "proto": "pppoe"
+   },
+   {
+    "name": "wan4_6",
+    "proto": "dhcpv6"
+   },
+   {
+    "name": "wan5",
+    "proto": "pppoe"
+   },
+   {
+    "name": "wan5_6",
+    "proto": "dhcpv6"
+   },
+   {
+    "name": "wan6",
+    "proto": "pppoe"
+   },
+   {
+    "name": "wan6_6",
+    "proto": "dhcpv6"
+   },
+   {
+    "name": "wan7",
+    "proto": "pppoe"
+   },
+   {
+    "name": "wan7_6",
+    "proto": "dhcpv6"
+   }
+  ]
+ },
+ "audit": [
+  {
+   "ts": "2026-10-23 19:03:30",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "switch_port",
+   "summary": "Switch port 7 (Port7) | Native VLAN: Default (VLAN 1) -> ZETA (VLAN 1015); Untagged + ZETA (VLAN 1015); Untagged − Default (VLAN 1); Result → untagged: ZETA (VLAN 1015) | tagged: none",
+   "result": {
+    "ok": true,
+    "result": {
+     "verified": true
+    }
+   }
+  },
+  {
+   "ts": "2026-10-23 19:02:46",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "switch_port",
+   "summary": "Switch port 2 (Port2) | Native VLAN: Default (VLAN 1) -> ZETA (VLAN 1015); Untagged + ZETA (VLAN 1015); Untagged − Default (VLAN 1); Result → untagged: ZETA (VLAN 1015) | tagged: none",
+   "result": {
+    "ok": true,
+    "result": {
+     "verified": true
+    }
+   }
+  },
+  {
+   "ts": "2026-10-22 06:33:19",
+   "ip": "telegram",
+   "via": "telegram chat 100200300",
+   "action": "wan_group_restart",
+   "summary": "Restart all metro links (7) | Router runs ifup on wan1, wan2, wan3, wan4, wan5, wan6, wan7, 3 s apart; Each drops for ~5-30 s; mwan3 moves traffic to the other ISPs meanwhile",
+   "result": {
+    "ok": true,
+    "result": {
+     "restarted": [
+      "wan1",
+      "wan2",
+      "wan3",
+      "wan4",
+      "wan5",
+      "wan6",
+      "wan7"
+     ]
+    }
+   }
+  },
+  {
+   "ts": "2026-10-19 07:08:10",
+   "ip": "127.0.0.1",
+   "via": "",
+   "action": "wan_groups_set",
+   "summary": "Update WAN groups | metro: wan1, wan2, wan3, wan4, wan5, wan6, wan7; skyline: Skyline; zeta: zeta; metro-v6: wan1_6, wan2_6, wan3_6, wan4_6, wan5_6, wan6_6, wan7_6; skyline-v6: Skyline_6  (was: new group); zeta-v6: zeta_6  (was: new group)",
+   "result": {
+    "ok": true,
+    "result": {
+     "saved": true
+    }
+   }
+  },
+  {
+   "ts": "2026-10-19 06:59:38",
+   "ip": "127.0.0.1",
+   "via": "",
+   "action": "wan_groups_set",
+   "summary": "Update WAN groups | metro: wan1, wan2, wan3, wan4, wan5, wan6, wan7  (was: wan1, wan2, wan3, wan4, wan5, wan6); skyline: Skyline; zeta: zeta; metro-v6: wan1_6, wan2_6, wan3_6, wan4_6, wan5_6, wan6_6, wan7_6",
+   "result": {
+    "ok": true,
+    "result": {
+     "saved": true
+    }
+   }
+  },
+  {
+   "ts": "2026-10-19 06:59:18",
+   "ip": "127.0.0.1",
+   "via": "",
+   "action": "wan_groups_set",
+   "summary": "Update WAN groups | metro: wan1, wan2, wan3, wan4, wan5, wan6; skyline: Skyline; zeta: zeta; metro-v6: wan1_6, wan2_6, wan3_6, wan4_6, wan5_6, wan6_6, wan7_6  (was: new group)",
+   "result": {
+    "ok": true,
+    "result": {
+     "saved": true
+    }
+   }
+  },
+  {
+   "ts": "2026-10-19 06:59:17",
+   "ip": "127.0.0.1",
+   "via": "",
+   "action": "device_add",
+   "summary": "Add device Pi-hole Pi (IPv6) | Track 'Pi-hole Pi (IPv6)' [dns]: checks fd00:db8:20a7:7:01e4:a889:0e54:122a (ping)",
+   "result": {
+    "ok": true,
+    "result": {
+     "saved": true
+    }
+   }
+  },
+  {
+   "ts": "2026-10-19 06:59:17",
+   "ip": "127.0.0.1",
+   "via": "",
+   "action": "device_add",
+   "summary": "Add device Pi-hole VM (IPv6) | Track 'Pi-hole VM (IPv6)' [dns]: checks fd00:db8:20a7:7:7f03:0c84:f1fd:1fc3 (ping)",
+   "result": {
+    "ok": true,
+    "result": {
+     "saved": true
+    }
+   }
+  },
+  {
+   "ts": "2026-10-19 06:59:17",
+   "ip": "127.0.0.1",
+   "via": "",
+   "action": "device_add",
+   "summary": "Add device DNS VIP (IPv6) | Track 'DNS VIP (IPv6)' [dns]: checks fd00:db8:20a7::b6 (ping)",
+   "result": {
+    "ok": true,
+    "result": {
+     "saved": true
+    }
+   }
+  },
+  {
+   "ts": "2026-10-19 06:59:17",
+   "ip": "127.0.0.1",
+   "via": "",
+   "action": "settings_dns",
+   "summary": "Update DNS servers | IPv6 VIP: (none) → fd00:db8:20a7::b6",
+   "result": {
+    "ok": true,
+    "result": {
+     "saved": true
+    }
+   }
+  },
+  {
+   "ts": "2026-10-19 02:29:10",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "ow_iface_edit",
+   "summary": "Edit interface zeta | metric: 9 → 10; Applied with automatic rollback: if the router or a working WAN doesn't come back within 90 s, the old config is restored",
+   "result": {
+    "ok": true,
+    "result": {
+     "applied": true,
+     "change": "b0318aa3",
+     "configs": [
+      "network"
+     ]
+    }
+   }
+  },
+  {
+   "ts": "2026-10-19 02:28:53",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "ow_iface_edit",
+   "summary": "Edit interface Skyline | metric: 8 → 9; Applied with automatic rollback: if the router or a working WAN doesn't come back within 90 s, the old config is restored",
+   "result": {
+    "ok": true,
+    "result": {
+     "applied": true,
+     "change": "45a7277c",
+     "configs": [
+      "network"
+     ]
+    }
+   }
+  },
+  {
+   "ts": "2026-10-18 21:58:55",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "ow_iface_edit",
+   "summary": "Edit interface zeta | metric: 8 → 9; Applied with automatic rollback: if the router or a working WAN doesn't come back within 90 s, the old config is restored",
+   "result": {
+    "ok": true,
+    "result": {
+     "applied": true,
+     "change": "67ae6208",
+     "configs": [
+      "network"
+     ]
+    }
+   }
+  },
+  {
+   "ts": "2026-10-18 21:58:38",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "ow_iface_edit",
+   "summary": "Edit interface Skyline | metric: 7 → 8; Applied with automatic rollback: if the router or a working WAN doesn't come back within 90 s, the old config is restored",
+   "result": {
+    "ok": true,
+    "result": {
+     "applied": true,
+     "change": "d9f0444f",
+     "configs": [
+      "network"
+     ]
+    }
+   }
+  },
+  {
+   "ts": "2026-10-18 21:32:36",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "switch_port",
+   "summary": "Switch port 8 (Port8) | Native VLAN: Default (VLAN 1) -> transit (VLAN 350); Untagged + transit (VLAN 350); Untagged − Default (VLAN 1); Result → untagged: transit (VLAN 350) | tagged: none",
+   "result": {
+    "ok": true,
+    "result": {
+     "verified": true
+    }
+   }
+  },
+  {
+   "ts": "2026-10-18 21:03:45",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "switch_port",
+   "summary": "Switch port 10 (Port10) | Native VLAN: HSGQ_Management (VLAN 124) -> Default (VLAN 1); Untagged + Default (VLAN 1); Untagged − HSGQ_Management (VLAN 124); Result → untagged: Default (VLAN 1) | tagged: ZETA (VLAN 1015)",
+   "result": {
+    "ok": true,
+    "result": {
+     "verified": true
+    }
+   }
+  },
+  {
+   "ts": "2026-10-18 20:46:40",
+   "ip": "127.0.0.1",
+   "via": "",
+   "action": "switch_port",
+   "summary": "Switch port 7 (Port7) | Tagged − VSOL_Management (VLAN 123); Result → untagged: Default (VLAN 1) | tagged: none",
+   "result": {
+    "ok": true,
+    "result": {
+     "verified": true
+    }
+   }
+  },
+  {
+   "ts": "2026-10-18 20:46:37",
+   "ip": "127.0.0.1",
+   "via": "",
+   "action": "switch_port",
+   "summary": "Switch port 7 (Port7) | Tagged + VSOL_Management (VLAN 123); Result → untagged: Default (VLAN 1) | tagged: VSOL_Management (VLAN 123)",
+   "result": {
+    "ok": true,
+    "result": {
+     "verified": true
+    }
+   }
+  },
+  {
+   "ts": "2026-10-18 20:44:42",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "settings_protected",
+   "summary": "Update protected switch ports | Port 9: (none) → HSGQ stick (Zeta, SFP); Port 10: HSGQ stick (Zeta, SFP) → (none)",
+   "result": {
+    "ok": true,
+    "result": {
+     "saved": true
+    }
+   }
+  },
+  {
+   "ts": "2026-10-18 20:10:20",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "switch_port",
+   "summary": "Switch port 9 (Port9)",
+   "result": {
+    "ok": false,
+    "error": "Omada -1: General error."
+   }
+  },
+  {
+   "ts": "2026-10-18 20:09:50",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "switch_port",
+   "summary": "Switch port 9 (Port9)",
+   "result": {
+    "ok": false,
+    "error": "Omada -1: General error."
+   }
+  },
+  {
+   "ts": "2026-10-18 20:08:07",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "switch_port",
+   "summary": "Switch port 9 (Port9)",
+   "result": {
+    "ok": false,
+    "error": "Omada -1: General error."
+   }
+  },
+  {
+   "ts": "2026-10-18 20:07:42",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "switch_port",
+   "summary": "Switch port 9 (Port9)",
+   "result": {
+    "ok": false,
+    "error": "Omada -1: General error."
+   }
+  },
+  {
+   "ts": "2026-10-18 00:40:44",
+   "ip": "192.0.2.9",
+   "via": "",
+   "action": "ow_mwan_policy",
+   "summary": "Edit mwan3 policy NAS | Edit policy NAS: m_zeta; last resort unreachable (was m_zeta; unreachable); Applied with automatic rollback: if the router or a working WAN doesn't come back within 90 s, the old config is restored",
+   "result": {
+    "ok": true,
+    "result": {
+     "applied": true,
+     "change": "ef50f22a",
+     "configs": [
+      "mwan3"
+     ]
+    }
+   }
+  },
+  {
+   "ts": "2026-10-17 18:50:58",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "ow_mwan_policy",
+   "summary": "Edit mwan3 policy NAS | Edit policy NAS: m_zeta; last resort unreachable (was m_skyline, m_zeta; unreachable); Applied with automatic rollback: if the router or a working WAN doesn't come back within 90 s, the old config is restored",
+   "result": {
+    "ok": true,
+    "result": {
+     "applied": true,
+     "change": "fd91cebd",
+     "configs": [
+      "mwan3"
+     ]
+    }
+   }
+  },
+  {
+   "ts": "2026-10-17 16:16:36",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "password",
+   "summary": "Requested a password reset code (sent to Telegram)",
+   "result": {
+    "ok": true
+   }
+  },
+  {
+   "ts": "2026-10-17 16:15:46",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "password",
+   "summary": "Reset the NOC password with a Telegram code",
+   "result": {
+    "ok": true
+   }
+  },
+  {
+   "ts": "2026-10-17 16:15:02",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "password",
+   "summary": "Requested a password reset code (sent to Telegram)",
+   "result": {
+    "ok": true
+   }
+  },
+  {
+   "ts": "2026-10-17 16:15:02",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "password",
+   "summary": "Requested a password reset code (sent to Telegram)",
+   "result": {
+    "ok": true
+   }
+  },
+  {
+   "ts": "2026-10-17 05:06:49",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "net_delete",
+   "summary": "Delete network test3 and its router setup | Delete network 'test3' (VLAN 560); First removes it from: LAG 1 (tagged); ⚠ LAG 1 is the only link between switch and router; Router (OpenWrt), done first:;   Delete interface test3 (dhcp on bond.560);   Delete device bond.560;   Applied with automatic rollback: if the router or a working WAN doesn't come back within 90 s, the old config is restored; If the router part fails, the switch is left untouched",
+   "result": {
+    "ok": true,
+    "result": {
+     "router": {
+      "applied": true,
+      "change": "9f30969e",
+      "configs": [
+       "firewall",
+       "network"
+      ]
+     },
+     "verified": true
+    }
+   }
+  },
+  {
+   "ts": "2026-10-17 05:04:47",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "net_create",
+   "summary": "Create network test3 (VLAN 560) on the switch and the router | Omada: new switch VLAN 'test3' with ID 560; DHCP server device: none (static IPs only); Omada: carry it tagged on LAG 1 (ports 4 + 5, the link to the router); Router (OpenWrt), applied after the switch:;   New device bond.560: VLAN 560 (802.1q) on bond;   IPv6: off;   New interface test3: dhcp on bond.560;   Firewall zone: none → wan;   Applied with automatic rollback: if the router or a working WAN doesn't come back within 90 s, the old config is restored; If the router part fails, the new Omada network is removed again, so nothing is left half-done",
+   "result": {
+    "ok": true,
+    "result": {
+     "verified": true,
+     "id": "bc0dda728c008790e462a42f",
+     "lag": 1,
+     "router": {
+      "applied": true,
+      "change": "fdc832db",
+      "configs": [
+       "firewall",
+       "network"
+      ]
+     }
+    }
+   }
+  },
+  {
+   "ts": "2026-10-17 05:00:58",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "ow_iface_delete",
+   "summary": "Delete interface test | Delete interface test (dhcp on bond.400); Remove it from firewall zone wan; Remove mwan3 interface test; Remove mwan3 member m_test; Remove m_test from policy balanced; Applied with automatic rollback: if the router or a working WAN doesn't come back within 90 s, the old config is restored",
+   "result": {
+    "ok": true,
+    "result": {
+     "applied": true,
+     "change": "4deed024",
+     "configs": [
+      "firewall",
+      "mwan3",
+      "network"
+     ]
+    }
+   }
+  },
+  {
+   "ts": "2026-10-17 04:54:35",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "net_delete",
+   "summary": "Delete network test | Delete network 'test' (VLAN 400); First removes it from: LAG 1 (tagged); ⚠ LAG 1 is the only link between switch and router; ⚠ Router interface(s) on bond.400 lose this VLAN: test (kept on the router: tick the router options to remove them too)",
+   "result": {
+    "ok": true,
+    "result": {
+     "verified": true
+    }
+   }
+  },
+  {
+   "ts": "2026-10-17 04:46:08",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "net_create",
+   "summary": "Create network test (VLAN 400) on the switch and the router | Omada: new switch VLAN 'test' with ID 400; DHCP server device: none (static IPs only); Omada: carry it tagged on LAG 1 (ports 4 + 5, the link to the router); Router (OpenWrt), applied after the switch:;   New device bond.400: VLAN 400 (802.1q) on bond;   IPv6: off;   New interface test: dhcp on bond.400;   Firewall zone: none → wan;   mwan3: track 8.8.8.8, member m_test (metric 1, weight 1), in policies balanced;   Applied with automatic rollback: if the router or a working WAN doesn't come back within 90 s, the old config is restored; If the router part fails, the new Omada network is removed again, so nothing is left half-done",
+   "result": {
+    "ok": true,
+    "result": {
+     "verified": true,
+     "id": "5f4d813cf89a6ed9ddc5b72e",
+     "lag": 1,
+     "router": {
+      "applied": true,
+      "change": "14273919",
+      "configs": [
+       "firewall",
+       "mwan3",
+       "network"
+      ]
+     }
+    }
+   }
+  },
+  {
+   "ts": "2026-10-17 02:29:07",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "net_delete",
+   "summary": "Delete network transit | Delete network 'transit' (VLAN 250); No port or LAG carries it.",
+   "result": {
+    "ok": true,
+    "result": {
+     "verified": true
+    }
+   }
+  },
+  {
+   "ts": "2026-10-17 02:27:41",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "net_create",
+   "summary": "Create network transit (VLAN 250) | Omada: new switch VLAN 'transit' with ID 250; DHCP server device: none (static IPs only); Not on any port yet: add it with Edit VLANs on the ports/LAG that should carry it.",
+   "result": {
+    "ok": true,
+    "result": {
+     "verified": true,
+     "id": "99f2ddcc2f6a46564d91f23c"
+    }
+   }
+  },
+  {
+   "ts": "2026-10-16 20:17:13",
+   "ip": "telegram",
+   "via": "chat 100200300",
+   "action": "telegram_pair",
+   "summary": "Paired Telegram chat (noc_operator)",
+   "result": {
+    "ok": true
+   }
+  },
+  {
+   "ts": "2026-10-16 20:16:25",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "telegram_pair_code",
+   "summary": "Created a Telegram pairing code",
+   "result": {
+    "ok": true
+   }
+  },
+  {
+   "ts": "2026-10-16 18:56:22",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "net_edit",
+   "summary": "Edit network Skyline1 | Name: Skyline1 -> Skyline; DHCP server device: none (static IPs only)",
+   "result": {
+    "ok": true,
+    "result": {
+     "verified": true
+    }
+   }
+  },
+  {
+   "ts": "2026-10-16 18:53:31",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "net_edit",
+   "summary": "Edit network Skyline | Name: Skyline -> VSOL_Management; DHCP server device: none (static IPs only)",
+   "result": {
+    "ok": true,
+    "result": {
+     "verified": true
+    }
+   }
+  },
+  {
+   "ts": "2026-10-16 02:47:50",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "switch_lag",
+   "summary": "LAG 1 VLANs | Tagged − Skyline1 (VLAN 3527); Result → untagged: Default (VLAN 1) | tagged: Skyline (VLAN 123), ZETA (VLAN 1015), HSGQ_Management (VLAN 124); WARNING: LAG 1 (ports 4+5) is the only link between switch and router",
+   "result": {
+    "ok": true,
+    "result": {
+     "verified": true
+    }
+   }
+  },
+  {
+   "ts": "2026-10-16 02:46:24",
+   "ip": "192.0.2.166",
+   "via": "",
+   "action": "switch_lag",
+   "summary": "LAG 1 VLANs | Tagged + Skyline1 (VLAN 3527); Result → untagged: Default (VLAN 1) | tagged: Skyline (VLAN 123), ZETA (VLAN 1015), Skyline1 (VLAN 3527), HSGQ_Management (VLAN 124); WARNING: LAG 1 (ports 4+5) is the only link between switch and router",
+   "result": {
+    "ok": true,
+    "result": {
+     "verified": true
+    }
+   }
+  }
+ ],
+ "meta": {
+  "site_name": "Home NOC",
+  "dns_vip": "192.0.2.10",
+  "new_network": {
+   "subnet_template": "198.18.{n}.1/24",
+   "range_start": 100,
+   "range_end": 200,
+   "lease_h": 12,
+   "dns": "192.0.2.10"
+  }
+ }
+}

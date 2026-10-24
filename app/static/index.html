@@ -2,7 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f3f5f9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0e16" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="NOC">
+<meta name="format-detection" content="telephone=no">
 <title>NOC</title>
 <style>
   :root { color-scheme: light dark;
@@ -197,22 +203,93 @@
   @keyframes pulse { 50% { box-shadow:0 0 0 6px transparent; } }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation:none !important; transition:none !important; } }
 
-  /* phones and small tablets: sidebar becomes a top bar with a scrolling tab strip */
+  /* mobile navigation: hidden on desktop */
+  #menu, #scrim, #bottombar { display:none; }
+  .sr-only { position:absolute !important; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+
+  /* phones and small tablets: the sidebar becomes a slide-in drawer, with a bottom tab bar for the main sections */
   @media (max-width: 900px) {
     .shell { grid-template-columns:minmax(0, 1fr); }
-    .side { position:sticky; top:0; z-index:6; height:auto; flex-direction:row; align-items:center; padding:8px 16px; gap:10px; border-right:0; border-bottom:1px solid var(--border); }
-    .brand { padding:0; } .brand small { display:none; }
-    nav#tabs { flex-direction:row; flex:1; overflow-x:auto; scrollbar-width:none; } nav#tabs::-webkit-scrollbar { display:none; }
-    nav#tabs button { padding:7px 10px; white-space:nowrap; } nav#tabs button.on::before { display:none; }
-    nav#tabs button:not(.on) span { display:none; } nav#tabs button { padding:7px 8px; } .navh { display:none; }
-    .side-foot { margin:0; border:0; padding:0; flex-direction:row; } .side-foot span { display:none; }
-    .top { position:static; padding:12px 16px; flex-wrap:wrap; }
-    main#view { padding:16px 16px 32px; }
+    .side { position:fixed; top:0; bottom:0; left:0; z-index:40; width:min(84vw, 300px); height:100dvh; overflow-y:auto; overscroll-behavior:contain;
+      padding:calc(16px + env(safe-area-inset-top)) 12px calc(16px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
+      transform:translateX(-105%); transition:transform .22s ease-out; box-shadow:0 0 40px rgba(0,0,0,.35); }
+    body.nav-open .side { transform:none; }
+    body.nav-open { overflow:hidden; }
+    #scrim { display:block; position:fixed; inset:0; z-index:39; background:rgba(8,12,20,.55); opacity:0; pointer-events:none; transition:opacity .2s; }
+    body.nav-open #scrim { opacity:1; pointer-events:auto; }
+    nav#tabs { overflow:visible; }
+    nav#tabs button, .side-foot a, .side-foot button { min-height:44px; box-sizing:border-box; }
+    nav#tabs button.on::before { left:-12px; }
+
+    .top { padding:calc(8px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) 8px calc(12px + env(safe-area-inset-left)); gap:8px; }
+    .top h2 { flex:1; min-width:0; font-size:18px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .top .spacer { display:none; }
+    #menu { display:grid; }
+    .iconbtn { width:40px; height:40px; flex:none; }
+
+    #bottombar { display:flex; position:fixed; left:0; right:0; bottom:0; z-index:30; background:var(--glass); border-top:1px solid var(--border);
+      backdrop-filter:saturate(1.4) blur(12px); -webkit-backdrop-filter:saturate(1.4) blur(12px);
+      padding:4px calc(6px + env(safe-area-inset-right)) calc(4px + env(safe-area-inset-bottom)) calc(6px + env(safe-area-inset-left)); }
+    #bottombar button { all:unset; box-sizing:border-box; flex:1; min-width:0; min-height:52px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+      border-radius:10px; color:var(--muted); font-size:11px; font-weight:600; cursor:pointer; position:relative; -webkit-tap-highlight-color:transparent; }
+    #bottombar button svg { width:22px; height:22px; }
+    #bottombar button span { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    #bottombar button.on { color:var(--accent); }
+    #bottombar button:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+    #bottombar .nb { position:absolute; top:4px; left:calc(50% + 6px); margin:0; min-width:18px; height:18px; font-size:10.5px; line-height:18px; padding:0 5px; }
+    #toasts { bottom:calc(72px + env(safe-area-inset-bottom)); right:12px; left:12px; max-width:none; }
+
+    main#view { padding:16px calc(16px + env(safe-area-inset-right)) calc(84px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left)); }
     .grid, .fibre { grid-template-columns:minmax(0, 1fr); } .span2 { grid-column:auto; }
     .card h2 { flex-wrap:wrap; row-gap:8px; }
     .card > table { display:block; overflow-x:auto; }
     .kpis { grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; }
     .hero { padding:16px; } .hero h2 { font-size:17px; }
+    .tile:hover { transform:none; }
+
+    /* touch-sized controls; 16px text stops iOS zooming into a field on focus */
+    button.act { min-height:38px; } button.act.sm { min-height:34px; min-width:36px; }
+    select, input[type=number], input[type=text], input[type=password] { font-size:16px; min-height:40px; }
+    .seg label { padding:8px 12px; }
+  }
+
+  /* phones */
+  @media (max-width: 600px) {
+    .top .meta { position:absolute !important; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+    .health.ok span { position:absolute !important; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+    .health.ok { padding:6px; }
+    main#view { padding-top:12px; }
+    .card { padding:14px; }
+    .pill, td .pill { white-space:normal; overflow-wrap:anywhere; max-width:100%; }   /* long VLAN names must not widen the page */
+    .tiles { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; }
+    .tile { padding:10px 11px; } .tile-h b { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .tile-m { flex-wrap:wrap; column-gap:8px; row-gap:0; }
+    .tile .addr { white-space:normal; overflow-wrap:anywhere; font-size:11.5px; }   /* the end of an IPv6 address is the part that differs */
+
+    /* tables become one card per row; each cell is labelled with its column header (see cardify) */
+    table.cards, table.cards > tbody, table.cards > thead { display:block; width:100%; }
+    .card > table.cards { overflow:visible; }
+    table.cards tr { display:block; margin:0 0 10px; padding:10px 12px; border:1px solid var(--border); border-radius:12px; background:var(--card-2); }
+    table.cards tr:last-child { margin-bottom:0; }
+    table.cards tr.thead-row { display:none; }
+    table.cards tr:hover td { background:none; }
+    /* the label sits in a fixed left column; the cell's own content flows normally beside it */
+    table.cards td { display:block; position:relative; min-height:26px; padding:4px 0 4px min(36%, 130px); border:0;
+      text-align:left !important; white-space:normal; overflow-wrap:anywhere; }
+    table.cards td::before { content:attr(data-label); position:absolute; left:0; top:6px; width:calc(min(36%, 130px) - 10px);
+      color:var(--muted); font-size:11px; font-weight:650; line-height:1.3; text-transform:uppercase; letter-spacing:.04em; overflow-wrap:normal; }
+    table.cards td[data-label=""], table.cards td:first-child { padding-left:0; }
+    table.cards td[data-label=""]::before, table.cards td:first-child::before { display:none; }
+    table.cards td:first-child { font-size:14.5px; font-weight:650; padding-bottom:6px; }
+    table.cards td:empty { display:none; }
+    table.cards td.acts { min-width:0; } table.cards td.acts .row, table.cards td .row { flex-wrap:wrap; }
+    table.cards td input[type=text], table.cards td input[type=number], table.cards td input[type=password], table.cards td select { width:100% !important; max-width:100%; }
+
+    /* dialogs open as bottom sheets */
+    dialog, dialog[style] { width:100%; max-width:100% !important; margin:auto 0 0; border-radius:18px 18px 0 0; max-height:92dvh; overflow:auto;
+      padding:18px calc(16px + env(safe-area-inset-right)) calc(18px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left)); }
+    #fdlg { max-height:92dvh; }
+    dialog .row[style*="flex-end"] > button { flex:1; }
   }
 </style>
 <script>
@@ -222,7 +299,7 @@
 </head>
 <body>
 <div class="shell">
-<aside class="side">
+<aside class="side" id="side" aria-label="Navigation">
   <div class="brand"><div class="brand-logo" id="brand-logo"></div><div><h1 id="site-name">NOC</h1><small>Network operations</small></div></div>
   <nav id="tabs" aria-label="Sections">
     <button data-t="overview" class="on">Overview</button><button data-t="dns">DNS</button>
@@ -238,6 +315,7 @@
 </aside>
 <div class="content">
 <header class="top">
+  <button class="iconbtn" id="menu" type="button" aria-label="Open menu" aria-controls="side" aria-expanded="false"></button>
   <h2 id="page-title">Overview</h2>
   <span class="health" id="health"><i></i><span>checking…</span></span>
   <span class="spacer"></span>
@@ -247,6 +325,12 @@
 <main id="view"></main>
 </div>
 </div>
+<div id="scrim" aria-hidden="true"></div>
+<nav id="bottombar" aria-label="Main sections">
+  <button type="button" data-go="overview">Overview</button><button type="button" data-go="router">Router</button>
+  <button type="button" data-go="switch">Switch</button><button type="button" data-go="alerts">Alerts</button>
+  <button type="button" id="more" aria-controls="side" aria-expanded="false">More</button>
+</nav>
 <div id="toasts" role="status" aria-live="polite"></div>
 <div id="progress" aria-hidden="true"></div>
 
@@ -272,8 +356,7 @@
   .seg input { position:absolute; opacity:0; width:0; height:0; }
   .seg label:has(input:checked)[data-s="none"] { background:var(--chip); color:var(--text); font-weight:600; }
   .seg label:has(input:checked)[data-s="untag"] { background:var(--ok-bg); color:var(--ok); font-weight:600; }
-  .seg label:has(input:checked)[data-s="tag"] { background:#e7eefc; color:var(--accent); font-weight:600; }
-  @media (prefers-color-scheme: dark) { .seg label:has(input:checked)[data-s="tag"] { background:#1b2a47; } }
+  .seg label:has(input:checked)[data-s="tag"] { background:var(--accent-bg); color:var(--accent); font-weight:600; }
   .seg label:has(input:focus-visible) { outline:2px solid var(--accent); outline-offset:-2px; }
   #vdlg-table td { vertical-align:middle; }
   #vdlg-table tr.native-row td { background:var(--ok-bg); }
@@ -286,7 +369,7 @@
   <div class="small legend" style="margin:10px 0 6px">
     <span><b>Native</b> = untagged traffic arriving on this link joins this VLAN (one only)</span><br>
     <span><span class="pill ok">Untagged</span> sent without a VLAN tag</span>
-    <span><span class="pill" style="background:#e7eefc;color:var(--accent)">Tagged</span> sent with an 802.1Q tag</span>
+    <span><span class="pill" style="background:var(--accent-bg);color:var(--accent)">Tagged</span> sent with an 802.1Q tag</span>
     <span><span class="pill mut">Off</span> not carried</span>
   </div>
   <div class="scroll"><table id="vdlg-table"></table></div>
@@ -401,6 +484,8 @@ const ICON = {
   mwan: svg('<path d="M4 7h10l3-3M4 7l3 3M4 17h10l3 3M4 17l3-3"/><circle cx="19" cy="7" r="2"/><circle cx="19" cy="17" r="2"/>'),
   internet: svg('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>'),
   fibre: svg('<path d="M3 12c3-6 6-6 9 0s6 6 9 0"/><circle cx="3" cy="12" r="1"/><circle cx="21" cy="12" r="1"/>'),
+  menu: svg('<path d="M4 6h16M4 12h16M4 18h16"/>'),
+  more: svg('<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>'),
 };
 const GROUP_LABEL = {core: 'Core', isp: 'ISP boxes', dns: 'DNS', server: 'Servers', iot: 'IoT', client: 'Clients', other: 'Other'};
 const TITLES = {interfaces: 'Interfaces', netdevs: 'Network devices', mwan: 'MultiWAN', overview: 'Overview', dns: 'DNS', switch: 'Switch', router: 'Router', wifi: 'Wi-Fi', devices: 'Devices',
@@ -429,8 +514,7 @@ function setHealth(al) {
   h.innerHTML = `<i></i><span>${n ? `${n} problem${n > 1 ? 's' : ''}` : 'All systems normal'}</span>`;
   h.title = n ? al.problems.map(p => p.text).join('\n') : 'Every check is OK';
   h.onclick = n ? () => document.querySelector('#tabs [data-t="overview"]').click() : null;
-  const nb = $('#nb-alerts');
-  if (nb) { nb.textContent = n; nb.hidden = !n; }
+  document.querySelectorAll('[data-nb="alerts"]').forEach(nb => { nb.textContent = n; nb.hidden = !n; });
 }
 let DV = null;
 
@@ -631,6 +715,69 @@ const dur = s => { if (s == null) return '–'; s = +s; const d = Math.floor(s/8
 const bytes = b => { if (b == null) return '–'; const u = ['B','KB','MB','GB','TB']; let i = 0; b = +b; while (b >= 1024 && i < 4) { b /= 1024; i++; } return b.toFixed(i ? 1 : 0) + '\u00a0' + u[i]; };
 const bar = p => p == null ? '–' : `<div class="row" style="gap:6px;flex-wrap:nowrap"><div class="bar" style="flex:1"><i class="${p>=90?'hi':''}" style="width:${Math.min(p,100)}%"></i></div><span>${p}%</span></div>`;
 
+// ---------- mobile navigation: drawer (all sections) + bottom bar (main sections)
+const MOBILE = window.matchMedia('(max-width: 900px)');
+const BOTTOM_TABS = ['overview', 'router', 'switch', 'alerts'];
+// Which bottom-bar button stands for a tab: its own, or "more" for the rest.
+const navTarget = t => BOTTOM_TABS.includes(t) ? t : 'more';
+function syncNav(t) {
+  const target = navTarget(t);
+  document.querySelectorAll('#bottombar button').forEach(b => {
+    const on = (b.dataset.go || 'more') === target;
+    b.classList.toggle('on', on);
+    if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  });
+}
+// A closed drawer is off screen: keep it out of the tab order and the accessibility tree.
+function setDrawerInert() {
+  $('#side').inert = MOBILE.matches && !document.body.classList.contains('nav-open');
+}
+function openNav() {
+  document.body.classList.add('nav-open');
+  ['#menu', '#more'].forEach(s => $(s).setAttribute('aria-expanded', 'true'));
+  setDrawerInert();
+  (document.querySelector('#tabs button.on') || document.querySelector('#tabs button')).focus({preventScroll: true});
+}
+function closeNav(restoreFocus = true) {
+  if (!document.body.classList.contains('nav-open')) return;
+  document.body.classList.remove('nav-open');
+  ['#menu', '#more'].forEach(s => $(s).setAttribute('aria-expanded', 'false'));
+  setDrawerInert();
+  if (restoreFocus) $('#menu').focus({preventScroll: true});
+}
+
+// ---------- tables as cards on phones: each cell is labelled with its column header
+// Header texts per column; a header cell spanning n columns labels all n.
+function colLabels(row) {
+  const out = [];
+  for (const c of row.cells) for (let i = 0; i < (c.colSpan || 1); i++) out.push(c.textContent.trim());
+  return out;
+}
+// Labels every body cell of a table whose first all-<th> row is its header. False when it has none.
+function cardify(table) {
+  const rows = [...table.rows];
+  const head = rows.find(r => r.cells.length && [...r.cells].every(c => c.tagName === 'TH'));
+  if (!head) return false;
+  const labels = colLabels(head);
+  head.classList.add('thead-row');
+  for (const r of rows) {
+    if (r === head) continue;
+    let col = 0;
+    for (const c of r.cells) {
+      const span = c.colSpan || 1;
+      c.dataset.label = span > 1 ? '' : (labels[col] || '');
+      col += span;
+    }
+  }
+  table.classList.add('cards');
+  return true;
+}
+// Views redraw with innerHTML at any time: label tables whenever #view changes.
+let CARDIFY_QUEUED = false;
+const cardifyView = () => { CARDIFY_QUEUED = false; document.querySelectorAll('#view table:not(.no-cards)').forEach(cardify); };
+new MutationObserver(() => { if (!CARDIFY_QUEUED) { CARDIFY_QUEUED = true; queueMicrotask(cardifyView); } })
+  .observe($('#view'), {childList: true, subtree: true});
+
 // Last response of every plain GET, so switching tabs draws at once and then refreshes.
 const CACHE = new Map();
 let LOADSEQ = 0, FROM_CACHE = false, SERVED_CACHE = false;
@@ -660,9 +807,10 @@ async function prefetch() {
 
 let tab = 'overview', timer = null;
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => {
-  if (tab === b.dataset.t) return load();
+  if (tab === b.dataset.t) { closeNav(false); return load(); }
   tab = b.dataset.t;
   document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b));
+  syncNav(tab); closeNav(false);
   const v = $('#view'); v.classList.remove('enter'); void v.offsetWidth; v.classList.add('enter');
   window.scrollTo({top: 0});
   load(tab !== 'settings');  // draw from memory first (Settings always fresh: it holds edits)
@@ -1409,7 +1557,7 @@ const VIEWS = {
     SW = d;
     const profOpts = sel => d.profiles.map(p => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
     const chips = (list, cls) => list.length ? list.map(x => `<span class="pill ${cls}" style="margin:1px">${esc(x)}</span>`).join('') : '<span class="small">none</span>';
-    const TAG = 'background:#e7eefc;color:var(--accent)';
+    const TAG = 'background:var(--accent-bg);color:var(--accent)';
     const vlanCell = x => {
       const others = x.untagged.filter(u => u !== x.native);
       return `<div class="small">Native (untagged): <span class="pill ok" style="margin:1px">${esc(x.native)}</span></div>
@@ -1798,8 +1946,20 @@ const VIEWS = {
   },
 };
 document.querySelectorAll('#tabs button').forEach(b => {
-  b.innerHTML = (ICON[b.dataset.t] || '') + `<span>${b.textContent}</span>` + (b.dataset.t === 'alerts' ? '<em class="nb" id="nb-alerts" hidden></em>' : '');
+  b.innerHTML = (ICON[b.dataset.t] || '') + `<span>${b.textContent}</span>` + (b.dataset.t === 'alerts' ? '<em class="nb" data-nb="alerts" hidden></em>' : '');
 });
+document.querySelectorAll('#bottombar button').forEach(b => {
+  const t = b.dataset.go || 'more';
+  b.innerHTML = ICON[t] + `<span>${b.textContent}</span>` + (t === 'alerts' ? '<em class="nb" data-nb="alerts" hidden></em>' : '');
+  b.onclick = () => t === 'more' ? (document.body.classList.contains('nav-open') ? closeNav() : openNav())
+                                 : document.querySelector(`#tabs [data-t="${t}"]`).click();
+});
+$('#menu').innerHTML = ICON.menu;
+$('#menu').onclick = () => document.body.classList.contains('nav-open') ? closeNav() : openNav();
+$('#scrim').onclick = () => closeNav();
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('nav-open')) closeNav(); });
+MOBILE.addEventListener('change', () => { if (!MOBILE.matches) closeNav(false); setDrawerInert(); });
+syncNav(tab); setDrawerInert();
 $('#brand-logo').innerHTML = ICON.logo;
 $('#signout').innerHTML = ICON.logout + '<span>Sign out</span>';
 $('#refresh').innerHTML = ICON.refresh;

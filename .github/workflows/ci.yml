@@ -41,6 +41,19 @@ jobs:
             "
           done
 
+  ui-tests:
+    name: UI tests (phone/tablet/desktop layout, JS units, fixtures)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install test tools
+        run: pip install ddt playwright && python -m playwright install --with-deps chromium
+      - name: Run the data-driven UI tests
+        run: python -m unittest discover -s tests/ui -p "test_*.py"
+
   config-and-scripts:
     name: Configs and shell scripts
     runs-on: ubuntu-latest

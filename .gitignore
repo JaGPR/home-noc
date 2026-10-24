@@ -11,3 +11,5 @@ __pycache__/
 *.pyc
 .venv/
 .claude/
+tests/fixtures.json
+tests/ui/sanitize.local.json
