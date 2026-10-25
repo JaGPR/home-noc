@@ -27,6 +27,8 @@ Plus the field notes that came with it: a **highly available Pi-hole** kit and a
 
 **Telegram alerts and bot** (optional): devices, WAN links, Pi-holes, the DNS VIP and fibre optics are checked every 30 s, and a change that holds for two checks is sent to your paired chat. The bot answers `/status`, `/wan`, `/dns`, `/optics` and more, and can restart a WAN or a whole ISP group or pause ad-blocking, each after a Confirm button. It also reports **Proxmox backups**: each finished run with every guest's result, plus failed, stuck or missed backups and a full or offline backup storage (`/backups` lists each guest's latest backup). See [docs/telegram.md](docs/telegram.md).
 
+**PPPoE speed watch** (optional): an ISP can throttle one session of a multi-session PPPoE WAN while the rest stay fast. `app/speedwatch.py`, run hourly by cron (`deploy/noc-speedwatch.cron`), downloads a slice of `speedwatch.url` through every PPPoE interface on the router, retests a slow one, and sends Telegram a message when a session drops below `speedwatch.slow_mbps` and when it recovers. History: `/var/lib/noc/speedwatch.jsonl`.
+
 **On phones**: below 900 px wide the sidebar becomes a slide-in menu and a bottom bar keeps Overview, Router, Switch and Alerts one tap away; on phones every table turns into one card per row, dialogs open as bottom sheets, and controls are touch-sized (fields use 16 px text so iOS doesn't zoom in). Add it to your home screen for a full-screen app.
 
 ### Safety model

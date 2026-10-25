@@ -1,0 +1,2 @@
+# Per-session PPPoE speed watch (app/speedwatch.py): hourly, Telegram alert when a session turns slow
+7 * * * * root cd /opt/noc && NOC_NO_WORKERS=1 python3 speedwatch.py >> /var/log/noc-speedwatch.log 2>&1
