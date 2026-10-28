@@ -26,6 +26,7 @@ import urllib3
 from fastapi import FastAPI, Request
 
 import auth
+import hardware
 import notify
 import openwrt
 import settings
@@ -163,10 +164,11 @@ def invalidate(*keys):
             _cache.pop(k, None)
 
 
-def ssh(host, script, timeout=20):
+def ssh(host, script, timeout=20, command="sh -s"):
     """Run a shell script on a host. One SSH connection per host is kept open for 5 minutes
     and reused (about 6 ms per call instead of a 130 ms handshake, and no login per call in
-    the host's log). If the shared connection can't be used, ssh falls back to a normal one."""
+    the host's log). If the shared connection can't be used, ssh falls back to a normal one.
+    `command` replaces "sh -s" for a host whose key only allows one program (hardware.py)."""
     try:
         SSH_MUX.mkdir(mode=0o700, parents=True, exist_ok=True)
         mux = ["-o", "ControlMaster=auto", "-o", f"ControlPath={SSH_MUX}/%C", "-o", "ControlPersist=300",
@@ -176,7 +178,7 @@ def ssh(host, script, timeout=20):
     r = subprocess.run(
         ["ssh", "-i", KEY, "-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
          "-o", f"UserKnownHostsFile={KNOWN_HOSTS}", "-o", "StrictHostKeyChecking=yes", *mux,
-         f"root@{host}", "sh -s"],
+         f"root@{host}", command],
         input=script, capture_output=True, text=True, timeout=timeout)
     if r.returncode != 0:
         raise RuntimeError(r.stderr.strip() or f"ssh exit {r.returncode}")
@@ -1002,6 +1004,8 @@ def plan_action(kind, p):
         return settings.plan(sys.modules[__name__], kind, p)
     if kind.startswith("ow_"):
         return openwrt.plan(sys.modules[__name__], kind, p)
+    if kind.startswith("hw_"):
+        return hardware.plan(sys.modules[__name__], kind, p)
     if kind == "dns_blocking":
         enable = bool(p.get("enable"))
         minutes = int(p.get("minutes") or 0)
@@ -1703,6 +1707,14 @@ def api_switch():
 @app.get("/api/proxmox")
 def api_proxmox():
     return cached("proxmox", 20, collect_proxmox, VIEW_STALE)
+
+
+@app.get("/api/hardware")
+def api_hardware():
+    """Proxmox host temperatures and fans (noc-hw on the host); {"configured": false} without hardware.host."""
+    if not hardware.host(sys.modules[__name__]):
+        return {"configured": False}
+    return cached("hardware", 5, lambda: hardware.collect(sys.modules[__name__]))
 
 
 @app.get("/api/audit")

@@ -1,0 +1,306 @@
+#!/usr/bin/env python3
+"""noc-hw: the Proxmox host's fans, set from the Home NOC (app/hardware.py) over SSH.
+
+The NOC only stores a wanted mode (`noc-hw set ...`). The `noc-hw guard` service applies it
+every few seconds, with fail-safes that do not depend on the NOC:
+- at hot_c (CPU or GPU) every fan this controls runs at 100 % until both are below hot_c - 10;
+- a temperature that cannot be read hands that target's fans back to firmware control (auto);
+- when the guard stops or dies (systemd ExecStopPost runs `noc-hw restore`), every fan goes
+  back to the board's / GPU's own control.
+
+Targets: board (the motherboard fan headers in config "channels") and gpu (amdgpu fan).
+Modes: auto (firmware), quiet, balanced, full, manual <pct>. Never below a channel's min_pct.
+
+  noc-hw status                      JSON: temperatures, fans, wanted modes, guard state
+  noc-hw set board|gpu <mode> [pct]
+  noc-hw restore                     every fan back to firmware control now
+  noc-hw guard                       the enforcing loop (systemd: noc-hw.service)
+  noc-hw ssh                         forced command: runs SSH_ORIGINAL_COMMAND if it is one of the above
+Config: /etc/noc-hw.json (see DEFAULTS). Install: deploy/proxmox/install-noc-hw.sh
+"""
+import json
+import os
+import shlex
+import signal
+import sys
+import time
+from pathlib import Path
+
+ROOT = Path(os.environ.get("NOC_HW_ROOT", "/"))   # tests point this at a fake sysfs
+CONF = ROOT / "etc/noc-hw.json"
+VAR = ROOT / "var/lib/noc-hw"
+RUN = ROOT / "run/noc-hw"
+HWMON = ROOT / "sys/class/hwmon"
+
+DEFAULTS = {
+    "board_chip": "nct6798",
+    # pwm channel -> {name, min_pct}; only these are ever touched
+    "channels": {},
+    "hot_c": 85,
+    "interval_s": 3,
+}
+MODES = ("auto", "quiet", "balanced", "full", "manual")
+TARGETS = ("board", "gpu")
+# (temperature C, fan %) points; linear between them, flat outside
+CURVES = {
+    "quiet": [(40, 25), (55, 30), (65, 45), (75, 70), (82, 100)],
+    "balanced": [(40, 35), (55, 45), (65, 60), (75, 80), (82, 100)],
+    "full": [(0, 100)],
+}
+FIRMWARE = {"nct": 5, "amdgpu": 2}   # pwmN_enable when no original was recorded: SmartFan IV / GPU auto
+
+
+def conf():
+    try:
+        return {**DEFAULTS, **json.loads(CONF.read_text())}
+    except FileNotFoundError:
+        return dict(DEFAULTS)
+
+
+def hwmon(name):
+    """The hwmon directory whose name file is `name` (numbers change between boots)."""
+    for d in sorted(HWMON.glob("hwmon*")):
+        try:
+            if (d / "name").read_text().strip() == name:
+                return d
+        except OSError:
+            pass
+    return None
+
+
+def read_int(p):
+    try:
+        return int(Path(p).read_text().strip())
+    except (OSError, ValueError):
+        return None
+
+
+def write(p, v):
+    Path(p).write_text(f"{v}\n")
+
+
+def temps(cfg):
+    """{cpu, gpu, board} in C, None when unreadable."""
+    out = {"cpu": None, "gpu": None, "board": None}
+    core = hwmon("coretemp")
+    if core:
+        for lab in core.glob("temp*_label"):
+            if lab.read_text().strip().startswith("Package id"):
+                v = read_int(str(lab).replace("_label", "_input"))
+                out["cpu"] = v / 1000 if v is not None else None
+    gpu = hwmon("amdgpu")
+    if gpu and (v := read_int(gpu / "temp1_input")) is not None:
+        out["gpu"] = v / 1000
+    board = hwmon(cfg["board_chip"])
+    if board and (v := read_int(board / "temp1_input")) is not None:
+        out["board"] = v / 1000
+    return out
+
+
+def curve(points, t):
+    if t <= points[0][0]:
+        return points[0][1]
+    for (t0, p0), (t1, p1) in zip(points, points[1:]):
+        if t <= t1:
+            return round(p0 + (p1 - p0) * (t - t0) / (t1 - t0))
+    return points[-1][1]
+
+
+def wanted_pct(want, t):
+    """A target's wanted mode and its temperature -> fan % (None = firmware control)."""
+    mode = (want or {}).get("mode", "auto")
+    if mode == "auto":
+        return None
+    if mode == "manual":
+        return int(want["pct"])
+    if t is None:
+        return None             # can't follow a curve without the temperature: firmware takes over
+    return curve(CURVES[mode], t)
+
+
+def decide(wanted, t, hot_was, hot_c):
+    """-> ({target: pct or None}, hot). The guard's whole policy, pure for testing."""
+    hot = any(v is not None and v >= hot_c for v in (t["cpu"], t["gpu"])) or (
+        hot_was and any(v is not None and v >= hot_c - 10 for v in (t["cpu"], t["gpu"])))
+    out = {}
+    for target, temp in (("board", t["cpu"]), ("gpu", t["gpu"])):
+        pct = wanted_pct(wanted.get(target), temp)
+        out[target] = 100 if hot and pct is not None else pct
+    return out, hot
+
+
+def board_fans(cfg):
+    d = hwmon(cfg["board_chip"])
+    return [(d, ch, c) for ch, c in sorted(cfg["channels"].items(), key=lambda x: int(x[0]))] if d else []
+
+
+def gpu_fan():
+    d = hwmon("amdgpu")
+    return d if d and (d / "pwm1").exists() else None
+
+
+def originals():
+    try:
+        return json.loads((VAR / "orig.json").read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def take(enable_path, kind):
+    """Switch one fan to manual, remembering its firmware mode the first time."""
+    orig = originals()
+    cur = read_int(enable_path)
+    if str(enable_path) not in orig and cur not in (None, 1):
+        orig[str(enable_path)] = cur
+        VAR.mkdir(parents=True, exist_ok=True)
+        (VAR / "orig.json").write_text(json.dumps(orig))
+    if cur != 1:
+        write(enable_path, 1)
+
+
+def release(enable_path, kind):
+    v = originals().get(str(enable_path), FIRMWARE[kind])
+    if read_int(enable_path) != v:
+        write(enable_path, v)
+
+
+def apply(cfg, plan):
+    """Write the decided % (or hand back to firmware) for each target's fans."""
+    for d, ch, c in board_fans(cfg):
+        en, pwm = d / f"pwm{ch}_enable", d / f"pwm{ch}"
+        pct = plan.get("board")
+        if pct is None:
+            release(en, "nct")
+        else:
+            take(en, "nct")
+            value = round(max(pct, int(c.get("min_pct", 25))) * 255 / 100)
+            if read_int(pwm) != value:
+                write(pwm, value)
+    g = gpu_fan()
+    if g:
+        pct = plan.get("gpu")
+        if pct is None:
+            release(g / "pwm1_enable", "amdgpu")
+        else:
+            take(g / "pwm1_enable", "amdgpu")
+            value = round(max(pct, int(cfg.get("gpu_min_pct", 20))) * 255 / 100)
+            if read_int(g / "pwm1") != value:
+                write(g / "pwm1", value)
+
+
+def restore(cfg=None):
+    apply(cfg or conf(), {"board": None, "gpu": None})
+
+
+def load_wanted():
+    try:
+        return json.loads((VAR / "wanted.json").read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def set_mode(target, mode, pct=None):
+    if target not in TARGETS:
+        raise ValueError(f"target must be one of {', '.join(TARGETS)}")
+    if mode not in MODES:
+        raise ValueError(f"mode must be one of {', '.join(MODES)}")
+    entry = {"mode": mode}
+    if mode == "manual":
+        try:
+            pct = int(pct)
+        except (TypeError, ValueError):
+            raise ValueError("manual needs a fan % (0-100)")
+        if not 0 <= pct <= 100:
+            raise ValueError("fan % must be 0-100")
+        entry["pct"] = pct
+    w = load_wanted()
+    w[target] = entry
+    VAR.mkdir(parents=True, exist_ok=True)
+    tmp = VAR / "wanted.json.new"
+    tmp.write_text(json.dumps(w))
+    tmp.replace(VAR / "wanted.json")
+    return w
+
+
+def status(cfg=None):
+    cfg = cfg or conf()
+    fans = []
+    for d, ch, c in board_fans(cfg):
+        fans.append({"target": "board", "channel": int(ch), "name": c.get("name", f"Fan {ch}"),
+                     "rpm": read_int(d / f"fan{ch}_input"), "pct": round((read_int(d / f"pwm{ch}") or 0) * 100 / 255),
+                     "auto": read_int(d / f"pwm{ch}_enable") != 1, "min_pct": int(c.get("min_pct", 25))})
+    g = gpu_fan()
+    if g:
+        fans.append({"target": "gpu", "channel": 1, "name": "GPU fan", "rpm": read_int(g / "fan1_input"),
+                     "pct": round((read_int(g / "pwm1") or 0) * 100 / 255), "auto": read_int(g / "pwm1_enable") != 1,
+                     "min_pct": int(cfg.get("gpu_min_pct", 20))})
+    try:
+        guard = json.loads((RUN / "guard.json").read_text())
+        guard["age_s"] = round(time.time() - guard.pop("ts"), 1)
+        guard["running"] = guard["age_s"] < 4 * cfg["interval_s"]
+    except (OSError, ValueError, KeyError):
+        guard = {"running": False}
+    return {"temps": temps(cfg), "fans": fans, "wanted": load_wanted(), "guard": guard,
+            "hot_c": cfg["hot_c"], "modes": list(MODES)}
+
+
+def tick(cfg, hot):
+    """One guard pass: decide and apply, or on any error hand every fan back. -> hot."""
+    err = None
+    try:
+        plan, hot = decide(load_wanted(), temps(cfg), hot, cfg["hot_c"])
+        apply(cfg, plan)
+    except Exception as ex:   # never leave fans in manual on an error
+        err, plan = f"{type(ex).__name__}: {ex}", {}
+        try:
+            restore(cfg)
+        except Exception:
+            pass
+    RUN.mkdir(parents=True, exist_ok=True)
+    (RUN / "guard.json").write_text(json.dumps({"ts": time.time(), "hot": hot, "applied": plan, "error": err}))
+    return hot
+
+
+def guard():
+    cfg, hot, stop = conf(), False, False
+
+    def on_term(*_):
+        nonlocal stop
+        stop = True
+    signal.signal(signal.SIGTERM, on_term)
+    while not stop:
+        hot = tick(cfg, hot)
+        time.sleep(cfg["interval_s"])
+    restore(cfg)
+
+
+def main(argv):
+    if argv[:1] == ["ssh"]:   # forced command: only this program's own commands
+        argv = shlex.split(os.environ.get("SSH_ORIGINAL_COMMAND", ""))
+        if argv and argv[0] in ("noc-hw", "/usr/local/sbin/noc-hw"):   # the same command line works with a plain key
+            argv = argv[1:]
+        if argv[:1] in (["guard"], ["ssh"]):
+            argv = []
+    cmd = argv[0] if argv else ""
+    try:
+        if cmd == "status":
+            print(json.dumps(status()))
+        elif cmd == "set" and len(argv) in (3, 4):
+            set_mode(argv[1], argv[2], argv[3] if len(argv) == 4 else None)
+            print(json.dumps(status()))
+        elif cmd == "restore":
+            restore()
+            print(json.dumps({"restored": True}))
+        elif cmd == "guard":
+            guard()
+        else:
+            print(__doc__, file=sys.stderr)
+            return 2
+    except ValueError as ex:
+        print(json.dumps({"error": str(ex)}))
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

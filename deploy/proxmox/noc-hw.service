@@ -1,0 +1,14 @@
+# Proxmox host fan guard for the Home NOC (deploy/proxmox/noc-hw)
+[Unit]
+Description=NOC fan guard (applies the NOC's fan modes, with fail-safes)
+After=systemd-modules-load.service
+
+[Service]
+ExecStart=/usr/local/sbin/noc-hw guard
+# whatever happened, the fans go back to the board's / GPU's own control
+ExecStopPost=/usr/local/sbin/noc-hw restore
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

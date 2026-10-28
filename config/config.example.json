@@ -125,6 +125,9 @@
     "url": "http://192.0.2.80/100MB.bin",
     "slow_mbps": 100
   },
+  "hardware": {
+    "host": "192.0.2.6"
+  },
   "telegram": {
     "check_every_s": 30,
     "confirm_checks": 2,

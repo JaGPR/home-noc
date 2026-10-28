@@ -22,12 +22,14 @@ Plus the field notes that came with it: a **highly available Pi-hole** kit and a
 | **Alerts** | Telegram setup and pairing, open problems (with the diagnosed cause), recent alerts | Pair / unpair Telegram, send a test |
 | **Settings** | Every setting the NOC uses; secrets shown only as set / not set | Edit DNS servers (Pi-holes, VIP, app passwords), add / edit / remove ISP boxes (modems, ONTs, fibre sticks), WAN groups and their diagnosis paths, fibre ONT sources, protected ports, router/AP/Omada/Proxmox connections, alert timing, site name. Changes apply live. Change the NOC password; a forgotten one is reset with a one-time code sent to Telegram (or `noc-passwd` on the console) |
 | **Wi-Fi** | Every radio on the router and AP, every client with name, IP, signal and rates | — |
-| **Proxmox** | Host CPU/RAM, storage fill, every VM/container (CPU, RAM, disk) | Read-only |
+| **Proxmox** | Host CPU/RAM, storage fill, every VM/container (CPU, RAM, disk); with `hardware.host`, host CPU/GPU/board temperatures and fan speeds | Set the case/CPU and GPU fans to Auto, Quiet, Balanced, Full or a fixed % (guests stay read-only) |
 | **Audit log** | Every change: when, from where, what, result | — |
 
 **Telegram alerts and bot** (optional): devices, WAN links, Pi-holes, the DNS VIP and fibre optics are checked every 30 s, and a change that holds for two checks is sent to your paired chat. The bot answers `/status`, `/wan`, `/dns`, `/optics` and more, and can restart a WAN or a whole ISP group or pause ad-blocking, each after a Confirm button. It also reports **Proxmox backups**: each finished run with every guest's result, plus failed, stuck or missed backups and a full or offline backup storage (`/backups` lists each guest's latest backup). See [docs/telegram.md](docs/telegram.md).
 
 **PPPoE speed watch** (optional): an ISP can throttle one session of a multi-session PPPoE WAN while the rest stay fast. `app/speedwatch.py`, run hourly by cron (`deploy/noc-speedwatch.cron`), downloads a slice of `speedwatch.url` through every PPPoE interface on the router, retests a slow one, and sends Telegram a message when a session drops below `speedwatch.slow_mbps` and when it recovers. History: `/var/lib/noc/speedwatch.jsonl`.
+
+**Proxmox host fans** (optional): the Proxmox tab shows the host's CPU, GPU and board temperatures and its fans, and sets the case/CPU fans and the amdgpu fan to Auto (firmware), a Quiet or Balanced curve, Full or a fixed %. Run `deploy/proxmox/install-noc-hw.sh "<the NOC's id_ed25519.pub>"` on the host and set `hardware.host`. The NOC's key there may run `noc-hw` and nothing else; the host's own `noc-hw` guard applies the mode, runs every fan at 100 % above 85 °C, and hands the fans back to the board and GPU if it stops.
 
 **On phones**: below 900 px wide the sidebar becomes a slide-in menu and a bottom bar keeps Overview, Router, Switch and Alerts one tap away; on phones every table turns into one card per row, dialogs open as bottom sheets, and controls are touch-sized (fields use 16 px text so iOS doesn't zoom in). Add it to your home screen for a full-screen app.
 

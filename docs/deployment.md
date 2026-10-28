@@ -36,6 +36,7 @@ Start from [`config/config.example.json`](../config/config.example.json):
 | `switch.protected_ports` | Ports where any change needs the port name typed to confirm (uplinks, servers) |
 | `omada.*` | Controller URL, `omadacId`, site ID |
 | `proxmox.url`, `proxmox.node` | Proxmox API (read-only token) |
+| `hardware.host` | Optional: Proxmox host running `noc-hw` for temperatures and fan control |
 | `new_network_defaults` | Address suggestions when creating a VLAN, e.g. `10.0.{n}.1/24` |
 
 ## 4. Credentials: `/etc/noc/secrets.env` (chmod 600)
@@ -46,7 +47,7 @@ Never commit this file. Each integration gets **its own, minimal** credential:
 | **OpenWrt router / AP** | Add the NOC's public key to `/etc/dropbear/authorized_keys` on each |
 | **Pi-hole v6** | Settings → Web interface / API → *Configure app password*, one per Pi-hole |
 | **Omada** | Global/Settings → Platform Integration → Open API → Add New App, **Client mode**, admin role for your site. Put the client ID/secret in secrets.env; the omadacId and site ID go in config.json (the site ID is listed under `/openapi/v1/{omadacId}/sites`) |
-| **Proxmox** | `sh deploy/proxmox-token.sh` on the Proxmox host creates a **PVEAuditor (read-only)** token |
+| **Proxmox** | `sh deploy/proxmox-token.sh` on the Proxmox host creates a **PVEAuditor (read-only)** token. For fans: `deploy/proxmox/install-noc-hw.sh "<NOC public key>"` on the host lets that key run `noc-hw` and nothing else |
 | **NOC login** | `NOC_ADMIN_USER` / `NOC_ADMIN_PASS` (first install; replaced by `NOC_ADMIN_PASS_HASH` once you change it in Settings → NOC password); `NOC_SESSION_KEY` signs sessions. Forgot it: **Forgot password?** on the sign-in page sends a one-time code to the paired Telegram chat, or run `noc-passwd` as root on the NOC |
 
 Then: `systemctl restart noc` and open `http://<noc-ip>:8080`.

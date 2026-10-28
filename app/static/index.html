@@ -865,6 +865,28 @@ async function act(kind, params, onDone) {
   return true;
 }
 
+// Proxmox host fans (noc-hw on the host, app/hardware.py)
+const HW_MODES = {auto: 'Auto (firmware)', quiet: 'Quiet curve', balanced: 'Balanced curve', full: 'Full speed', manual: 'Fixed speed'};
+function hwCard(hw) {
+  if (!hw || hw.configured === false) return '';
+  if (hw.error) return `<div class="card wide err">Fans: ${esc(hw.error)}</div>`;
+  const t = hw.temps || {}, g = hw.guard || {}, deg = v => v == null ? '–' : `${Math.round(v)} °C`;
+  const ctl = (target, label) => { const m = (hw.wanted || {})[target] || {mode: 'auto'};
+    return `<div class="row" style="gap:6px;flex-wrap:wrap;margin:6px 0"><b style="min-width:150px">${label}</b>
+      <select data-hwmode="${target}" aria-label="${label} mode">${Object.entries(HW_MODES).map(([k, v]) => `<option value="${k}" ${m.mode === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      <input type="number" min="0" max="100" data-hwpct="${target}" value="${m.pct ?? 50}" style="width:70px" aria-label="${label} fan %" ${m.mode === 'manual' ? '' : 'hidden'}>
+      <button class="act" data-hwset="${target}">Apply</button></div>`; };
+  const guard = !g.running ? '<span class="pill bad">not running: fans on firmware control</span>'
+    : g.hot ? '<span class="pill bad">HOT: every fan at 100 %</span>' : pill(true, 'running');
+  return `<div class="card wide"><h2>Fans and temperatures</h2>
+    <div class="kv"><dt>CPU</dt><dd>${deg(t.cpu)}</dd><dt>GPU</dt><dd>${deg(t.gpu)}</dd><dt>Board</dt><dd>${deg(t.board)}</dd>
+      <dt>Fan guard</dt><dd>${guard}${g.error ? ` <span class="err small">${esc(g.error)}</span>` : ''}</dd></div>
+    <div class="scroll"><table><tr><th>Fan</th><th>Speed</th><th>Power</th><th>Control</th></tr>
+      ${(hw.fans || []).map(f => `<tr><td>${esc(f.name)}</td><td>${f.rpm ?? '–'} rpm</td><td style="min-width:110px">${bar(f.pct)}</td><td>${f.auto ? 'firmware' : 'NOC'}</td></tr>`).join('')}</table></div>
+    ${ctl('board', 'Case and CPU fans')}${ctl('gpu', 'GPU fan')}
+    <div class="small">The host applies these itself: above ${hw.hot_c} °C (CPU or GPU) every fan runs at 100 %, and if its guard stops the fans go back to the board and GPU.</div></div>`;
+}
+
 const errBox = errs => { const e = Object.entries(errs || {}); return e.length ? `<div class="card wide err">Some sources failed: ${e.map(([k,v]) => `<b>${esc(k)}</b>: ${esc(v)}`).join(' · ')}</div>` : ''; };
 
 async function diagnoseWan(target) {
@@ -1757,8 +1779,9 @@ const VIEWS = {
   },
 
   async proxmox() {
-    const d = await api('/api/proxmox');
+    const [d, hw] = await Promise.all([api('/api/proxmox'), api('/api/hardware', {noseq: true}).catch(e => ({error: e.message}))]);
     $('#view').innerHTML = `<div class="grid">
+      ${hwCard(hw)}
       <div class="card"><h2>${esc(d.node)}</h2><div class="kv"><dt>CPU</dt><dd>${d.cpu_pct}%</dd><dt>RAM</dt><dd>${d.mem_pct}%</dd><dt>Uptime</dt><dd>${dur(d.uptime)}</dd><dt>Version</dt><dd class="small">${esc(d.version)}</dd></div></div>
       <div class="card"><h2>Storage</h2><table>${d.storage.map(s => `<tr><td>${esc(s.name)}</td><td class="small">${s.total_gb} GB</td><td style="width:45%">${bar(s.used_pct)}</td></tr>`).join('')}</table></div>
       <div class="card wide"><h2>Guests</h2><div class="scroll"><table><tr><th>ID</th><th>Name</th><th>Type</th><th>Status</th><th>CPU</th><th>RAM</th><th>Disk</th><th>Uptime</th></tr>
@@ -1766,6 +1789,10 @@ const VIEWS = {
           <td>${g.cpu_pct}%</td><td style="min-width:110px">${bar(g.mem_pct)}</td><td style="min-width:110px">${bar(g.disk_pct)}</td><td>${dur(g.uptime)}</td></tr>`).join('')}</table></div>
         <div class="small" style="margin-top:6px">Read-only for now (Proxmox token has the Auditor role).</div></div>
     </div>`;
+    document.querySelectorAll('[data-hwmode]').forEach(s => s.onchange = () => {
+      document.querySelector(`[data-hwpct="${s.dataset.hwmode}"]`).hidden = s.value !== 'manual'; });
+    document.querySelectorAll('[data-hwset]').forEach(b => b.onclick = () => { const t = b.dataset.hwset;
+      act('hw_fan', {target: t, mode: $(`[data-hwmode="${t}"]`).value, pct: +$(`[data-hwpct="${t}"]`).value}); });
   },
 
   async alerts() {
