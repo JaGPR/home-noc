@@ -198,5 +198,91 @@ class Drawer(unittest.TestCase):
         self.assertEqual(js(self.STATE)["focus"], "refresh")
 
 
+LIGHTS = {"available": True, "groups": {
+    "ram": {"devices": [{"name": "ENE DRAM", "mode": "Static"}, {"name": "ENE DRAM", "mode": "Static"}],
+            "modes": ["Off", "Static", "Spectrum Cycle"], "mode": "Static", "wanted": {"mode": "Static", "color": "00AAFF"}},
+    "board": {"devices": [{"name": "<b>board</b>", "mode": "Direct"}], "modes": ["Off", "Static"], "mode": "Direct", "wanted": None}}}
+
+
+@ddt
+class Lighting(unittest.TestCase):
+    def render(self, lights):
+        return js("""l => { const d = document.createElement('div'); d.innerHTML = lightsBlock(l);
+            return [...d.querySelectorAll('[data-lgmode]')].map(s => ({g: s.dataset.lgmode, sel: s.value,
+              opts: [...s.options].map(o => o.value), hidden: d.querySelector(`[data-lgcolor="${s.dataset.lgmode}"]`).hidden,
+              color: d.querySelector(`[data-lgcolor="${s.dataset.lgmode}"]`).value}))
+              .concat([{html: d.innerHTML}]); }""", lights)
+
+    def test_rows(self):
+        *rows, rest = self.render(LIGHTS)
+        self.assertEqual([(r["g"], r["sel"], r["hidden"], r["color"]) for r in rows],
+                         [("ram", "Static", False, "#00aaff"), ("board", "Static", False, "#ffffff")])
+        self.assertEqual(rows[0]["opts"], ["Off", "Static", "Spectrum Cycle"])
+        self.assertIn("now not reported", rest["html"], "the board can't report its mode (and Off is not preselected)")
+        self.assertIn("2 devices", rest["html"])
+
+    @data(None, {"available": False, "groups": {}})
+    def test_hidden_without_openrgb(self, lights):
+        self.assertEqual(js("l => lightsBlock(l)", lights), "")
+
+    def test_nothing_detected(self):
+        self.assertIn("No lighting detected", js("l => lightsBlock(l)", {"available": True, "groups": {}}))
+
+    def test_names_escaped(self):
+        self.assertNotIn("<b>board</b>", js("l => hwCard({temps: {}, guard: {}, fans: [], lights: l})", LIGHTS))
+
+    @data(("ram", "Spectrum Cycle", "#112233", {"group": "ram", "mode": "Spectrum Cycle", "color": "112233"}),
+          ("board", "Static", "#ff0000", {"group": "board", "mode": "Static", "color": "ff0000"}))
+    @unpack
+    def test_apply_sends_action(self, group, mode, color, params):
+        got = js("""async ([group, mode, color]) => {
+            await VIEWS.proxmox(); const sent = [], real = window.act;
+            window.act = (kind, p) => sent.push([kind, p]);
+            try { const s = document.querySelector(`[data-lgmode="${group}"]`); s.value = mode; s.onchange();
+              document.querySelector(`[data-lgcolor="${group}"]`).value = color;
+              document.querySelector(`[data-lgset="${group}"]`).click(); } finally { window.act = real; }
+            return sent; }""", [group, mode, color])
+        self.assertEqual(got, [["hw_light", params]])
+
+    def test_off_hides_colour(self):
+        hidden = js("""async () => { await VIEWS.proxmox(); const s = document.querySelector('[data-lgmode="ram"]');
+            s.value = 'Off'; s.onchange(); return document.querySelector('[data-lgcolor="ram"]').hidden; }""")
+        self.assertTrue(hidden)
+
+
+HW = {"temps": {}, "guard": {"running": True}, "hot_c": 85, "wanted": {"board": {"mode": "quiet"}, "fan2": {"mode": "manual", "pct": 60}},
+      "fans": [{"target": "board", "id": "fan1", "name": "CPU fan", "rpm": 900, "pct": 30, "auto": True},
+               {"target": "board", "id": "fan2", "name": "Fan <2>", "rpm": 1200, "pct": 60, "auto": False},
+               {"target": "gpu", "name": "GPU fan", "rpm": 0, "pct": 0, "auto": True}]}
+
+
+@ddt
+class OneFan(unittest.TestCase):
+    def test_rows(self):
+        got = js("""hw => { const d = document.createElement('div'); d.innerHTML = hwCard(hw);
+            return [...d.querySelectorAll('select[data-hwmode]')].map(s => [s.dataset.hwmode, s.value,
+              !d.querySelector(`[data-hwpct="${s.dataset.hwmode}"]`).hidden]); }""", HW)
+        self.assertEqual(got, [["fan1", "group", False], ["fan2", "manual", True], ["board", "quiet", False], ["gpu", "auto", False]])
+
+    def test_name_escaped_and_gpu_row_has_no_own_control(self):
+        html = js("hw => hwCard(hw)", HW)
+        self.assertNotIn("Fan <2>", html)
+        self.assertIn("GPU fan setting below", html)
+
+    @data(("fan2", "manual", 75, {"target": "fan2", "mode": "manual", "pct": 75}),
+          ("fan1", "group", 50, {"target": "fan1", "mode": "group", "pct": 50}),
+          ("fan1", "full", 50, {"target": "fan1", "mode": "full", "pct": 50}))
+    @unpack
+    def test_apply_sends_action(self, target, mode, pct, params):
+        got = js("""async ([target, mode, pct]) => {
+            await VIEWS.proxmox(); const sent = [], real = window.act;
+            window.act = (kind, p) => sent.push([kind, p]);
+            try { const s = document.querySelector(`[data-hwmode="${target}"]`); s.value = mode; s.onchange();
+              document.querySelector(`[data-hwpct="${target}"]`).value = pct;
+              document.querySelector(`[data-hwset="${target}"]`).click(); } finally { window.act = real; }
+            return sent; }""", [target, mode, pct])
+        self.assertEqual(got, [["hw_fan", params]])
+
+
 if __name__ == "__main__":
     unittest.main()

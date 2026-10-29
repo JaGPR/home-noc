@@ -1,0 +1,11 @@
+[Unit]
+Description=Re-apply the Home NOC's RGB lighting (RAM, GPU, board) after boot
+After=systemd-modules-load.service systemd-udevd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/noc-hw lights-apply
+TimeoutStartSec=180
+
+[Install]
+WantedBy=multi-user.target

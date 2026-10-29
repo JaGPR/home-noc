@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""noc-hw: the Proxmox host's fans, set from the Home NOC (app/hardware.py) over SSH.
+"""noc-hw: the Proxmox host's fans and RGB lighting, set from the Home NOC (app/hardware.py) over SSH.
 
 The NOC only stores a wanted mode (`noc-hw set ...`). The `noc-hw guard` service applies it
 every few seconds, with fail-safes that do not depend on the NOC:
@@ -8,20 +8,29 @@ every few seconds, with fail-safes that do not depend on the NOC:
 - when the guard stops or dies (systemd ExecStopPost runs `noc-hw restore`), every fan goes
   back to the board's / GPU's own control.
 
-Targets: board (the motherboard fan headers in config "channels") and gpu (amdgpu fan).
+Targets: board (the motherboard fan headers in config "channels"), gpu (amdgpu fan), and fanN for one
+header: its own mode instead of board's ("group" goes back to following board).
 Modes: auto (firmware), quiet, balanced, full, manual <pct>. Never below a channel's min_pct.
 
   noc-hw status                      JSON: temperatures, fans, wanted modes, guard state
-  noc-hw set board|gpu <mode> [pct]
+  noc-hw set board|gpu|fanN <mode> [pct]
   noc-hw restore                     every fan back to firmware control now
   noc-hw guard                       the enforcing loop (systemd: noc-hw.service)
+  noc-hw lights [refresh]            JSON: RGB lighting groups (ram, gpu, board), from OpenRGB
+  noc-hw light ram|gpu|board <mode> [RRGGBB]
+  noc-hw lights-apply                detect and re-apply the wanted lighting (boot: noc-hw-lights.service)
   noc-hw ssh                         forced command: runs SSH_ORIGINAL_COMMAND if it is one of the above
 Config: /etc/noc-hw.json (see DEFAULTS). Install: deploy/proxmox/install-noc-hw.sh
+
+Lighting runs the OpenRGB CLI (/opt/openrgb, the extracted AppImage), one run at a time. Every
+change re-applies all wanted groups in one run, then reads the modes back.
 """
 import json
 import os
+import re
 import shlex
 import signal
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -31,6 +40,7 @@ CONF = ROOT / "etc/noc-hw.json"
 VAR = ROOT / "var/lib/noc-hw"
 RUN = ROOT / "run/noc-hw"
 HWMON = ROOT / "sys/class/hwmon"
+OPENRGB = ROOT / "opt/openrgb/AppRun"
 
 DEFAULTS = {
     "board_chip": "nct6798",
@@ -48,6 +58,8 @@ CURVES = {
     "full": [(0, 100)],
 }
 FIRMWARE = {"nct": 5, "amdgpu": 2}   # pwmN_enable when no original was recorded: SmartFan IV / GPU auto
+LIGHT_GROUPS = {"DRAM": "ram", "GPU": "gpu", "Motherboard": "board"}   # OpenRGB device type -> group
+COLOR = re.compile(r"[0-9A-Fa-f]{6}")
 
 
 def conf():
@@ -119,11 +131,13 @@ def wanted_pct(want, t):
 
 
 def decide(wanted, t, hot_was, hot_c):
-    """-> ({target: pct or None}, hot). The guard's whole policy, pure for testing."""
+    """-> ({target: pct or None}, hot). The guard's whole policy, pure for testing.
+    A fanN key is in the plan only when that header has its own wanted mode."""
     hot = any(v is not None and v >= hot_c for v in (t["cpu"], t["gpu"])) or (
         hot_was and any(v is not None and v >= hot_c - 10 for v in (t["cpu"], t["gpu"])))
     out = {}
-    for target, temp in (("board", t["cpu"]), ("gpu", t["gpu"])):
+    own = sorted(k for k in wanted if re.fullmatch(r"fan\d+", k))
+    for target, temp in [("board", t["cpu"]), ("gpu", t["gpu"])] + [(k, t["cpu"]) for k in own]:
         pct = wanted_pct(wanted.get(target), temp)
         out[target] = 100 if hot and pct is not None else pct
     return out, hot
@@ -168,7 +182,7 @@ def apply(cfg, plan):
     """Write the decided % (or hand back to firmware) for each target's fans."""
     for d, ch, c in board_fans(cfg):
         en, pwm = d / f"pwm{ch}_enable", d / f"pwm{ch}"
-        pct = plan.get("board")
+        pct = plan[f"fan{ch}"] if f"fan{ch}" in plan else plan.get("board")
         if pct is None:
             release(en, "nct")
         else:
@@ -199,11 +213,19 @@ def load_wanted():
         return {}
 
 
-def set_mode(target, mode, pct=None):
-    if target not in TARGETS:
-        raise ValueError(f"target must be one of {', '.join(TARGETS)}")
+def set_mode(target, mode, pct=None, cfg=None):
+    channel = target[3:] if re.fullmatch(r"fan\d+", str(target)) else None
+    if channel is not None and channel not in (cfg or conf())["channels"]:
+        raise ValueError(f"{target} is not a controlled fan header")
+    if target not in TARGETS and channel is None:
+        raise ValueError(f"target must be one of {', '.join(TARGETS)} or fanN")
+    if channel is not None and mode == "group":   # follow the board setting again
+        w = load_wanted()
+        w.pop(target, None)
+        save_wanted(w)
+        return w
     if mode not in MODES:
-        raise ValueError(f"mode must be one of {', '.join(MODES)}")
+        raise ValueError(f"mode must be one of {', '.join(MODES)}" + (" or group" if channel else ""))
     entry = {"mode": mode}
     if mode == "manual":
         try:
@@ -215,18 +237,22 @@ def set_mode(target, mode, pct=None):
         entry["pct"] = pct
     w = load_wanted()
     w[target] = entry
+    save_wanted(w)
+    return w
+
+
+def save_wanted(w):
     VAR.mkdir(parents=True, exist_ok=True)
     tmp = VAR / "wanted.json.new"
     tmp.write_text(json.dumps(w))
     tmp.replace(VAR / "wanted.json")
-    return w
 
 
 def status(cfg=None):
     cfg = cfg or conf()
     fans = []
     for d, ch, c in board_fans(cfg):
-        fans.append({"target": "board", "channel": int(ch), "name": c.get("name", f"Fan {ch}"),
+        fans.append({"target": "board", "channel": int(ch), "id": f"fan{ch}", "name": c.get("name", f"Fan {ch}"),
                      "rpm": read_int(d / f"fan{ch}_input"), "pct": round((read_int(d / f"pwm{ch}") or 0) * 100 / 255),
                      "auto": read_int(d / f"pwm{ch}_enable") != 1, "min_pct": int(c.get("min_pct", 25))})
     g = gpu_fan()
@@ -241,7 +267,151 @@ def status(cfg=None):
     except (OSError, ValueError, KeyError):
         guard = {"running": False}
     return {"temps": temps(cfg), "fans": fans, "wanted": load_wanted(), "guard": guard,
-            "hot_c": cfg["hot_c"], "modes": list(MODES)}
+            "hot_c": cfg["hot_c"], "modes": list(MODES), "lights": lights(may_detect=False)}
+
+
+def parse_devices(text):
+    """OpenRGB `--list-detailed` output -> [{index, name, type, location, modes, mode, zones, leds}]."""
+    devs, cur = [], None
+    for line in text.splitlines():
+        if m := re.match(r"(\d+): (.+)$", line):
+            cur = {"index": int(m[1]), "name": m[2].strip(), "type": "", "location": "", "modes": [], "mode": None,
+                   "zones": [], "leds": 0}
+            devs.append(cur)
+        elif cur and (m := re.match(r"\s+(Type|Location|Modes|Zones|LEDs):\s*(.*)$", line)):
+            key, val = m[1], m[2].strip()
+            if key in ("Type", "Location"):
+                cur[key.lower()] = val
+                continue
+            try:
+                items = shlex.split(val)
+            except ValueError:
+                items = val.split()
+            if key == "LEDs":
+                cur["leds"] = len(items)
+            elif key == "Zones":
+                cur["zones"] = items
+            else:
+                for it in items:
+                    if it.startswith("[") and it.endswith("]"):   # [Rainbow]: the active mode
+                        it = cur["mode"] = it[1:-1]
+                    cur["modes"].append(it)
+    return devs
+
+
+def run_openrgb(args, timeout=60):
+    """One OpenRGB CLI run (headless), never two at once: they share the SMBus and USB devices."""
+    import fcntl   # Linux only; the rest of this file is tested on any OS
+    (VAR / "openrgb").mkdir(parents=True, exist_ok=True)
+    RUN.mkdir(parents=True, exist_ok=True)
+    with open(RUN / "openrgb.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        r = subprocess.run([str(OPENRGB), "--noautoconnect", "--config", str(VAR / "openrgb"), *args],
+                           cwd=str(VAR), env={**os.environ, "QT_QPA_PLATFORM": "offscreen"},
+                           capture_output=True, text=True, timeout=timeout)
+    if r.returncode:
+        raise ValueError(f"OpenRGB failed ({r.returncode}): {(r.stderr or r.stdout).strip()[-200:]}")
+    return r.stdout
+
+
+def detect():
+    """Detect the devices now and cache them (RUN/lights.json)."""
+    devs = [d for d in parse_devices(run_openrgb(["--list-detailed"])) if d["type"] in LIGHT_GROUPS]
+    RUN.mkdir(parents=True, exist_ok=True)
+    (RUN / "lights.json").write_text(json.dumps({"ts": time.time(), "devices": devs}))
+    return devs
+
+
+def cached_devices():
+    try:
+        return json.loads((RUN / "lights.json").read_text())["devices"]
+    except (OSError, ValueError, KeyError):
+        return None
+
+
+def load_lights_wanted():
+    try:
+        return json.loads((VAR / "lights.json").read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def groups(devs, wanted=None):
+    """Devices -> {group: {devices, modes (shared by all its devices, without Direct), mode, wanted}}."""
+    out = {}
+    for d in devs:
+        g = out.setdefault(LIGHT_GROUPS[d["type"]], {"devices": [], "modes": None})
+        g["devices"].append({"name": d["name"], "mode": d["mode"], "leds": d["leds"], "zones": d["zones"]})
+        g["modes"] = [m for m in (d["modes"] if g["modes"] is None else g["modes"]) if m in d["modes"] and m != "Direct"]
+    for name, g in out.items():
+        now = {d["mode"] for d in g["devices"]}
+        g["mode"] = now.pop() if len(now) == 1 else None
+        g["wanted"] = (wanted or {}).get(name)
+    return out
+
+
+def lights(refresh=False, may_detect=True):
+    """{available, groups}; detects when asked (refresh), or when nothing is cached yet and may_detect."""
+    if not OPENRGB.exists():
+        return {"available": False, "groups": {}}
+    devs = cached_devices()
+    if refresh or (devs is None and may_detect):
+        devs = detect()
+    return {"available": True, "groups": groups(devs or [], load_lights_wanted()), "detected": devs is not None}
+
+
+def light_args(devs, wanted):
+    """The one OpenRGB command line that applies every wanted group."""
+    args = []
+    for d in devs:
+        w = wanted.get(LIGHT_GROUPS.get(d["type"]))
+        if w:
+            args += ["--device", str(d["index"]), "--mode", w["mode"]] + (["--color", w["color"]] if w.get("color") else [])
+    return args
+
+
+def verify(devs, wanted):
+    """{group: True (read back as set) / False / None (the device does not report its mode)}."""
+    out = {}
+    for name, g in groups(devs).items():
+        if name in wanted:
+            modes = {d["mode"] for d in g["devices"]}
+            out[name] = None if modes <= {"Direct", None} else modes == {wanted[name]["mode"]}
+    return out
+
+
+def apply_lights(devs, wanted):
+    if not (args := light_args(devs, wanted)):
+        return {}
+    run_openrgb(args)
+    return verify(detect(), wanted)
+
+
+def set_light(group, mode, color=None):
+    devs = cached_devices()
+    if devs is None:
+        devs = detect()
+    g = groups(devs).get(group)
+    if not g:
+        raise ValueError(f"no {group} lighting found (have: {', '.join(groups(devs)) or 'none'})")
+    match = [m for m in g["modes"] if m.lower() == str(mode).lower()]
+    if not match:
+        raise ValueError(f"{group} modes: {', '.join(g['modes'])}")
+    entry = {"mode": match[0]}
+    if color:
+        if not COLOR.fullmatch(str(color)):
+            raise ValueError("colour must be 6 hex digits (RRGGBB)")
+        entry["color"] = str(color).upper()
+    w = load_lights_wanted()
+    w[group] = entry
+    VAR.mkdir(parents=True, exist_ok=True)
+    tmp = VAR / "lights.json.new"
+    tmp.write_text(json.dumps(w))
+    tmp.replace(VAR / "lights.json")
+    res = apply_lights(devs, w)
+    if res.get(group) is False:
+        raise ValueError(f"{group} did not read back as {entry['mode']}")
+    return {"group": group, "set": entry, "verified": res.get(group), "lights": lights(may_detect=False)}
 
 
 def tick(cfg, hot):
@@ -291,12 +461,19 @@ def main(argv):
         elif cmd == "restore":
             restore()
             print(json.dumps({"restored": True}))
+        elif cmd == "lights" and argv[1:] in ([], ["refresh"]):
+            print(json.dumps(lights(refresh=argv[1:] == ["refresh"])))
+        elif cmd == "light" and len(argv) in (3, 4):
+            print(json.dumps(set_light(argv[1], argv[2], argv[3] if len(argv) == 4 else None)))
+        elif cmd == "lights-apply":
+            w = load_lights_wanted()
+            print(json.dumps({"verified": apply_lights(detect(), w) if OPENRGB.exists() else {}}))
         elif cmd == "guard":
             guard()
         else:
             print(__doc__, file=sys.stderr)
             return 2
-    except ValueError as ex:
+    except (ValueError, subprocess.TimeoutExpired) as ex:
         print(json.dumps({"error": str(ex)}))
         return 1
     return 0

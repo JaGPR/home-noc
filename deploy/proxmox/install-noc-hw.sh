@@ -1,17 +1,28 @@
 #!/bin/sh
-# Install noc-hw (fan control from the Home NOC) on the Proxmox host. Run as root on the host:
+# Install noc-hw (fans and RGB lighting from the Home NOC) on the Proxmox host. Run as root on the host:
 #   sh install-noc-hw.sh "<the NOC's /etc/noc/id_ed25519.pub line>"
-# Re-running is safe: it keeps /etc/noc-hw.json and replaces the program and service.
+# Lighting (optional): download the OpenRGB x86_64 AppImage from https://openrgb.org/releases.html and
+#   NOC_HW_OPENRGB=/root/OpenRGB_<version>_x86_64.AppImage sh install-noc-hw.sh ...
+# (extracted to /opt/openrgb; the AppImage carries its own Qt, so nothing else is installed).
+# Re-running is safe: it keeps /etc/noc-hw.json and replaces the program and services.
 set -e
 here=$(dirname "$0")
 chip=${NOC_HW_CHIP:-nct6798}
 
-# the Nuvoton Super I/O fan driver, now and at every boot
+# the Nuvoton Super I/O fan driver and /dev/i2c-* (RAM and GPU lighting), now and at every boot
 modprobe nct6775
-echo nct6775 > /etc/modules-load.d/noc-hw.conf
+modprobe i2c-dev
+printf 'nct6775\ni2c-dev\n' > /etc/modules-load.d/noc-hw.conf
+
+if [ -n "$NOC_HW_OPENRGB" ]; then
+	tmp=$(mktemp -d)
+	(cd "$tmp" && chmod +x "$NOC_HW_OPENRGB" && "$NOC_HW_OPENRGB" --appimage-extract >/dev/null)
+	rm -rf /opt/openrgb && mv "$tmp/squashfs-root" /opt/openrgb && rmdir "$tmp"
+fi
 
 install -m 755 "$here/noc-hw" /usr/local/sbin/noc-hw
 install -m 644 "$here/noc-hw.service" /etc/systemd/system/noc-hw.service
+install -m 644 "$here/noc-hw-lights.service" /etc/systemd/system/noc-hw-lights.service
 
 # first install: control the headers that have a fan spinning now (an empty header is left alone)
 if [ ! -f /etc/noc-hw.json ]; then
@@ -39,4 +50,5 @@ fi
 
 systemctl daemon-reload
 systemctl enable --now noc-hw.service
+systemctl enable noc-hw-lights.service
 cat /etc/noc-hw.json

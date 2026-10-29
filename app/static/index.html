@@ -250,6 +250,7 @@
     /* touch-sized controls; 16px text stops iOS zooming into a field on focus */
     button.act { min-height:38px; } button.act.sm { min-height:34px; min-width:36px; }
     select, input[type=number], input[type=text], input[type=password] { font-size:16px; min-height:40px; }
+    input[type=color] { min-height:40px; min-width:52px; }
     .seg label { padding:8px 12px; }
   }
 
@@ -871,20 +872,38 @@ function hwCard(hw) {
   if (!hw || hw.configured === false) return '';
   if (hw.error) return `<div class="card wide err">Fans: ${esc(hw.error)}</div>`;
   const t = hw.temps || {}, g = hw.guard || {}, deg = v => v == null ? '–' : `${Math.round(v)} °C`;
-  const ctl = (target, label) => { const m = (hw.wanted || {})[target] || {mode: 'auto'};
-    return `<div class="row" style="gap:6px;flex-wrap:wrap;margin:6px 0"><b style="min-width:150px">${label}</b>
-      <select data-hwmode="${target}" aria-label="${label} mode">${Object.entries(HW_MODES).map(([k, v]) => `<option value="${k}" ${m.mode === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
-      <input type="number" min="0" max="100" data-hwpct="${target}" value="${m.pct ?? 50}" style="width:70px" aria-label="${label} fan %" ${m.mode === 'manual' ? '' : 'hidden'}>
-      <button class="act" data-hwset="${target}">Apply</button></div>`; };
+  // one fan header (fanN) may have its own mode; 'group' = follow Case and CPU fans
+  const pick = (target, label, modes, m) => `<select data-hwmode="${target}" aria-label="${esc(label)} mode">${Object.entries(modes).map(([k, v]) => `<option value="${k}" ${m.mode === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      <input type="number" min="0" max="100" data-hwpct="${target}" value="${m.pct ?? 50}" style="width:70px" aria-label="${esc(label)} fan %" ${m.mode === 'manual' ? '' : 'hidden'}>
+      <button class="act" data-hwset="${target}">Apply</button>`;
+  const ctl = (target, label) => `<div class="row" style="gap:6px;flex-wrap:wrap;margin:6px 0"><b style="min-width:150px">${label}</b>
+      ${pick(target, label, HW_MODES, (hw.wanted || {})[target] || {mode: 'auto'})}</div>`;
+  const own = f => f.id ? `<div class="row" style="gap:6px;flex-wrap:wrap">${pick(f.id, f.name, {group: 'Follow case and CPU fans', ...HW_MODES},
+      (hw.wanted || {})[f.id] || {mode: 'group'})}</div>` : '<span class="small">GPU fan setting below</span>';
   const guard = !g.running ? '<span class="pill bad">not running: fans on firmware control</span>'
     : g.hot ? '<span class="pill bad">HOT: every fan at 100 %</span>' : pill(true, 'running');
   return `<div class="card wide"><h2>Fans and temperatures</h2>
     <div class="kv"><dt>CPU</dt><dd>${deg(t.cpu)}</dd><dt>GPU</dt><dd>${deg(t.gpu)}</dd><dt>Board</dt><dd>${deg(t.board)}</dd>
       <dt>Fan guard</dt><dd>${guard}${g.error ? ` <span class="err small">${esc(g.error)}</span>` : ''}</dd></div>
-    <div class="scroll"><table><tr><th>Fan</th><th>Speed</th><th>Power</th><th>Control</th></tr>
-      ${(hw.fans || []).map(f => `<tr><td>${esc(f.name)}</td><td>${f.rpm ?? '–'} rpm</td><td style="min-width:110px">${bar(f.pct)}</td><td>${f.auto ? 'firmware' : 'NOC'}</td></tr>`).join('')}</table></div>
+    <div class="scroll"><table><tr><th>Fan</th><th>Speed</th><th>Power</th><th>Control</th><th>This fan</th></tr>
+      ${(hw.fans || []).map(f => `<tr><td>${esc(f.name)}</td><td>${f.rpm ?? '–'} rpm</td><td style="min-width:110px">${bar(f.pct)}</td><td>${f.auto ? 'firmware' : 'NOC'}</td><td>${own(f)}</td></tr>`).join('')}</table></div>
     ${ctl('board', 'Case and CPU fans')}${ctl('gpu', 'GPU fan')}
-    <div class="small">The host applies these itself: above ${hw.hot_c} °C (CPU or GPU) every fan runs at 100 %, and if its guard stops the fans go back to the board and GPU.</div></div>`;
+    <div class="small">A fan set on its own row keeps that setting; the others follow Case and CPU fans. The host applies these itself: above ${hw.hot_c} °C (CPU or GPU) every fan runs at 100 %, and if its guard stops the fans go back to the board and GPU.</div>
+    ${lightsBlock(hw.lights)}</div>`;
+}
+const LIGHT_NAMES = {ram: 'RAM', gpu: 'GPU', board: 'Motherboard'};
+function lightsBlock(l) {
+  if (!l || !l.available) return '';
+  const gs = Object.entries(l.groups || {});
+  if (!gs.length) return '<h3>Lighting</h3><div class="small">No lighting detected yet (the host detects it at boot).</div>';
+  return `<h3 style="margin-top:12px">Lighting</h3>${gs.map(([k, g]) => { const w = g.wanted || {}, label = LIGHT_NAMES[k] || k;
+    const pick = [w.mode, g.mode, 'Static'].find(m => g.modes.includes(m)), sel = pick || g.modes[0], now = g.mode === 'Direct' ? 'not reported' : (g.mode || 'mixed');
+    return `<div class="row" style="gap:6px;flex-wrap:wrap;margin:6px 0;align-items:center"><b style="min-width:150px">${esc(label)}</b>
+      <span class="small" style="min-width:120px">${g.devices.length} device${g.devices.length > 1 ? 's' : ''} · now ${esc(now)}</span>
+      <select data-lgmode="${k}" aria-label="${esc(label)} lighting mode">${g.modes.map(m => `<option ${m === sel ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>
+      <input type="color" data-lgcolor="${k}" value="#${esc(w.color || 'FFFFFF')}" aria-label="${esc(label)} colour" ${sel === 'Off' ? 'hidden' : ''}>
+      <button class="act" data-lgset="${k}">Apply</button></div>`; }).join('')}
+    <div class="small">Through OpenRGB on the host. The colour is used by modes that take one; the host puts your choice back after a reboot.</div>`;
 }
 
 const errBox = errs => { const e = Object.entries(errs || {}); return e.length ? `<div class="card wide err">Some sources failed: ${e.map(([k,v]) => `<b>${esc(k)}</b>: ${esc(v)}`).join(' · ')}</div>` : ''; };
@@ -1793,6 +1812,10 @@ const VIEWS = {
       document.querySelector(`[data-hwpct="${s.dataset.hwmode}"]`).hidden = s.value !== 'manual'; });
     document.querySelectorAll('[data-hwset]').forEach(b => b.onclick = () => { const t = b.dataset.hwset;
       act('hw_fan', {target: t, mode: $(`[data-hwmode="${t}"]`).value, pct: +$(`[data-hwpct="${t}"]`).value}); });
+    document.querySelectorAll('[data-lgmode]').forEach(s => s.onchange = () => {
+      document.querySelector(`[data-lgcolor="${s.dataset.lgmode}"]`).hidden = s.value === 'Off'; });
+    document.querySelectorAll('[data-lgset]').forEach(b => b.onclick = () => { const g = b.dataset.lgset;
+      act('hw_light', {group: g, mode: $(`[data-lgmode="${g}"]`).value, color: $(`[data-lgcolor="${g}"]`).value.slice(1)}); });
   },
 
   async alerts() {

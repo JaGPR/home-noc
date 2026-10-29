@@ -5466,5 +5466,164 @@
    "lease_h": 12,
    "dns": "192.0.2.10"
   }
+ },
+ "hardware": {
+  "temps": {
+   "cpu": 41.0,
+   "gpu": 30.0,
+   "board": 36.0
+  },
+  "hot_c": 85,
+  "modes": [
+   "auto",
+   "quiet",
+   "balanced",
+   "full",
+   "manual"
+  ],
+  "guard": {
+   "running": true,
+   "hot": false,
+   "applied": {
+    "board": null,
+    "gpu": null
+   },
+   "error": null,
+   "age_s": 1.2
+  },
+  "wanted": {
+   "gpu": {
+    "mode": "manual",
+    "pct": 45
+   },
+   "fan2": {
+    "mode": "manual",
+    "pct": 60
+   }
+  },
+  "fans": [
+   {
+    "target": "board",
+    "channel": 1,
+    "name": "CPU fan",
+    "rpm": 962,
+    "pct": 36,
+    "auto": true,
+    "min_pct": 30,
+    "id": "fan1"
+   },
+   {
+    "target": "board",
+    "channel": 2,
+    "name": "Fan 2",
+    "rpm": 896,
+    "pct": 36,
+    "auto": true,
+    "min_pct": 25,
+    "id": "fan2"
+   },
+   {
+    "target": "gpu",
+    "channel": 1,
+    "name": "GPU fan",
+    "rpm": 1887,
+    "pct": 44,
+    "auto": false,
+    "min_pct": 20
+   }
+  ],
+  "lights": {
+   "available": true,
+   "detected": true,
+   "groups": {
+    "ram": {
+     "devices": [
+      {
+       "name": "ENE DRAM",
+       "mode": "Static",
+       "leds": 8,
+       "zones": [
+        "DRAM"
+       ]
+      },
+      {
+       "name": "ENE DRAM",
+       "mode": "Static",
+       "leds": 8,
+       "zones": [
+        "DRAM"
+       ]
+      }
+     ],
+     "modes": [
+      "Off",
+      "Static",
+      "Breathing",
+      "Flashing",
+      "Spectrum Cycle",
+      "Rainbow",
+      "Chase Fade",
+      "Chase",
+      "Random Flicker"
+     ],
+     "mode": "Static",
+     "wanted": {
+      "mode": "Static",
+      "color": "00AAFF"
+     }
+    },
+    "gpu": {
+     "devices": [
+      {
+       "name": "Sapphire Radeon RX 570/580/590 Nitro+",
+       "mode": "Off",
+       "leds": 1,
+       "zones": [
+        "GPU Zone"
+       ]
+      }
+     ],
+     "modes": [
+      "Sapphire Blue",
+      "Rainbow Wave",
+      "PCB Temperature",
+      "Fan Speed",
+      "Static",
+      "Off"
+     ],
+     "mode": "Off",
+     "wanted": null
+    },
+    "board": {
+     "devices": [
+      {
+       "name": "Example B660 board",
+       "mode": "Direct",
+       "leds": 4,
+       "zones": [
+        "Aura Mainboard",
+        "Addressable RGB Header 1"
+       ]
+      }
+     ],
+     "modes": [
+      "Off",
+      "Static",
+      "Breathing",
+      "Flashing",
+      "Spectrum Cycle",
+      "Rainbow",
+      "Chase Fade",
+      "Chase",
+      "Spectrum Cycle Breathing",
+      "Spectrum Cycle Chase Fade",
+      "Wave Propagation Pause",
+      "Red Pulse"
+     ],
+     "mode": "Direct",
+     "wanted": null
+    }
+   }
+  }
  }
 }
