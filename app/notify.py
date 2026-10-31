@@ -64,6 +64,7 @@ class Telegram:
         self.diag = {}          # WAN interface -> latest diagnosis while it is down
         self.vip = None         # {"owner", "cand", "streak"}
         self.mgmt_down = {}     # device check key -> first down reading (telegram.mgmt_grace)
+        self.covered = {}       # check families evaluate() read in full this round (see forget)
         self.outbox = []        # [{"text", "ts"}] waiting for the internet / Telegram
         self.pending = {}       # action id -> {"plan", "kind", "exp", "chat"}
         self.pairing = None     # (code, expires)
@@ -140,11 +141,14 @@ class Telegram:
 
     # ------------------------------------------------------------ checks
     def evaluate(self):
-        """Current state of every check: {key: (ok, text)}, plus the DNS VIP owner."""
+        """Current state of every check: {key: (ok, text)}, plus the DNS VIP owner.
+        Also sets self.covered for forget(): the check families read in full this round."""
         noc, out, vip = self.noc, {}, None
+        self.covered = {}
         try:
             for d in self.devices():
                 out[f"device:{d['name']}"] = (bool(d["up"]), f"{d['name']} ({d['ip']})")
+            self.covered["device:"] = None
         except Exception as ex:
             out["source:devices"] = (False, f"Device checks failed: {ex}")
 
@@ -153,6 +157,8 @@ class Telegram:
             out["source:router"] = (False, f"Router not reachable over SSH: {(r or {}).get('error', '?')}")
         else:
             out["source:router"] = (True, "Router reachable over SSH again")
+            # a stale ONT skips its link/optics checks, so ONT states are only forgotten by name
+            self.covered["wan:"], self.covered["ont:"] = None, {o["name"] for o in r.get("onts", [])}
             ifs = {i["name"]: i for i in r.get("interfaces", [])}
             wans = sorted(noc.wan_ifaces())
             online = 0
@@ -191,6 +197,9 @@ class Telegram:
                     out["dns:vip6"] = (False, f"IPv6 DNS VIP {d['vip6']} is on {o6} but the IPv4 VIP is on {vip}")
                 else:
                     out["dns:vip6"] = (True, f"IPv6 DNS VIP {d['vip6']} on {o6}")
+            if d.get("nodes"):
+                # a failing Pi-hole skips its blocking check, so those are only forgotten by name
+                self.covered["dns:"], self.covered["block:"] = None, {n["name"] for n in d["nodes"]}
         except Exception as ex:
             out["source:dns"] = (False, f"DNS checks failed: {ex}")
 
@@ -278,6 +287,23 @@ class Telegram:
                 changes.append({"key": k, "ok": ok, "text": text, "lasted": now - s["since"]})
                 s.update(ok=ok, since=now, streak=0)
         return changes
+
+    def forget(self, readings, covered):
+        """Drop the state of checks that no longer exist (an untracked device, a removed WAN, ONT or
+        Pi-hole), so a problem that was open when it was removed doesn't stay listed for ever.
+        covered: {key prefix: None (that family was read in full) or the names still present}.
+        A family that failed to read this round is not in covered, so its states are kept."""
+        for k in [k for k in self.states if k not in readings]:
+            prefix = next((p for p in covered if k.startswith(p)), None)
+            if prefix is None:
+                continue
+            names = covered[prefix]
+            if names is not None and k[len(prefix):].split(":")[0] in names:
+                continue
+            self.states.pop(k)
+            self.mgmt_down.pop(k, None)
+            if k.startswith("wan:"):
+                self.diag.pop(k[4:], None)
 
     def vip_step(self, owner, first):
         need = max(1, int(self.cfg()["confirm_checks"]))
@@ -387,6 +413,7 @@ class Telegram:
             try:
                 readings, vip = self.evaluate()
                 changes = self.step(readings, first)
+                self.forget(readings, self.covered)
                 vip_move = self.vip_step(vip, first)
                 down_wans = [c["key"][4:] for c in changes
                              if not c["ok"] and c["key"].startswith("wan:") and c["key"] != "wan:ALL"]
