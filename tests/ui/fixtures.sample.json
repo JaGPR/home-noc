@@ -670,7 +670,8 @@
      "cpu_pct": 0.4,
      "mem_pct": 82.0,
      "disk_pct": null,
-     "uptime": 544713
+     "uptime": 544713,
+     "node": "PVE-NODE-1"
     },
     {
      "vmid": 101,
@@ -680,7 +681,8 @@
      "cpu_pct": 0.4,
      "mem_pct": 53.4,
      "disk_pct": 47.6,
-     "uptime": 469130
+     "uptime": 469130,
+     "node": "PVE-NODE-2"
     },
     {
      "vmid": 102,
@@ -690,7 +692,8 @@
      "cpu_pct": 1.0,
      "mem_pct": 15.1,
      "disk_pct": null,
-     "uptime": 544710
+     "uptime": 544710,
+     "node": "PVE-NODE-1"
     },
     {
      "vmid": 103,
@@ -700,7 +703,8 @@
      "cpu_pct": 0.5,
      "mem_pct": 89.3,
      "disk_pct": null,
-     "uptime": 544707
+     "uptime": 544707,
+     "node": "PVE-NODE-2"
     },
     {
      "vmid": 104,
@@ -710,7 +714,8 @@
      "cpu_pct": 0.3,
      "mem_pct": 9.0,
      "disk_pct": 11.1,
-     "uptime": 544703
+     "uptime": 544703,
+     "node": "PVE-NODE-1"
     },
     {
      "vmid": 105,
@@ -720,7 +725,8 @@
      "cpu_pct": 0.7,
      "mem_pct": 96.6,
      "disk_pct": null,
-     "uptime": 363030
+     "uptime": 363030,
+     "node": "PVE-NODE-1"
     },
     {
      "vmid": 106,
@@ -730,7 +736,8 @@
      "cpu_pct": 0.2,
      "mem_pct": 3.1,
      "disk_pct": 5.4,
-     "uptime": 544700
+     "uptime": 544700,
+     "node": "PVE-NODE-1"
     }
    ],
    "storage": [
@@ -758,7 +765,83 @@
      "used_pct": 37.3,
      "total_gb": 101
     }
-   ]
+   ],
+   "nodes": [
+    {
+     "name": "PVE-NODE-1",
+     "ip": "192.0.2.196",
+     "online": true,
+     "local": true,
+     "guests_running": 5,
+     "guests": 5,
+     "cpu_pct": 2.3,
+     "mem_pct": 88.4,
+     "mem_gb": 31.1,
+     "uptime": 544730,
+     "version": "pve-manager/9.2.2/b0dc1fc1acef8cf4",
+     "cpu_model": "Example CPU",
+     "storage": [
+      {
+       "name": "NAS_1",
+       "type": "nfs",
+       "used_pct": 46.9,
+       "total_gb": 2000
+      },
+      {
+       "name": "local-lvm",
+       "type": "lvmthin",
+       "used_pct": 9.6,
+       "total_gb": 876
+      },
+      {
+       "name": "nas_dir",
+       "type": "dir",
+       "used_pct": 37.3,
+       "total_gb": 101
+      },
+      {
+       "name": "local",
+       "type": "dir",
+       "used_pct": 37.3,
+       "total_gb": 101
+      }
+     ]
+    },
+    {
+     "name": "PVE-NODE-2",
+     "ip": "192.0.2.21",
+     "online": true,
+     "local": false,
+     "guests_running": 2,
+     "guests": 2,
+     "cpu_pct": 1.2,
+     "mem_pct": 33.0,
+     "mem_gb": 15.4,
+     "uptime": 3120,
+     "version": "pve-manager/9.2.2/b0dc1fc1acef8cf4",
+     "cpu_model": "Example CPU",
+     "storage": [
+      {
+       "name": "local",
+       "type": "dir",
+       "used_pct": 6.3,
+       "total_gb": 71
+      },
+      {
+       "name": "local-lvm",
+       "type": "lvmthin",
+       "used_pct": 12.4,
+       "total_gb": 147
+      }
+     ]
+    }
+   ],
+   "cluster": {
+    "name": "home",
+    "quorate": true,
+    "nodes": 2,
+    "online": 2
+   }
   },
   "switch_ports_up": 6,
   "errors": {}
@@ -2365,7 +2448,8 @@
     "cpu_pct": 0.4,
     "mem_pct": 82.0,
     "disk_pct": null,
-    "uptime": 544713
+    "uptime": 544713,
+    "node": "PVE-NODE-1"
    },
    {
     "vmid": 101,
@@ -2375,7 +2459,8 @@
     "cpu_pct": 0.4,
     "mem_pct": 53.4,
     "disk_pct": 47.6,
-    "uptime": 469130
+    "uptime": 469130,
+    "node": "PVE-NODE-2"
    },
    {
     "vmid": 102,
@@ -2385,7 +2470,8 @@
     "cpu_pct": 1.0,
     "mem_pct": 15.1,
     "disk_pct": null,
-    "uptime": 544710
+    "uptime": 544710,
+    "node": "PVE-NODE-1"
    },
    {
     "vmid": 103,
@@ -2395,7 +2481,8 @@
     "cpu_pct": 0.5,
     "mem_pct": 89.3,
     "disk_pct": null,
-    "uptime": 544707
+    "uptime": 544707,
+    "node": "PVE-NODE-2"
    },
    {
     "vmid": 104,
@@ -2405,7 +2492,8 @@
     "cpu_pct": 0.3,
     "mem_pct": 9.0,
     "disk_pct": 11.1,
-    "uptime": 544703
+    "uptime": 544703,
+    "node": "PVE-NODE-1"
    },
    {
     "vmid": 105,
@@ -2415,7 +2503,8 @@
     "cpu_pct": 0.7,
     "mem_pct": 96.6,
     "disk_pct": null,
-    "uptime": 363030
+    "uptime": 363030,
+    "node": "PVE-NODE-1"
    },
    {
     "vmid": 106,
@@ -2425,7 +2514,8 @@
     "cpu_pct": 0.2,
     "mem_pct": 3.1,
     "disk_pct": 5.4,
-    "uptime": 544700
+    "uptime": 544700,
+    "node": "PVE-NODE-1"
    }
   ],
   "storage": [
@@ -2453,7 +2543,83 @@
     "used_pct": 37.3,
     "total_gb": 101
    }
-  ]
+  ],
+  "nodes": [
+   {
+    "name": "PVE-NODE-1",
+    "ip": "192.0.2.196",
+    "online": true,
+    "local": true,
+    "guests_running": 5,
+    "guests": 5,
+    "cpu_pct": 2.3,
+    "mem_pct": 88.4,
+    "mem_gb": 31.1,
+    "uptime": 544730,
+    "version": "pve-manager/9.2.2/b0dc1fc1acef8cf4",
+    "cpu_model": "Example CPU",
+    "storage": [
+     {
+      "name": "NAS_1",
+      "type": "nfs",
+      "used_pct": 46.9,
+      "total_gb": 2000
+     },
+     {
+      "name": "local-lvm",
+      "type": "lvmthin",
+      "used_pct": 9.6,
+      "total_gb": 876
+     },
+     {
+      "name": "nas_dir",
+      "type": "dir",
+      "used_pct": 37.3,
+      "total_gb": 101
+     },
+     {
+      "name": "local",
+      "type": "dir",
+      "used_pct": 37.3,
+      "total_gb": 101
+     }
+    ]
+   },
+   {
+    "name": "PVE-NODE-2",
+    "ip": "192.0.2.21",
+    "online": true,
+    "local": false,
+    "guests_running": 2,
+    "guests": 2,
+    "cpu_pct": 1.2,
+    "mem_pct": 33.0,
+    "mem_gb": 15.4,
+    "uptime": 3120,
+    "version": "pve-manager/9.2.2/b0dc1fc1acef8cf4",
+    "cpu_model": "Example CPU",
+    "storage": [
+     {
+      "name": "local",
+      "type": "dir",
+      "used_pct": 6.3,
+      "total_gb": 71
+     },
+     {
+      "name": "local-lvm",
+      "type": "lvmthin",
+      "used_pct": 12.4,
+      "total_gb": 147
+     }
+    ]
+   }
+  ],
+  "cluster": {
+   "name": "home",
+   "quorate": true,
+   "nodes": 2,
+   "online": 2
+  }
  },
  "devices": {
   "groups": [
@@ -5622,6 +5788,73 @@
      ],
      "mode": "Direct",
      "wanted": null
+    }
+   }
+  },
+  "hosts": {
+   "PVE-NODE-2": {
+    "kind": "asus",
+    "targets": [
+     "board",
+     "profile"
+    ],
+    "temps": {
+     "cpu": 44.0,
+     "gpu": null,
+     "board": 41.0
+    },
+    "fans": [
+     {
+      "target": "board",
+      "channel": 1,
+      "id": "fan1",
+      "name": "CPU fan",
+      "rpm": 2500,
+      "pct": 23,
+      "auto": true,
+      "min_pct": 25
+     },
+     {
+      "target": "board",
+      "channel": 2,
+      "id": "fan2",
+      "name": "GPU fan",
+      "rpm": 2600,
+      "pct": 22,
+      "auto": true,
+      "min_pct": 25
+     }
+    ],
+    "wanted": {},
+    "guard": {
+     "hot": false,
+     "applied": {
+      "board": null,
+      "gpu": null
+     },
+     "error": null,
+     "age_s": 1.2,
+     "running": true
+    },
+    "hot_c": 85,
+    "modes": [
+     "auto",
+     "quiet",
+     "balanced",
+     "full",
+     "manual"
+    ],
+    "lights": {
+     "available": false,
+     "groups": {}
+    },
+    "profile": {
+     "current": "balanced",
+     "choices": [
+      "quiet",
+      "balanced",
+      "performance"
+     ]
     }
    }
   }

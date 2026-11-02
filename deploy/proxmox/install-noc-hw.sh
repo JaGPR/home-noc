@@ -9,10 +9,13 @@ set -e
 here=$(dirname "$0")
 chip=${NOC_HW_CHIP:-nct6798}
 
-# the Nuvoton Super I/O fan driver and /dev/i2c-* (RAM and GPU lighting), now and at every boot
-modprobe nct6775
-modprobe i2c-dev
-printf 'nct6775\ni2c-dev\n' > /etc/modules-load.d/noc-hw.conf
+# the Nuvoton Super I/O fan driver (desktop boards; a laptop has none) and /dev/i2c-* (RAM and GPU
+# lighting), now and at every boot: only the modules that load here are listed for boot
+mods=""
+for m in nct6775 i2c-dev; do
+	if modprobe "$m" 2>/dev/null; then mods="$mods$m\n"; else echo "$m: not on this machine, skipped"; fi
+done
+printf "$mods" > /etc/modules-load.d/noc-hw.conf
 
 if [ -n "$NOC_HW_OPENRGB" ]; then
 	tmp=$(mktemp -d)
@@ -24,7 +27,12 @@ install -m 755 "$here/noc-hw" /usr/local/sbin/noc-hw
 install -m 644 "$here/noc-hw.service" /etc/systemd/system/noc-hw.service
 install -m 644 "$here/noc-hw-lights.service" /etc/systemd/system/noc-hw-lights.service
 
-# first install: control the headers that have a fan spinning now (an empty header is left alone)
+# first install, ASUS laptop (asus-wmi with custom fan curves): its CPU and GPU fans, driven by curve
+if [ ! -f /etc/noc-hw.json ] && grep -qx asus_custom_fan_curve /sys/class/hwmon/hwmon*/name 2>/dev/null; then
+	printf '{"kind": "asus", "board_chip": "asus", "board_temp": "acpitz", "channels": {"1": {"name": "CPU fan", "min_pct": 25}, "2": {"name": "GPU fan", "min_pct": 25}}, "hot_c": 85}\n' > /etc/noc-hw.json
+fi
+
+# first install, desktop board: control the headers that have a fan spinning now (an empty header is left alone)
 if [ ! -f /etc/noc-hw.json ]; then
 	d=$(grep -l "^$chip$" /sys/class/hwmon/hwmon*/name | head -1 | xargs dirname)
 	[ -n "$d" ] || { echo "no $chip hwmon found" >&2; exit 1; }

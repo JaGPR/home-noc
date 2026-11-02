@@ -68,6 +68,15 @@ class Forget(unittest.TestCase):
         tg.forget({"device:NAS": (True, "NAS")}, {"device:": None})
         self.assertEqual(tg.problems(), [], "an untracked device must not stay an open problem")
 
+    @data(({"pve:quorum": 1, "pve:node-a": 1}, {"pve:": None}, {"pve:node-b"}),   # node-b left the cluster
+          ({}, {}, set()))                                                         # Proxmox read failed: keep all
+    @unpack
+    def test_forget_cluster_node(self, present, covered, gone):
+        states = {"pve:node-a": True, "pve:node-b": False, "pve:quorum": True}
+        tg = watcher(states)
+        tg.forget({k: (states[k], k) for k in present}, covered)
+        self.assertEqual(set(states) - set(tg.states), gone)
+
     def test_side_state_cleared(self):
         tg = watcher({"device:Bulb": False, "wan:wan9": False})
         tg.mgmt_down, tg.diag = {"device:Bulb": 1.0}, {"wan9": {"verdict": "x"}}

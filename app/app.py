@@ -29,6 +29,7 @@ import auth
 import hardware
 import notify
 import openwrt
+import proxmox
 import settings
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
@@ -943,15 +944,22 @@ def collect_proxmox():
     if not node:
         raise RuntimeError("proxmox.node is not set in config.json")
     st = pve(f"/nodes/{node}/status")
-    guests = [{"vmid": g["vmid"], "name": g.get("name"), "type": g["type"], "status": g["status"],
-               "cpu_pct": round(100 * g.get("cpu", 0), 1), "mem_pct": round(100 * g["mem"] / g["maxmem"], 1) if g.get("maxmem") else None,
-               "disk_pct": round(100 * g["disk"] / g["maxdisk"], 1) if g.get("maxdisk") and g["type"] == "lxc" else None,
-               "uptime": g.get("uptime")} for g in pve("/cluster/resources?type=vm")]
-    storage = [{"name": s["storage"], "type": s.get("type"), "used_pct": round(100 * s["used"] / s["total"], 1) if s.get("total") else None,
-                "total_gb": round(s.get("total", 0) / 1e9)} for s in pve(f"/nodes/{node}/storage") if s.get("active")]
-    return {"node": node, "cpu_pct": round(100 * st["cpu"], 1), "mem_pct": round(100 * st["memory"]["used"] / st["memory"]["total"], 1),
-            "uptime": st.get("uptime"), "version": st.get("pveversion"), "guests": sorted(guests, key=lambda g: g["vmid"]),
-            "storage": storage}
+    try:
+        members = pve("/cluster/status")
+    except requests.RequestException:
+        members = []  # older or locked-down hosts: show just the configured node
+    # the other online cluster nodes, read through the configured node's API (an offline one is skipped)
+    others = [m["name"] for m in members if m.get("type") == "node" and m.get("online") and m["name"] != node]
+
+    def read(n):
+        try:
+            return n, pve(f"/nodes/{n}/status"), pve(f"/nodes/{n}/storage")
+        except requests.RequestException:
+            return n, None, None
+    with cf.ThreadPoolExecutor(max(1, len(others))) as ex:
+        got = list(ex.map(read, others))
+    return proxmox.view(node, st, pve("/cluster/resources?type=vm"), pve(f"/nodes/{node}/storage"), members,
+                        {n: s for n, s, _ in got if s}, {n: s for n, _, s in got if s is not None})
 
 
 # ---------------------------------------------------------------- actions (preview -> confirm)
@@ -1711,10 +1719,19 @@ def api_proxmox():
 
 @app.get("/api/hardware")
 def api_hardware():
-    """Proxmox host temperatures and fans (noc-hw on the host); {"configured": false} without hardware.host."""
-    if not hardware.host(sys.modules[__name__]):
+    """Proxmox host temperatures and fans (noc-hw on the host); {"configured": false} without hardware.host.
+    The main host's status, plus "hosts": {name: status} for each host in hardware.hosts (read in parallel)."""
+    me = sys.modules[__name__]
+    if not hardware.host(me):
         return {"configured": False}
-    return cached("hardware", 5, lambda: hardware.collect(sys.modules[__name__]))
+    names = list(hardware.others(me))
+    with cf.ThreadPoolExecutor(1 + len(names)) as ex:
+        main = ex.submit(cached, "hardware", 5, lambda: hardware.collect(me))
+        more = {n: ex.submit(cached, hardware.cache_key(n), 5, lambda n=n: hardware.collect(me, n)) for n in names}
+        out = dict(main.result())
+        if names:
+            out["hosts"] = {n: f.result() for n, f in more.items()}
+    return out
 
 
 @app.get("/api/audit")

@@ -126,7 +126,8 @@
     "slow_mbps": 100
   },
   "hardware": {
-    "host": "192.0.2.6"
+    "host": "192.0.2.6",
+    "hosts": {"pve-2": "192.0.2.21"}
   },
   "telegram": {
     "check_every_s": 30,

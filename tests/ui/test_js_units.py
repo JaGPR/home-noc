@@ -284,5 +284,92 @@ class OneFan(unittest.TestCase):
         self.assertEqual(got, [["hw_fan", params]])
 
 
+def node(name, online=True, local=False, cpu=3.5):
+    return {"name": name, "ip": "192.0.2.21", "online": online, "local": local, "cpu_pct": cpu if online else None,
+            "mem_pct": 40.0 if online else None, "mem_gb": 15.4, "uptime": 3600 if online else None, "version": "pve-manager/9.2.2/x",
+            "cpu_model": "Example CPU", "guests": 1, "guests_running": 1 if online else 0,
+            "storage": [{"name": "local", "type": "dir", "used_pct": 6.0, "total_gb": 71}] if online else []}
+
+
+PX = {"node": "node-a", "cpu_pct": 2.0, "mem_pct": 50.0, "uptime": 7200, "version": "pve-manager/9.2.2/x", "storage": [],
+      "guests": [{"vmid": 100, "name": "dns", "type": "qemu", "status": "running", "node": "node-a", "cpu_pct": 1, "mem_pct": 20, "disk_pct": None, "uptime": 7200},
+                 {"vmid": 103, "name": "<ha>", "type": "qemu", "status": "running", "node": "node-b", "cpu_pct": 1, "mem_pct": 50, "disk_pct": None, "uptime": 3600}]}
+
+
+ASUS = {"kind": "asus", "targets": ["board", "profile"], "temps": {"cpu": 44, "gpu": None, "board": 41}, "hot_c": 85,
+        "guard": {"running": True}, "wanted": {"fan2": {"mode": "manual", "pct": 60}, "profile": {"mode": "quiet"}},
+        "profile": {"current": "quiet", "choices": ["quiet", "balanced", "performance"]}, "lights": {"available": False, "groups": {}},
+        "fans": [{"target": "board", "id": "fan1", "name": "CPU fan", "rpm": 2500, "pct": 23, "auto": True},
+                 {"target": "board", "id": "fan2", "name": "GPU fan", "rpm": 3900, "pct": 60, "auto": False}]}
+
+
+@ddt
+class LaptopFans(unittest.TestCase):
+    """A second host's fan card (an ASUS laptop): its own keys, both fans, the ASUS profile, no GPU row."""
+
+    def card(self):
+        return js("""hw => { const d = document.createElement('div'); d.innerHTML = hwCard(hw, 'laptop');
+            return {title: d.querySelector('h2').textContent, keys: [...d.querySelectorAll('[data-hwmode]')].map(s => [s.dataset.hwmode, s.value]),
+                    rows: [...d.querySelectorAll('b')].map(b => b.textContent), gpu: d.textContent.includes('GPU fan setting below'),
+                    temps: [...d.querySelectorAll('dt')].map(x => x.textContent)}; }""", ASUS)
+
+    def test_card(self):
+        c = self.card()
+        self.assertEqual(c["title"], "laptop: fans and temperatures")
+        self.assertEqual(c["keys"], [["laptop|fan1", "group"], ["laptop|fan2", "manual"], ["laptop|board", "auto"], ["laptop|profile", "quiet"]])
+        self.assertEqual(c["rows"], ["Both fans", "ASUS profile"], "no GPU fan row on a laptop")
+        self.assertNotIn("GPU", c["temps"], "no GPU temperature when the laptop has none")
+
+    @data(("laptop|fan2", "manual", 75, {"host": "laptop", "target": "fan2", "mode": "manual", "pct": 75}),
+          ("laptop|board", "quiet", 50, {"host": "laptop", "target": "board", "mode": "quiet", "pct": 50}),
+          ("laptop|profile", "performance", None, {"host": "laptop", "target": "profile", "mode": "performance"}))
+    @unpack
+    def test_apply_sends_host(self, key, mode, pct, params):
+        got = js("""async ([hw, key, mode, pct]) => { const real = api, realAct = window.act, sent = [];
+            api = async (p, o) => p === '/api/hardware' ? {...(await real(p, o)), hosts: {laptop: hw}} : real(p, o);
+            window.act = (kind, p) => sent.push([kind, p]);
+            try { await VIEWS.proxmox(); const s = document.querySelector(`[data-hwmode="${key}"]`); s.value = mode; s.onchange();
+              const p = document.querySelector(`[data-hwpct="${key}"]`); if (p && pct != null) p.value = pct;
+              document.querySelector(`[data-hwset="${key}"]`).click(); } finally { api = real; window.act = realAct; }
+            return sent; }""", [ASUS, key, mode, pct])
+        self.assertEqual(got, [["hw_fan", params]])
+
+    def test_error_card(self):
+        self.assertIn("laptop fans: noc-hw: unreachable", js("() => hwCard({error: 'noc-hw: unreachable'}, 'laptop')"))
+
+
+@ddt
+class Cluster(unittest.TestCase):
+    """The Proxmox tab with a cluster: one card per node, a Node column, the cluster's quorum."""
+
+    def render(self, px):
+        return js("""async px => { const real = api;
+            api = async (p, o) => p === '/api/proxmox' ? JSON.parse(JSON.stringify(px)) : real(p, o);
+            try { await VIEWS.proxmox(); } finally { api = real; }
+            const v = document.querySelector('#view'), cards = [...v.querySelectorAll('.card')];
+            return {nodes: cards.map(c => c.querySelector('h2')?.textContent || '').filter(t => /^node-/.test(t)),
+                    pills: cards.filter(c => /^node-/.test(c.querySelector('h2')?.textContent || '')).map(c => c.querySelector('.pill')?.textContent),
+                    cluster: cards.map(c => c.querySelector('h2')?.textContent || '').find(t => t.startsWith('Cluster')) || null,
+                    quorum: v.textContent.includes('no quorum'), nodeCol: [...v.querySelectorAll('th')].some(t => t.textContent === 'Node'),
+                    html: v.innerHTML}; }""", px)
+
+    @data(({"nodes": [node("node-a", local=True), node("node-b")], "cluster": {"name": "home", "quorate": True, "nodes": 2, "online": 2}},
+           ["node-a", "node-b"], ["online", "online"], "Cluster home", False, True),
+          ({"nodes": [node("node-a", local=True), node("node-b", online=False)], "cluster": {"name": "home", "quorate": True, "nodes": 2, "online": 1}},
+           ["node-a", "node-b"], ["online", "offline"], "Cluster home", False, True),
+          ({"nodes": [node("node-a", local=True), node("node-b", online=False)], "cluster": {"name": "home", "quorate": False, "nodes": 2, "online": 1}},
+           ["node-a", "node-b"], ["online", "offline"], "Cluster home", True, True),
+          ({}, ["node-a"], ["online"], None, False, False))   # a NOC without cluster support: the old single-node shape
+    @unpack
+    def test_tab(self, extra, nodes, pills, cluster, noquorum, nodecol):
+        got = self.render({**PX, **extra})
+        self.assertEqual((got["nodes"], got["pills"], got["cluster"], got["quorum"], got["nodeCol"]),
+                         (nodes, pills, cluster, noquorum, nodecol))
+
+    def test_guest_names_escaped(self):
+        self.assertNotIn("<ha>", self.render({**PX, "nodes": [node("node-a", local=True), node("node-b")],
+                                              "cluster": {"name": "home", "quorate": True, "nodes": 2, "online": 2}})["html"])
+
+
 if __name__ == "__main__":
     unittest.main()

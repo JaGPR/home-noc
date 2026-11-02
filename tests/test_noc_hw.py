@@ -423,6 +423,189 @@ class Lights(unittest.TestCase):
             os.environ.pop("SSH_ORIGINAL_COMMAND")
 
 
+ASUS_CFG = {"kind": "asus", "board_chip": "asus", "board_temp": "acpitz", "hot_c": 85, "interval_s": 3,
+            "channels": {"1": {"name": "CPU fan", "min_pct": 25}, "2": {"name": "GPU fan", "min_pct": 25}}}
+FACTORY = [(30, 2), (56, 30), (60, 61), (65, 91), (69, 127), (73, 150), (77, 170), (81, 188)]
+
+
+class AsusHost(FakeHost):
+    """An ASUS laptop's sysfs: coretemp, acpitz, the asus hwmon (fan speeds), asus_custom_fan_curve
+    (8 points per fan, on the factory curve) and an ACPI platform profile. No amdgpu, no nct."""
+
+    def __init__(self, cpu=50.0):
+        self.root = Path(tempfile.mkdtemp())
+        mon = self.root / "sys/class/hwmon"
+        self.core, self.acpi, self.fan, self.cv = mon / "hwmon5", mon / "hwmon0", mon / "hwmon7", mon / "hwmon8"
+        for d, name in ((self.core, "coretemp"), (self.acpi, "acpitz"), (self.fan, "asus"), (self.cv, "asus_custom_fan_curve")):
+            d.mkdir(parents=True)
+            (d / "name").write_text(name + "\n")
+        (self.core / "temp1_label").write_text("Package id 0\n")
+        (self.acpi / "temp1_input").write_text("41000\n")
+        self.gpu = None
+        self.temp(cpu=cpu)
+        for ch, rpm in ((1, 2500), (2, 2600)):
+            (self.fan / f"fan{ch}_input").write_text(f"{rpm}\n")
+            (self.cv / f"pwm{ch}_enable").write_text("2\n")
+            for i, (t, p) in enumerate(FACTORY, 1):
+                (self.cv / f"pwm{ch}_auto_point{i}_temp").write_text(f"{t}\n")
+                (self.cv / f"pwm{ch}_auto_point{i}_pwm").write_text(f"{p}\n")
+        acpi = self.root / "sys/firmware/acpi"
+        acpi.mkdir(parents=True)
+        (acpi / "platform_profile").write_text("balanced\n")
+        (acpi / "platform_profile_choices").write_text("quiet balanced performance\n")
+        (self.root / "etc").mkdir()
+        (self.root / "etc/noc-hw.json").write_text(json.dumps(ASUS_CFG))
+        for k, v in (("ROOT", self.root), ("CONF", self.root / "etc/noc-hw.json"), ("VAR", self.root / "var/lib/noc-hw"),
+                     ("RUN", self.root / "run/noc-hw"), ("HWMON", mon), ("OPENRGB", self.root / "opt/openrgb/AppRun"),
+                     ("PROFILE", acpi / "platform_profile")):
+            setattr(H, k, v)
+
+    def points(self, ch):
+        return [(self.get(self.cv, f"pwm{ch}_auto_point{i}_temp"), self.get(self.cv, f"pwm{ch}_auto_point{i}_pwm")) for i in range(1, 9)]
+
+    def enabled(self, ch):
+        return self.get(self.cv, f"pwm{ch}_enable")
+
+
+def flat(pct):
+    return [(t, round(pct * 255 / 100)) for t in H.ASUS_TEMPS]
+
+
+@ddt
+class Asus(unittest.TestCase):
+    def setUp(self):
+        self.h = AsusHost()
+        self.cfg = H.conf()
+
+    def tearDown(self):
+        self.h.close()
+
+    @data((None, False, None), ({"mode": "auto"}, True, None),     # auto stays on the factory curve, even hot
+          ({"mode": "full"}, False, flat(100)), ({"mode": "manual", "pct": 60}, False, flat(60)),
+          ({"mode": "manual", "pct": 10}, False, flat(25)),          # never below min_pct
+          ({"mode": "manual", "pct": 40}, True, flat(100)))          # hot: flat 100 %
+    @unpack
+    def test_points(self, want, hot, pts):
+        self.assertEqual(H.asus_points(want, hot, 25), pts)
+
+    def test_curve_points_rise_with_temperature(self):
+        pts = H.asus_points({"mode": "quiet"}, False, 25)
+        self.assertEqual([t for t, _ in pts], list(H.ASUS_TEMPS))
+        self.assertEqual(pts, sorted(pts, key=lambda x: x[1]), "the firmware rejects a curve whose speed falls")
+        self.assertEqual((pts[0][1], pts[-1][1]), (64, 255))
+
+    @data(
+        # (wanted, cpu, -> (enable, points) per fan; None points = untouched factory curve)
+        ({}, 50, {1: (2, FACTORY), 2: (2, FACTORY)}),
+        ({"board": {"mode": "full"}}, 50, {1: (1, flat(100)), 2: (1, flat(100))}),
+        ({"board": {"mode": "manual", "pct": 50}, "fan2": {"mode": "auto"}}, 50, {1: (1, flat(50)), 2: (2, FACTORY)}),
+        ({"fan1": {"mode": "manual", "pct": 70}}, 50, {1: (1, flat(70)), 2: (2, FACTORY)}),
+        ({"board": {"mode": "manual", "pct": 40}}, 90, {1: (1, flat(100)), 2: (1, flat(100))}),   # hot
+    )
+    @unpack
+    def test_tick(self, wanted, cpu, want):
+        H.save_wanted(wanted)
+        self.h.temp(cpu=cpu)
+        H.tick(self.cfg, False)
+        self.assertEqual({ch: (self.h.enabled(ch), self.h.points(ch)) for ch in (1, 2)}, want)
+        self.assertIsNone(json.loads((H.RUN / "guard.json").read_text())["error"])
+
+    def test_curve_rewritten_only_when_changed(self):
+        H.save_wanted({"board": {"mode": "manual", "pct": 50}})
+        H.tick(self.cfg, False)
+        (self.h.cv / "pwm1_auto_point3_pwm").write_text("200\n")   # someone else changed it
+        stamp = (self.h.cv / "pwm2_auto_point1_pwm").stat().st_mtime_ns
+        H.tick(self.cfg, False)
+        self.assertEqual(self.h.points(1), flat(50), "a changed curve is put back")
+        self.assertEqual((self.h.cv / "pwm2_auto_point1_pwm").stat().st_mtime_ns, stamp, "an unchanged curve is not rewritten")
+
+    def test_restore_and_guard_error(self):
+        H.save_wanted({"board": {"mode": "full"}})
+        H.tick(self.cfg, False)
+        H.restore(self.cfg)
+        self.assertEqual((self.h.enabled(1), self.h.enabled(2)), (2, 2))
+        H.tick(self.cfg, False)
+        (self.h.cv / "name").write_text("gone\n")   # the curve hwmon disappears: the guard reports it, no crash
+        H.tick(self.cfg, False)
+        self.assertIn("asus_custom_fan_curve", json.loads((H.RUN / "guard.json").read_text())["error"])
+
+    @data(("profile", "quiet", None, "quiet"), ("profile", "performance", None, "performance"))
+    @unpack
+    def test_profile(self, target, mode, pct, now):
+        H.set_mode(target, mode, pct, self.cfg)
+        H.tick(self.cfg, False)
+        self.assertEqual(H.PROFILE.read_text().strip(), now)
+        H.PROFILE.write_text("balanced\n")   # the firmware or a key combo changed it: the guard puts it back
+        H.tick(self.cfg, False)
+        self.assertEqual(H.PROFILE.read_text().strip(), now)
+
+    @data(("profile", "turbo", "profile must be one of quiet, balanced, performance"),
+          ("gpu", "auto", "target must be one of board, profile or fanN"),
+          ("fan3", "auto", "fan3 is not a controlled fan header"))
+    @unpack
+    def test_rejects(self, target, mode, msg):
+        with self.assertRaisesRegex(ValueError, msg):
+            H.set_mode(target, mode, None, self.cfg)
+
+    def test_status(self):
+        H.save_wanted({"fan2": {"mode": "manual", "pct": 60}})
+        H.tick(self.cfg, False)
+        s = H.status(self.cfg)
+        self.assertEqual((s["kind"], s["targets"], s["profile"]),
+                         ("asus", ["board", "profile"], {"current": "balanced", "choices": ["quiet", "balanced", "performance"]}))
+        self.assertEqual([(f["id"], f["name"], f["rpm"], f["auto"]) for f in s["fans"]],
+                         [("fan1", "CPU fan", 2500, True), ("fan2", "GPU fan", 2600, False)])
+        self.assertEqual(s["fans"][1]["pct"], 60, "% is the active curve at the CPU temperature")
+        self.assertIsNone(s["fans"][0]["pct"], "on the factory curve the firmware's real speed is unknown")
+        self.assertEqual(s["temps"], {"cpu": 50.0, "gpu": None, "board": 41.0})
+
+    def test_desktop_unchanged(self):
+        self.assertEqual(H.targets({**H.DEFAULTS}), ("board", "gpu"))
+
+
+@unittest.skipUnless(os.environ.get("ASUS_HOST"), "set ASUS_HOST")
+class LiveAsus(unittest.TestCase):
+    """The real ASUS laptop: a fixed speed on one fan reaches the firmware curve and the fan; then back."""
+
+    def run_hw(self, cmd):
+        r = subprocess.run(["ssh", "-o", "BatchMode=yes", f"root@{os.environ['ASUS_HOST']}", "noc-hw " + cmd],
+                           capture_output=True, text=True, timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return json.loads(r.stdout)
+
+    def setUp(self):
+        self.saved = self.run_hw("status")["wanted"]
+
+    def tearDown(self):
+        now = self.run_hw("status")["wanted"]
+        for target in sorted(set(now) | set(self.saved)):
+            w = self.saved.get(target) or ({"mode": "group"} if target.startswith("fan") else {"mode": "auto"})
+            if now.get(target) != self.saved.get(target) and target != "profile":
+                self.run_hw(f"set {target} {w['mode']}" + (f" {w['pct']}" if w["mode"] == "manual" else ""))
+        if self.saved.get("profile") and now.get("profile") != self.saved["profile"]:
+            self.run_hw(f"set profile {self.saved['profile']['mode']}")
+        self.assertEqual({k: v for k, v in self.run_hw("status")["wanted"].items() if k != "profile"},
+                         {k: v for k, v in self.saved.items() if k != "profile"})
+
+    def test_fixed_speed(self):
+        s = self.run_hw("status")
+        self.assertEqual(s["kind"], "asus")
+        self.assertTrue(s["guard"]["running"], s["guard"])
+        fan = s["fans"][0]
+        try:
+            self.run_hw(f"set {fan['id']} full")
+            for _ in range(15):
+                now = next(f for f in self.run_hw("status")["fans"] if f["id"] == fan["id"])
+                if not now["auto"] and now["rpm"] > fan["rpm"] * 1.2:
+                    break
+                time.sleep(1)
+            self.assertFalse(now["auto"], now)
+            self.assertEqual(now["pct"], 100)
+            self.assertGreater(now["rpm"], fan["rpm"] * 1.2, f"{fan['name']}: {fan['rpm']} -> {now['rpm']} rpm")
+        finally:
+            self.run_hw(f"set {fan['id']} group")
+
+
 @unittest.skipUnless(os.environ.get("PVE_HOST"), "set PVE_HOST")
 class Live(unittest.TestCase):
     """The real host through the NOC's restricted key: set, wait for the guard, check, back to auto."""
@@ -462,25 +645,30 @@ class Live(unittest.TestCase):
         board = [f for f in s["fans"] if f["target"] == "board"]
         self.assertTrue(board and all(f["rpm"] and f["rpm"] > 0 for f in board), board)
         before = {f["channel"]: f["rpm"] for f in board}
+        own = set(s["wanted"]) - {"board", "gpu"}   # fans the owner gave their own mode don't follow board
+        follows = lambda f: f["target"] == "gpu" or f.get("id") not in own
+        grouped = [f for f in board if follows(f)]   # empty when every header has its own mode: only the GPU is checked
         try:
             self.run_hw("set gpu manual 60")
             self.run_hw("set board full")
-            s = self.wait_for(lambda s: all(not f["auto"] for f in s["fans"]), "fans did not go manual")
+            s = self.wait_for(lambda s: all(not f["auto"] for f in s["fans"] if follows(f)), "fans did not go manual")
             gpu = next(f for f in s["fans"] if f["target"] == "gpu")
             self.assertEqual(gpu["pct"], 60)
-            self.assertTrue(all(f["pct"] == 100 for f in s["fans"] if f["target"] == "board"))
+            self.assertTrue(all(f["pct"] == 100 for f in s["fans"] if f["target"] == "board" and follows(f)))
             time.sleep(4)
             s = self.run_hw("status")
-            faster = [f for f in s["fans"] if f["target"] == "board" and f["rpm"] > before[f["channel"]] * 1.1]
-            self.assertTrue(faster, f"no board fan sped up: before {before}, now {s['fans']}")
+            faster = [f for f in s["fans"] if f["target"] == "board" and follows(f) and f["rpm"] > before[f["channel"]] * 1.1]
+            if grouped:
+                self.assertTrue(faster, f"no board fan sped up: before {before}, now {s['fans']}")
         finally:
             self.run_hw("set gpu auto")
             self.run_hw("set board auto")
-        self.wait_for(lambda s: all(f["auto"] for f in s["fans"]), "fans did not return to auto")
+        self.wait_for(lambda s: all(f["auto"] for f in s["fans"] if follows(f)), "fans did not return to auto")
 
     def test_one_fan(self):
         s = self.run_hw("status")
         board = [f for f in s["fans"] if f["target"] == "board"]
+        own = set(s["wanted"]) - {"board", "gpu"}
         slow = [f for f in board if f["pct"] < 80]   # one the firmware already runs near 100 % can't speed up
         self.assertTrue(slow, board)
         one, rest = slow[0], [f for f in board if f is not slow[0]]
@@ -488,15 +676,16 @@ class Live(unittest.TestCase):
             self.run_hw("set board auto")
             self.run_hw(f"set {one['id']} full")
             s = self.wait_for(lambda s: not next(f for f in s["fans"] if f.get("id") == one["id"])["auto"], "fan did not go manual")
-            self.assertTrue(all(f["auto"] for f in s["fans"] if f["target"] == "board" and f["id"] != one["id"]),
-                            "the other headers stay with the firmware")
+            self.assertTrue(all(f["auto"] for f in s["fans"] if f["target"] == "board" and f["id"] != one["id"] and f["id"] not in own),
+                            "the other headers (those following board) stay with the firmware")
             time.sleep(4)
             now = next(f for f in self.run_hw("status")["fans"] if f.get("id") == one["id"])
             self.assertGreater(now["rpm"], one["rpm"] * 1.1, f"{one['name']} did not speed up: {one['rpm']} -> {now['rpm']}")
         finally:
             self.run_hw(f"set {one['id']} group")
         self.assertNotIn(one["id"], self.run_hw("status")["wanted"])
-        self.wait_for(lambda s: all(f["auto"] for f in s["fans"] if f["target"] == "board"), "fans did not return to auto")
+        self.wait_for(lambda s: all(f["auto"] for f in s["fans"] if f["target"] == "board" and f["id"] not in own - {one["id"]}),
+                      "fans did not return to auto")
         self.assertTrue(rest)
 
     @unittest.skipUnless(os.environ.get("PVE_LIGHTS"), "set PVE_LIGHTS=1")

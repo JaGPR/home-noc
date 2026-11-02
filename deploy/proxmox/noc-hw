@@ -24,6 +24,12 @@ Config: /etc/noc-hw.json (see DEFAULTS). Install: deploy/proxmox/install-noc-hw.
 
 Lighting runs the OpenRGB CLI (/opt/openrgb, the extracted AppImage), one run at a time. Every
 change re-applies all wanted groups in one run, then reads the modes back.
+
+ASUS laptops ("kind": "asus"): fans are driven through the firmware's 8-point custom fan curves
+(asus_custom_fan_curve hwmon; speeds from the asus hwmon), so the laptop's own controller keeps
+following a sensible curve even if the guard stops. quiet / balanced become a curve, full and manual
+a flat one, hot a flat 100 %; auto = the factory curve. Target "profile" sets the ASUS platform
+profile (quiet / balanced / performance) and is re-applied by the guard if the firmware changes it.
 """
 import json
 import os
@@ -41,9 +47,12 @@ VAR = ROOT / "var/lib/noc-hw"
 RUN = ROOT / "run/noc-hw"
 HWMON = ROOT / "sys/class/hwmon"
 OPENRGB = ROOT / "opt/openrgb/AppRun"
+PROFILE = ROOT / "sys/firmware/acpi/platform_profile"
 
 DEFAULTS = {
+    "kind": "nct",              # nct: desktop board (pwm per header) + amdgpu; asus: ASUS laptop fan curves
     "board_chip": "nct6798",
+    "board_temp": None,         # hwmon with the board temperature (default: board_chip)
     # pwm channel -> {name, min_pct}; only these are ever touched
     "channels": {},
     "hot_c": 85,
@@ -103,7 +112,7 @@ def temps(cfg):
     gpu = hwmon("amdgpu")
     if gpu and (v := read_int(gpu / "temp1_input")) is not None:
         out["gpu"] = v / 1000
-    board = hwmon(cfg["board_chip"])
+    board = hwmon(cfg.get("board_temp") or cfg["board_chip"])
     if board and (v := read_int(board / "temp1_input")) is not None:
         out["board"] = v / 1000
     return out
@@ -203,7 +212,82 @@ def apply(cfg, plan):
 
 
 def restore(cfg=None):
-    apply(cfg or conf(), {"board": None, "gpu": None})
+    cfg = cfg or conf()
+    if cfg.get("kind") == "asus":
+        asus_apply(cfg, {}, False)
+    else:
+        apply(cfg, {"board": None, "gpu": None})
+
+
+# ---------------------------------------------------------------- ASUS laptops (kind "asus")
+ASUS_TEMPS = (40, 50, 58, 64, 70, 75, 80, 85)   # the 8 curve points' temperatures, C
+ASUS_CUSTOM, ASUS_FACTORY = 1, 2                # asus_custom_fan_curve pwmN_enable values
+
+
+def asus_points(want, hot, min_pct):
+    """A fan's wanted mode -> its 8 (temp C, pwm 0-255) curve points; None = the factory curve.
+    Points never fall below min_pct; hot (and full) is a flat 100 %."""
+    mode = (want or {}).get("mode", "auto")
+    if mode == "auto":
+        return None
+    if hot or mode == "full":
+        pcts = [100] * 8
+    elif mode == "manual":
+        pcts = [int(want["pct"])] * 8
+    else:
+        pcts = [curve(CURVES[mode], t) for t in ASUS_TEMPS]
+    return [(t, round(max(p, min_pct) * 255 / 100)) for t, p in zip(ASUS_TEMPS, pcts)]
+
+
+def asus_read_points(d, ch):
+    return [(read_int(d / f"pwm{ch}_auto_point{i}_temp"), read_int(d / f"pwm{ch}_auto_point{i}_pwm")) for i in range(1, 9)]
+
+
+def asus_want(wanted, ch):
+    return wanted.get(f"fan{ch}") or wanted.get("board")
+
+
+def asus_apply(cfg, wanted, hot):
+    """Write each channel's curve and switch it on, or hand it back to the factory curve. A curve is only
+    rewritten when it differs (the firmware takes all 8 points again when the curve is switched on)."""
+    d = hwmon("asus_custom_fan_curve")
+    if not d:
+        raise RuntimeError("no asus_custom_fan_curve hwmon (asus-wmi)")
+    for ch, c in sorted(cfg["channels"].items(), key=lambda x: int(x[0])):
+        en = d / f"pwm{ch}_enable"
+        pts = asus_points(asus_want(wanted, ch), hot, int(c.get("min_pct", 25)))
+        if pts is None:
+            if read_int(en) != ASUS_FACTORY:
+                write(en, ASUS_FACTORY)
+        elif read_int(en) != ASUS_CUSTOM or asus_read_points(d, ch) != pts:
+            for i, (t, p) in enumerate(pts, 1):
+                write(d / f"pwm{ch}_auto_point{i}_temp", t)
+                write(d / f"pwm{ch}_auto_point{i}_pwm", p)
+            write(en, ASUS_CUSTOM)
+    prof = wanted.get("profile")
+    if prof and PROFILE.exists() and PROFILE.read_text().strip() != prof["mode"]:
+        write(PROFILE, prof["mode"])
+
+
+def profiles():
+    try:
+        return (ROOT / "sys/firmware/acpi/platform_profile_choices").read_text().split()
+    except OSError:
+        return []
+
+
+def asus_status(cfg, t):
+    """Fans of an ASUS laptop: rpm from the asus hwmon, % = our curve at the current CPU temperature.
+    On the factory curve % is None: the firmware does not follow the factory points it reports."""
+    fans, d, rpm = [], hwmon("asus_custom_fan_curve"), hwmon("asus")
+    for ch, c in sorted(cfg["channels"].items(), key=lambda x: int(x[0])):
+        auto = not d or read_int(d / f"pwm{ch}_enable") != ASUS_CUSTOM
+        pts = [] if auto else [(tc, round(p * 100 / 255)) for tc, p in asus_read_points(d, ch) if tc is not None and p is not None]
+        fans.append({"target": "board", "channel": int(ch), "id": f"fan{ch}", "name": c.get("name", f"Fan {ch}"),
+                     "rpm": read_int(rpm / f"fan{ch}_input") if rpm else None,
+                     "pct": curve(pts, t["cpu"]) if pts and t["cpu"] is not None else None,
+                     "auto": auto, "min_pct": int(c.get("min_pct", 25))})
+    return fans
 
 
 def load_wanted():
@@ -213,12 +297,25 @@ def load_wanted():
         return {}
 
 
+def targets(cfg):
+    """What `set` accepts besides fanN on this host."""
+    return ("board", "profile") if cfg.get("kind") == "asus" else TARGETS
+
+
 def set_mode(target, mode, pct=None, cfg=None):
+    cfg = cfg or conf()
     channel = target[3:] if re.fullmatch(r"fan\d+", str(target)) else None
-    if channel is not None and channel not in (cfg or conf())["channels"]:
+    if channel is not None and channel not in cfg["channels"]:
         raise ValueError(f"{target} is not a controlled fan header")
-    if target not in TARGETS and channel is None:
-        raise ValueError(f"target must be one of {', '.join(TARGETS)} or fanN")
+    if target not in targets(cfg) and channel is None:
+        raise ValueError(f"target must be one of {', '.join(targets(cfg))} or fanN")
+    if target == "profile":
+        if mode not in profiles():
+            raise ValueError(f"profile must be one of {', '.join(profiles()) or '(none: no platform_profile)'}")
+        w = load_wanted()
+        w["profile"] = {"mode": mode}
+        save_wanted(w)
+        return w
     if channel is not None and mode == "group":   # follow the board setting again
         w = load_wanted()
         w.pop(target, None)
@@ -250,12 +347,14 @@ def save_wanted(w):
 
 def status(cfg=None):
     cfg = cfg or conf()
-    fans = []
-    for d, ch, c in board_fans(cfg):
+    t, fans = temps(cfg), []
+    if cfg.get("kind") == "asus":
+        fans = asus_status(cfg, t)
+    for d, ch, c in board_fans(cfg) if cfg.get("kind") != "asus" else []:
         fans.append({"target": "board", "channel": int(ch), "id": f"fan{ch}", "name": c.get("name", f"Fan {ch}"),
                      "rpm": read_int(d / f"fan{ch}_input"), "pct": round((read_int(d / f"pwm{ch}") or 0) * 100 / 255),
                      "auto": read_int(d / f"pwm{ch}_enable") != 1, "min_pct": int(c.get("min_pct", 25))})
-    g = gpu_fan()
+    g = gpu_fan() if cfg.get("kind") != "asus" else None
     if g:
         fans.append({"target": "gpu", "channel": 1, "name": "GPU fan", "rpm": read_int(g / "fan1_input"),
                      "pct": round((read_int(g / "pwm1") or 0) * 100 / 255), "auto": read_int(g / "pwm1_enable") != 1,
@@ -266,8 +365,12 @@ def status(cfg=None):
         guard["running"] = guard["age_s"] < 4 * cfg["interval_s"]
     except (OSError, ValueError, KeyError):
         guard = {"running": False}
-    return {"temps": temps(cfg), "fans": fans, "wanted": load_wanted(), "guard": guard,
-            "hot_c": cfg["hot_c"], "modes": list(MODES), "lights": lights(may_detect=False)}
+    out = {"temps": t, "fans": fans, "wanted": load_wanted(), "guard": guard, "kind": cfg.get("kind", "nct"),
+           "targets": [x for x in targets(cfg) if x != "gpu" or g], "hot_c": cfg["hot_c"], "modes": list(MODES),
+           "lights": lights(may_detect=False)}
+    if cfg.get("kind") == "asus":
+        out["profile"] = {"current": PROFILE.read_text().strip() if PROFILE.exists() else None, "choices": profiles()}
+    return out
 
 
 def parse_devices(text):
@@ -418,8 +521,12 @@ def tick(cfg, hot):
     """One guard pass: decide and apply, or on any error hand every fan back. -> hot."""
     err = None
     try:
-        plan, hot = decide(load_wanted(), temps(cfg), hot, cfg["hot_c"])
-        apply(cfg, plan)
+        wanted = load_wanted()
+        plan, hot = decide(wanted, temps(cfg), hot, cfg["hot_c"])
+        if cfg.get("kind") == "asus":
+            asus_apply(cfg, wanted, hot)   # the firmware follows the curve; plan is what the guard reports
+        else:
+            apply(cfg, plan)
     except Exception as ex:   # never leave fans in manual on an error
         err, plan = f"{type(ex).__name__}: {ex}", {}
         try:

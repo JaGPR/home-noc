@@ -3,6 +3,8 @@
 The host side is tests/test_noc_hw.py.  Run:  python -m unittest tests/test_hardware.py
 """
 import json
+import os
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -164,6 +166,124 @@ class Call(unittest.TestCase):
         noc = FakeNoc()
         HW.call(noc, *args)
         self.assertEqual(noc.commands[-1][1], command)
+
+
+ASUS = {"kind": "asus", "targets": ["board", "profile"], "temps": {"cpu": 44.0, "gpu": None, "board": 41.0}, "hot_c": 85,
+        "guard": {"running": True}, "wanted": {}, "profile": {"current": "balanced", "choices": ["quiet", "balanced", "performance"]},
+        "fans": [{"target": "board", "channel": 1, "id": "fan1", "name": "CPU fan", "rpm": 2500, "pct": 23, "auto": True, "min_pct": 25},
+                 {"target": "board", "channel": 2, "id": "fan2", "name": "GPU fan", "rpm": 2600, "pct": 22, "auto": True, "min_pct": 25}],
+        "lights": {"available": False, "groups": {}}}
+
+
+class TwoHosts(FakeNoc):
+    """A main desktop host and a laptop (noc-hw kind asus) in hardware.hosts."""
+
+    def __init__(self):
+        super().__init__()
+        self.C["hardware"]["hosts"] = {"laptop": "192.0.2.21"}
+
+    def ssh(self, host, script, timeout=20, command="sh -s"):
+        self.commands.append((host, command))
+        return json.dumps(ASUS if host == "192.0.2.21" else STATUS)
+
+
+@ddt
+class Hosts(unittest.TestCase):
+    @data(({"target": "fan2", "mode": "manual", "pct": 60, "host": "laptop"}, "laptop GPU fan: Fixed speed at 60 %",
+           ("192.0.2.21", "noc-hw set fan2 manual 60"), ["hardware:laptop"]),
+          ({"target": "board", "mode": "quiet", "host": "laptop"}, "laptop Both fans: Quiet curve",
+           ("192.0.2.21", "noc-hw set board quiet"), ["hardware:laptop"]),
+          ({"target": "fan1", "mode": "group", "host": "laptop"}, "laptop CPU fan: follow Both fans",
+           ("192.0.2.21", "noc-hw set fan1 group"), ["hardware:laptop"]),
+          ({"target": "profile", "mode": "quiet", "host": "laptop"}, "laptop ASUS profile: Quiet",
+           ("192.0.2.21", "noc-hw set profile quiet"), ["hardware:laptop"]),
+          ({"target": "board", "mode": "quiet"}, "Case and CPU fans: Quiet curve",               # no host: the main host
+           ("192.0.2.6", "noc-hw set board quiet"), ["hardware"]),
+          ({"target": "board", "mode": "quiet", "host": ""}, "Case and CPU fans: Quiet curve",
+           ("192.0.2.6", "noc-hw set board quiet"), ["hardware"]))
+    @unpack
+    def test_routed_to_the_host(self, params, summary, command, refresh):
+        noc = TwoHosts()
+        s, detail, _, run, keys = HW.plan(noc, "hw_fan", params)
+        self.assertEqual((s, keys), (summary, refresh))
+        run()
+        self.assertEqual(noc.commands[-1], command)
+
+    @data(({"target": "gpu", "mode": "auto", "host": "laptop"}, "target must be one of board or a single fan"),
+          ({"target": "profile", "mode": "turbo", "host": "laptop"}, "profile must be one of quiet, balanced, performance"),
+          ({"target": "profile", "mode": "quiet"}, "target must be one of board, gpu"),   # the desktop has no ASUS profile
+          ({"target": "board", "mode": "auto", "host": "nope"}, "unknown hardware host"),
+          ({"target": "board", "mode": "auto", "host": "laptop; reboot"}, "unknown hardware host"))
+    @unpack
+    def test_rejects(self, params, msg):
+        noc = TwoHosts()
+        with self.assertRaisesRegex(ValueError, msg):
+            HW.plan(noc, "hw_fan", params)
+        self.assertFalse([c for c in noc.commands if " set " in c[1]], "nothing may be sent for a rejected action")
+
+    def test_asus_detail(self):
+        _, detail, *_ = HW.plan(TwoHosts(), "hw_fan", {"target": "board", "mode": "full", "host": "laptop"})
+        self.assertTrue(any("laptop firmware as its fan curve" in d for d in detail), detail)
+        _, detail, *_ = HW.plan(TwoHosts(), "hw_fan", {"target": "profile", "mode": "performance", "host": "laptop"})
+        self.assertEqual(detail[0], "Now: balanced")
+
+    def test_light_on_a_host_without_openrgb(self):
+        with self.assertRaisesRegex(ValueError, "no ram lighting"):
+            HW.plan(TwoHosts(), "hw_light", {"group": "ram", "mode": "Off", "host": "laptop"})
+
+    @data((None, "192.0.2.6"), ("laptop", "192.0.2.21"))
+    @unpack
+    def test_host_and_key(self, name, addr):
+        self.assertEqual((HW.host(TwoHosts(), name), HW.cache_key(name)), (addr, "hardware:" + name if name else "hardware"))
+
+    def test_extra_host_not_configured(self):
+        with self.assertRaisesRegex(RuntimeError, "not in hardware.hosts"):
+            HW.collect(FakeNoc(), "laptop")
+
+
+@unittest.skipUnless(os.environ.get("NOC_HOST") and os.environ.get("HW_HOST_NAME"), "set NOC_HOST and HW_HOST_NAME")
+class Live(unittest.TestCase):
+    """End to end on the NOC: /api/hardware lists the extra host, and a planned action reaches it.
+    NOC_HOST=192.0.2.20 HW_HOST_NAME=<a name in hardware.hosts>; it sets one fan to a fixed speed and puts it back."""
+    PROBE = r'''
+import json, os, sys, time
+os.environ["NOC_NO_WORKERS"] = "1"
+sys.path.insert(0, "/opt/noc")
+import io, contextlib
+with contextlib.redirect_stdout(io.StringIO()):
+    import app as noc, hardware
+name = sys.argv[1]
+api = noc.api_hardware()
+st = api["hosts"][name]
+fan = st["fans"][-1]
+before = st["wanted"].get(fan["id"])
+out = {"api_hosts": sorted(api.get("hosts") or {}), "kind": st.get("kind"), "fan": fan["id"]}
+try:
+    s, detail, _, run, keys = hardware.plan(noc, "hw_fan", {"host": name, "target": fan["id"], "mode": "manual", "pct": 70})
+    run(); out.update(summary=s, keys=keys)
+    for _ in range(10):
+        now = next(f for f in hardware.collect(noc, name)["fans"] if f["id"] == fan["id"])
+        if not now["auto"]:
+            break
+        time.sleep(1)
+    out["applied"] = {"auto": now["auto"], "pct": now["pct"]}
+finally:
+    w = before or {"mode": "group"}
+    hardware.call(noc, "set", fan["id"], w["mode"], *([w["pct"]] if w["mode"] == "manual" else []), name=name)
+out["restored"] = hardware.collect(noc, name)["wanted"].get(fan["id"]) == before
+print(json.dumps(out))
+'''
+
+    def test_live(self):
+        name = os.environ["HW_HOST_NAME"]
+        r = subprocess.run(["ssh", "-o", "BatchMode=yes", f"root@{os.environ['NOC_HOST']}", "python3", "-", name],
+                           input=self.PROBE, capture_output=True, text=True, timeout=120, check=True)
+        got = json.loads(r.stdout.strip().splitlines()[-1])
+        self.assertIn(name, got["api_hosts"])
+        self.assertTrue(got["summary"].startswith(f"{name} "), got)
+        self.assertEqual(got["keys"], [f"hardware:{name}"])
+        self.assertEqual(got["applied"], {"auto": False, "pct": 70}, got)
+        self.assertTrue(got["restored"], "the owner's setting is put back")
 
 
 if __name__ == "__main__":

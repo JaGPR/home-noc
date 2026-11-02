@@ -22,6 +22,7 @@ import requests
 
 import backups
 import diagnose
+import proxmox
 
 DEFAULTS = {"check_every_s": 30, "confirm_checks": 2, "ont_stale_s": 180,
             "backup_alerts": True, "backup_success": True, "backup_store_warn_pct": 85, "backup_long_h": 4}
@@ -202,6 +203,13 @@ class Telegram:
                 self.covered["dns:"], self.covered["block:"] = None, {n["name"] for n in d["nodes"]}
         except Exception as ex:
             out["source:dns"] = (False, f"DNS checks failed: {ex}")
+
+        if noc.PVE.get("url"):
+            # cluster nodes and quorum; a failed read keeps the last states (forget() leaves "pve:" alone)
+            px = noc.cached("proxmox", 20, noc.collect_proxmox)
+            if isinstance(px, dict) and "error" not in px:
+                out.update(proxmox.checks(px))
+                self.covered["pve:"] = None
 
         if self.cfg()["backup_alerts"] and noc.PVE.get("url"):
             r = noc.cached("backup_store", 60, lambda: self.backups.store_readings(self.cfg()))
