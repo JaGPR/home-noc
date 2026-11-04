@@ -25,7 +25,8 @@ import diagnose
 import proxmox
 
 DEFAULTS = {"check_every_s": 30, "confirm_checks": 2, "ont_stale_s": 180,
-            "backup_alerts": True, "backup_success": True, "backup_store_warn_pct": 85, "backup_long_h": 4}
+            "backup_alerts": True, "backup_success": True, "backup_store_warn_pct": 85, "backup_long_h": 4,
+            "backup_max_age_h": 36}
 PAIR_TTL = 600
 ACTION_TTL = 120
 
@@ -217,6 +218,11 @@ class Telegram:
                 self.backup_error = r["error"]
             else:
                 out.update(r)
+            # every guest of a job has a recent good backup (reads task logs: at most every 5 min)
+            g = noc.cached("backup_cover", 300, lambda: self.backups.coverage_readings(self.cfg()))
+            if isinstance(g, dict) and not isinstance(g.get("error"), str):
+                out.update(g)
+                self.covered["backup:guest:"] = None
         self.apply_grace(out)
         return out, vip
 

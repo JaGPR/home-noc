@@ -6,7 +6,10 @@ Reads Proxmox with the NOC's read-only API token (PVEAuditor is enough):
 - a task still running after `backup_long_h` hours -> one alert (e.g. hung on a dead NFS mount),
 - a scheduled job whose start time passed with no backup task -> "missed",
 - backup storage of an enabled job unavailable or above `backup_store_warn_pct` -> a normal
-  debounced check, so it alerts and recovers like any other.
+  debounced check, so it alerts and recovers like any other,
+- every guest of an enabled job without a good backup in `backup_max_age_h` hours -> a debounced
+  check per guest (skipped, failed, or on a node whose run did not happen).
+In a cluster, backup tasks are read from every online node (a job without a node runs on each).
 """
 import html
 import json
@@ -77,12 +80,64 @@ class Watcher:
     def node(self):
         return self.noc.PVE.get("node")
 
+    def nodes(self):
+        """The online cluster nodes (just the configured node when the cluster can't be read)."""
+        try:
+            names = [n["node"] for n in self.noc.pve("/nodes") if n.get("status") == "online"]
+        except Exception:
+            names = []
+        return sorted(names, key=lambda n: n != self.node) or [self.node]
+
     def tasks(self):
-        return self.noc.pve(f"/nodes/{self.node}/tasks?typefilter=vzdump&limit=30")
+        """vzdump tasks of every online node. The configured node must answer; another one may not."""
+        out = []
+        for n in self.nodes():
+            try:
+                out += self.noc.pve(f"/nodes/{n}/tasks?typefilter=vzdump&limit=30")
+            except Exception:
+                if n == self.node:
+                    raise
+        return out
+
+    def task_node(self, upid):
+        """A task's node is the second field of its UPID (UPID:<node>:...)."""
+        parts = upid.split(":")
+        return parts[1] if len(parts) > 2 and parts[0] == "UPID" and parts[1] else self.node
 
     def task_log(self, upid):
-        rows = self.noc.pve(f"/nodes/{self.node}/tasks/{urllib.parse.quote(upid, safe='')}/log?start=0&limit=50000")
+        rows = self.noc.pve(f"/nodes/{self.task_node(upid)}/tasks/{urllib.parse.quote(upid, safe='')}/log?start=0&limit=50000")
         return [r.get("t", "") for r in rows]
+
+    def guest_names(self):
+        """{vmid: name} of every guest in the cluster (the configured node's when the cluster can't be read)."""
+        try:
+            return {str(g["vmid"]): g.get("name") or f"{g['type']} {g['vmid']}" for g in self.noc.pve("/cluster/resources?type=vm")}
+        except Exception:
+            names = {}
+            for kind in ("qemu", "lxc"):
+                for g in self.noc.pve(f"/nodes/{self.node}/{kind}"):
+                    names[str(g["vmid"])] = g.get("name") or f"{kind} {g['vmid']}"
+            return names
+
+    def latest(self):
+        """{vmid: {ctime, size}}: each guest's latest good backup, from the backup task logs (a read-only
+        auditor token can't list backup files, but it can read tasks)."""
+        latest = {}
+        for t in sorted((t for t in self.tasks() if t.get("endtime")), key=lambda t: -t["endtime"]):
+            try:
+                guests = self.parsed_log(t["upid"])["guests"]
+            except Exception:
+                continue
+            for g in guests:
+                if not g["error"] and g["took"] is not None and g["vmid"] not in latest:
+                    latest[g["vmid"]] = {"ctime": t["endtime"], "size": g["size"]}
+        return latest
+
+    @staticmethod
+    def job_guests(job, names):
+        if job.get("all"):
+            return set(names) - set(str(job.get("exclude") or "").replace(" ", "").split(","))
+        return {v for v in str(job.get("vmid") or "").replace(" ", "").split(",") if v}
 
     def parsed_log(self, upid):
         if upid not in self.parsed:
@@ -222,33 +277,33 @@ class Watcher:
             out[f"backup:store:{s}"] = (pct < warn, f"Backup storage {s}: {pct:.0f}% used (warn at {warn:.0f}%)")
         return out
 
+    def coverage_readings(self, cfg, now=None):
+        """Debounced checks: every guest of an enabled job has a good backup younger than backup_max_age_h.
+        A guest in a job that no longer exists is skipped (Proxmox skips it too)."""
+        now, limit = now or time.time(), float(cfg.get("backup_max_age_h", 36))
+        jobs = [j for j in self.jobs() if j.get("enabled", 1)]
+        if not jobs:
+            return {}
+        names, latest, out = self.guest_names(), self.latest(), {}
+        for v in sorted({v for j in jobs for v in self.job_guests(j, names)} & set(names), key=int):
+            b = latest.get(v)
+            age = now - b["ctime"] if b else None
+            ok = age is not None and age < limit * 3600
+            out[f"backup:guest:{v}"] = (ok, f"Backup of {v} {names[v]}: " + (
+                f"last good backup {self.noc_ago(age)} ago" if b else "no good backup found") + (
+                "" if ok else f" (expected within {limit:g} h)"))
+        return out
+
     # ------------------------------------------------------------ /backups
     def overview(self, site):
         jobs, now = self.jobs(), time.time()
         if not jobs:
             return "No backup jobs in Proxmox (Datacenter → Backup)."
-        names = {}
-        for kind in ("qemu", "lxc"):
-            for g in self.noc.pve(f"/nodes/{self.node}/{kind}"):
-                names[str(g["vmid"])] = g.get("name") or f"{kind} {g['vmid']}"
-        # Latest good backup per guest, from the backup task logs: a read-only (auditor) token
-        # can't list backup files, but it can read tasks.
-        latest = {}
-        for t in sorted((t for t in self.tasks() if t.get("endtime")), key=lambda t: -t["endtime"]):
-            try:
-                guests = self.parsed_log(t["upid"])["guests"]
-            except Exception:
-                continue
-            for g in guests:
-                if not g["error"] and g["took"] is not None and g["vmid"] not in latest:
-                    latest[g["vmid"]] = {"ctime": t["endtime"], "size": g["size"]}
+        names, latest = self.guest_names(), self.latest()
         lines = [f"<b>{e(site)}: backups</b>"]
         covered = set()
         for j in jobs:
-            if j.get("all"):
-                ids = set(names) - set(str(j.get("exclude") or "").replace(" ", "").split(","))
-            else:
-                ids = {v for v in str(j.get("vmid") or "").replace(" ", "").split(",") if v}
+            ids = self.job_guests(j, names)
             covered |= ids
             nr = j.get("next-run")
             state = "disabled" if not j.get("enabled", 1) else (f"next {time.strftime('%a %H:%M', time.localtime(nr))}" if nr else "no next run")
