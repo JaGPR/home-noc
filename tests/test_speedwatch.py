@@ -136,6 +136,17 @@ curl() { for a; do last="$a"; done; echo "wan1 41250000 40000000 206"; }
                            capture_output=True, text=True)
         self.assertEqual(S.parse(r.stdout), {"wan1": 330, "wan2": "down"})
 
+    def test_a_timeout_on_the_last_session_still_measures(self):
+        """curl exits 28 at --max-time with its numbers printed: the script must not read as failed over SSH."""
+        stub = r"""
+uci() { echo "network.wan1.proto='pppoe'"; }
+ifstatus() { echo "$1"; }
+jsonfilter() { read n; echo true; }
+curl() { echo "wan1 4875000 40000000 206"; return 28; }
+"""
+        r = subprocess.run(["sh", "-c", stub + S.router_script("http://192.0.2.9/f", 100, 1)], capture_output=True, text=True)
+        self.assertEqual((r.returncode, S.parse(r.stdout)), (0, {"wan1": 39}))
+
 
 class FakeNoc:
     def __init__(self, outputs, var):

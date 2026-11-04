@@ -49,7 +49,10 @@ systemctl enable noc >/dev/null 2>&1
 echo "==> Installing the hourly PPPoE speed watch (needs speedwatch.url in config.json)"
 install -m 644 deploy/noc-speedwatch.cron /etc/cron.d/noc-speedwatch
 
-if [ -n "$NEED_CONFIG" ]; then
+if [ -n "${NOC_NO_START:-}" ]; then
+	echo "Installed, not started (the installer writes the config first)."
+	exit 0
+elif [ -n "$NEED_CONFIG" ]; then
 	echo
 	echo "Installed. Before starting, edit /etc/noc/config.json and /etc/noc/secrets.env,"
 	echo "then run:  systemctl start noc"

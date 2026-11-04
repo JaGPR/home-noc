@@ -25,7 +25,7 @@ PHONES = {"iphone-se-1": (320, 568), "android-small": (360, 740), "iphone-se": (
           "iphone-15": (393, 852), "pixel": (412, 915)}
 TABLETS = {"ipad-portrait": (768, 1024)}
 DESKTOPS = {"laptop": (1280, 800)}
-TABS = ["overview", "dns", "switch", "router", "interfaces", "netdevs", "mwan", "wifi", "devices",
+TABS = ["overview", "dns", "switch", "router", "interfaces", "netdevs", "mwan", "speed", "wifi", "devices",
         "proxmox", "alerts", "settings", "audit"]
 
 # Answer for the preview/confirm flow, so dialogs can be opened in tests.

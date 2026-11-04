@@ -31,6 +31,7 @@ import notify
 import openwrt
 import proxmox
 import settings
+import speedtab
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 
@@ -1492,6 +1493,7 @@ def plan_action(kind, p):
 app = FastAPI(title="NOC", docs_url=None, redoc_url=None)
 app.add_middleware(GZipMiddleware, minimum_size=1024)  # the page is ~160 KB, ~35 KB gzipped
 TG = notify.Telegram(sys.modules[__name__])
+SPEED_TESTS, SPEED_LOAD = speedtab.Tests(sys.modules[__name__]), speedtab.Load()
 
 
 @app.on_event("startup")
@@ -1745,6 +1747,31 @@ def api_alerts():
     procs = {i["name"]: i.get("proto") for i in r.get("interfaces", [])} if isinstance(r, dict) else {}
     return {**TG.status(), "groups": wan_groups(), "monitored": sorted(wan_ifaces()),
             "candidates": [{"name": n, "proto": procs.get(n)} for n in wan_candidates()]}
+
+
+@app.get("/api/speed")
+def api_speed():
+    """The Speed tab: live load per WAN, the running test, recent results (app/speedtab.py)."""
+    try:
+        return speedtab.view(sys.modules[__name__], SPEED_TESTS, SPEED_LOAD)
+    except Exception as ex:
+        return JSONResponse({"error": str(ex)}, status_code=502)
+
+
+@app.post("/api/speed/test")
+async def api_speed_test(request: Request):
+    """Start a speed test: {"names": [...] or absent for every WAN that is up, "together": bool}. It changes
+    no settings, so it needs no preview; it downloads real data, so it goes in the audit log."""
+    body = await request.json()
+    try:
+        r = cached("router", 15, collect_router)
+        rows, _ = speedtab.wan_rows(r.get("interfaces", []) if isinstance(r, dict) else [], wan_ifaces())
+        names = speedtab.pick(rows, body.get("names"))
+        state = SPEED_TESTS.start(names, bool(body.get("together")))
+    except ValueError as ex:
+        return JSONResponse({"error": str(ex)}, status_code=400)
+    audit(request, "speed_test", f"Speed test {'together' if body.get('together') else 'one by one'}: {', '.join(names)}", {"ok": True})
+    return state
 
 
 @app.get("/api/openwrt")

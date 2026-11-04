@@ -371,5 +371,74 @@ class Cluster(unittest.TestCase):
                                               "cluster": {"name": "home", "quorate": True, "nodes": 2, "online": 2}})["html"])
 
 
+SPEED = {"configured": True, "url": "http://192.0.2.80/f.bin", "test_mb": 100, "slow_mbps": 100, "load_error": None,
+         "total_down_mbps": 420.5, "total_up_mbps": 12.0, "history": [{"ts": "2026-01-02 01:07:00", "mbps": {"wan1": 300, "wan3": 39}, "source": "hourly"},
+                                                                       {"ts": "2026-01-02 02:07:00", "mbps": {"wan1": 320, "wan3": 40}, "source": "manual"}],
+         "test": {"running": False, "mode": None, "results": {}, "total_mbps": None, "error": None},
+         "wans": [{"name": "wan1", "device": "pppoe-wan1", "up": True, "down_mbps": 400.0, "up_mbps": 10.0, "flows": 40, "last_mbps": 320, "last_ts": "2026-01-02 02:07:00"},
+                  {"name": "wan3", "device": "pppoe-wan3", "up": True, "down_mbps": 20.5, "up_mbps": 2.0, "flows": 3, "last_mbps": 40, "last_ts": "2026-01-02 02:07:00"},
+                  {"name": "<isp>", "device": None, "up": False, "down_mbps": None, "up_mbps": None, "flows": None, "last_mbps": None, "last_ts": None}]}
+
+
+@ddt
+class SpeedTab(unittest.TestCase):
+    def render(self, **change):
+        return js("""async d => { const real = api;
+            api = async (p, o) => p === '/api/speed' ? JSON.parse(JSON.stringify(d)) : real(p, o);
+            try { await VIEWS.speed(); } finally { api = real; }
+            const v = document.querySelector('#view'), rows = [...v.querySelectorAll('table')][0].querySelectorAll('tr');
+            return {text: v.textContent, html: v.innerHTML,
+              rows: [...rows].slice(1).map(r => [...r.children].map(c => c.textContent.trim())),
+              disabled: [...v.querySelectorAll('button')].map(b => [b.dataset.sptest || b.id, b.disabled]),
+              sparks: v.querySelectorAll('svg polyline').length}; }""", {**SPEED, **change})
+
+    def test_rows(self):
+        got = self.render()
+        self.assertEqual([r[0] for r in got["rows"]], ["wan1 pppoe-wan1", "wan3 pppoe-wan3", "<isp>"])
+        self.assertIn("400 Mbps", got["rows"][0][2], "over 100 Mbps: no decimals")
+        self.assertIn("20.5 Mbps", got["rows"][1][2])
+        self.assertEqual(got["rows"][2][2], "–", "unknown load is not shown as 0")
+        self.assertIn("421 Mbps", got["text"])
+        self.assertIn("slow", got["rows"][1][1], "below slow_mbps")
+        self.assertNotIn("slow", got["rows"][0][1])
+        self.assertEqual(got["sparks"], 2)
+
+    def test_escaped(self):
+        self.assertNotIn("<isp>", self.render()["html"])
+
+    @data(({}, False), ({"test": {"running": True, "mode": "each", "results": {"wan1": {"status": "running", "mbps": None}}}}, True))
+    @unpack
+    def test_buttons_while_running(self, change, off):
+        got = dict(self.render(**change)["disabled"])
+        self.assertEqual((got["sp-each"], got["sp-all"], got["wan1"]), (off, off, off))
+        self.assertTrue(got["<isp>"], "a WAN that is down can't be tested")
+
+    @data(("running", None, "testing…"), ("waiting", None, "waiting…"), ("failed", None, "failed"), ("done", 333, "333 Mbps"))
+    @unpack
+    def test_result_cell(self, status, mbps, text):
+        got = self.render(test={"running": status != "done", "mode": "each", "results": {"wan1": {"status": status, "mbps": mbps}}})
+        self.assertIn(text, got["rows"][0][5])
+
+    def test_together_total(self):
+        self.assertIn("Together: 900 Mbps", self.render(test={"running": False, "mode": "together", "results": {}, "total_mbps": 900})["text"])
+
+    def test_not_configured(self):
+        got = self.render(configured=False)
+        self.assertIn("speedwatch.url", got["text"])
+        self.assertTrue(dict(got["disabled"])["sp-each"])
+
+    @data(("#sp-each", {}), ("#sp-all", {"together": True}), ('[data-sptest="wan1"]', {"names": ["wan1"]}))
+    @unpack
+    def test_buttons_send(self, sel, body):
+        got = js("""async ([d, sel]) => { const real = api, realLoad = load, sent = [];
+            api = async (p, o) => { if (p === '/api/speed') return JSON.parse(JSON.stringify(d));
+              if (p === '/api/speed/test') { sent.push(JSON.parse(o.body)); return {}; } return real(p, o); };
+            load = () => {};
+            try { await VIEWS.speed(); document.querySelector(sel).click(); await new Promise(r => setTimeout(r, 30)); }
+            finally { api = real; load = realLoad; }
+            return sent; }""", [SPEED, sel])
+        self.assertEqual(got, [body])
+
+
 if __name__ == "__main__":
     unittest.main()

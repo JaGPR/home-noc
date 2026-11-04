@@ -19,6 +19,7 @@ Plus the field notes that came with it: a **highly available Pi-hole** kit and a
 | **Switch** | Every port: link, speed, PoE, profile, **native / untagged / tagged VLANs**; LAGs; networks with their DHCP source | Edit a port's VLANs or profile, enable/disable a port, edit a LAG's VLANs, create/edit/delete networks (VLANs); a new network can also tag a LAG and set up the router side (device, interface, DHCP) in one step, undone if any step fails |
 | **Router** | Interfaces (IPv4 and IPv6 addresses and prefixes, gateway, zone, measured latency/loss), network devices, physical ports, ONT details and alarms, DHCP leases | Restart or diagnose a WAN; create / edit / delete devices and interfaces with a LuCI-style wizard (device → interface → firewall + DHCP → mwan3), applied with automatic rollback. See [docs/openwrt.md](docs/openwrt.md) |
 | **MultiWAN** | mwan3 interfaces with live status, members, policies, rules in order | Edit tracking; create / edit / delete members, policies and rules; reorder rules |
+| **Speed** | Live download and upload on every WAN (works with hardware flow offload, from the connection table), connections per WAN, each WAN's latest speed test and history | Run a speed test on one WAN, on all one by one, or on all together for the total |
 | **Alerts** | Telegram setup and pairing, open problems (with the diagnosed cause), recent alerts | Pair / unpair Telegram, send a test |
 | **Settings** | Every setting the NOC uses; secrets shown only as set / not set | Edit DNS servers (Pi-holes, VIP, app passwords), add / edit / remove ISP boxes (modems, ONTs, fibre sticks), WAN groups and their diagnosis paths, fibre ONT sources, protected ports, router/AP/Omada/Proxmox connections, alert timing, site name. Changes apply live. Change the NOC password; a forgotten one is reset with a one-time code sent to Telegram (or `noc-passwd` on the console) |
 | **Wi-Fi** | Every radio on the router and AP, every client with name, IP, signal and rates | — |
@@ -44,6 +45,16 @@ Plus the field notes that came with it: a **highly available Pi-hole** kit and a
 - **Least privilege.** Read-only Proxmox token, a dedicated SSH key, Pi-hole app passwords, an Omada API client. No personal passwords.
 
 ## Quick start
+One command, as root on a Proxmox VE host:
+```sh
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/JaGPR/home-noc/main/install.sh)"
+```
+It asks a few questions, then creates a Debian container, installs the NOC from a checksummed release, writes a first config and a read-only Proxmox token, and prints the URL and login. Optionally it sets up fan control on the host and collects the router's logs. It never touches an existing container, and everything else is in the NOC's Settings tab.
+
+Add options after the word `install`, e.g. `bash -c "$(curl ...)" install --dry-run`:
+`--dry-run` shows the plan and changes nothing; `--upgrade <CTID>` upgrades an installed NOC and keeps its config, secrets and logs; `--version vX.Y.Z` pins a release; `--config FILE` takes the answers from a file (`--yes` for defaults). See the top of [install.sh](install.sh).
+
+Or by hand:
 ```sh
 # 1. On the Proxmox host: create a Debian container
 CTID=120 IP=192.0.2.20/24 GW=192.0.2.1 sh deploy/create-lxc.sh

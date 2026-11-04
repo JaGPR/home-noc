@@ -17,6 +17,7 @@ Config (config.json): "speedwatch": {"url": "<http file of 100 MB or more>", "sl
 Hourly from cron:  cd /opt/noc && NOC_NO_WORKERS=1 python3 speedwatch.py
 Look only (no Telegram, no saved state):  python3 speedwatch.py --dry-run
 """
+import contextlib
 import html
 import json
 import shlex
@@ -36,7 +37,8 @@ def router_script(url, nbytes, timeout):
         "  [ \"$(ifstatus $i | jsonfilter -e @.up)\" = true ] || { echo \"$i down\"; continue; }\n"
         f"  curl -4 -s -o /dev/null --interface pppoe-$i -r 0-{int(nbytes) - 1} --max-time {int(timeout)} "
         f"-w \"$i %{{speed_download}} %{{size_download}} %{{http_code}}\\n\" {shlex.quote(url)}\n"
-        "done\n")
+        "done\n"
+        "exit 0\n")   # curl exits non-zero at --max-time, but it has still measured
 
 
 def parse(text):
@@ -115,6 +117,20 @@ def changes(prev, a, now, site):
     return msgs, {"slow": slow, "overall": overall}
 
 
+@contextlib.contextmanager
+def test_lock(var):
+    """One speed test at a time, across this cron job and the NOC's Speed tab (no fcntl: no lock, e.g. Windows tests)."""
+    try:
+        import fcntl
+    except ImportError:
+        yield
+        return
+    var.mkdir(parents=True, exist_ok=True)
+    with open(var / "speedwatch.lock", "w") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        yield
+
+
 def measure(noc, cfg):
     """Test every session; if any is slow, test again and keep each session's better reading."""
     script = router_script(cfg["url"], cfg["bytes"], cfg["timeout_s"])
@@ -129,7 +145,8 @@ def run(noc, dry_run=False, now=None):
     cfg = {**DEFAULTS, **(noc.C.get("speedwatch") or {})}
     if not cfg.get("url") or not noc.ROUTER_HOST:
         raise SystemExit("speedwatch.url and router.host must be set in config.json")
-    speeds = measure(noc, cfg)
+    with test_lock(noc.VAR):
+        speeds = measure(noc, cfg)
     now = now or time.time()
     path = noc.VAR / "speedwatch.json"
     try:

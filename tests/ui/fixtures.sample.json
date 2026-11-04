@@ -5858,5 +5858,118 @@
     }
    }
   }
+ },
+ "speed": {
+  "configured": true,
+  "url": "http://192.0.2.80/100MB.bin",
+  "test_mb": 100,
+  "slow_mbps": 100,
+  "wans": [
+   {
+    "name": "wan1",
+    "device": "pppoe-wan1",
+    "up": true,
+    "ip": "",
+    "down_mbps": 380.2,
+    "up_mbps": 12.1,
+    "flows": 41,
+    "last_mbps": 372,
+    "last_ts": "2026-01-02 03:07:00"
+   },
+   {
+    "name": "wan2",
+    "device": "pppoe-wan2",
+    "up": true,
+    "ip": "",
+    "down_mbps": 0.4,
+    "up_mbps": 0.1,
+    "flows": 22,
+    "last_mbps": 361,
+    "last_ts": "2026-01-02 03:07:00"
+   },
+   {
+    "name": "wan3",
+    "device": "pppoe-wan3",
+    "up": true,
+    "ip": "",
+    "down_mbps": 31.5,
+    "up_mbps": 1.2,
+    "flows": 18,
+    "last_mbps": 39,
+    "last_ts": "2026-01-02 03:07:00"
+   },
+   {
+    "name": "isp-b",
+    "device": "eth0.20",
+    "up": true,
+    "ip": "",
+    "down_mbps": 96.0,
+    "up_mbps": 4.4,
+    "flows": 9,
+    "last_mbps": 137,
+    "last_ts": "2026-01-02 03:07:00"
+   },
+   {
+    "name": "isp-c",
+    "device": "eth0.30",
+    "up": false,
+    "ip": "",
+    "down_mbps": 0.0,
+    "up_mbps": 0.0,
+    "flows": 0,
+    "last_mbps": null,
+    "last_ts": null
+   }
+  ],
+  "test": {
+   "running": false,
+   "mode": null,
+   "results": {},
+   "started": null,
+   "finished": null,
+   "total_mbps": null,
+   "error": null
+  },
+  "load_error": null,
+  "total_down_mbps": 508.1,
+  "total_up_mbps": 17.8,
+  "history": [
+   {
+    "ts": "2026-01-02 00:07:00",
+    "mbps": {
+     "wan1": 360,
+     "wan2": 350,
+     "wan3": 39
+    },
+    "source": "hourly"
+   },
+   {
+    "ts": "2026-01-02 01:07:00",
+    "mbps": {
+     "wan1": 361,
+     "wan2": 351,
+     "wan3": 39
+    },
+    "source": "hourly"
+   },
+   {
+    "ts": "2026-01-02 02:07:00",
+    "mbps": {
+     "wan1": 362,
+     "wan2": 352,
+     "wan3": 39
+    },
+    "source": "hourly"
+   },
+   {
+    "ts": "2026-01-02 03:07:00",
+    "mbps": {
+     "wan1": 363,
+     "wan2": 353,
+     "wan3": 39
+    },
+    "source": "hourly"
+   }
+  ]
  }
 }

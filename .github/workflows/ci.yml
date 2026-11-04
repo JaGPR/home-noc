@@ -23,6 +23,8 @@ jobs:
         run: python tests/smoke_test.py
       - name: ISP boxes (data-driven, offline)
         run: python -m unittest tests/test_isp_boxes.py -v
+      - name: Installer, Speed tab, backups, cluster, fans (data-driven, offline)
+        run: python -m unittest tests/test_install.py tests/test_speedtab.py tests/test_speedwatch.py tests/test_backups.py tests/test_proxmox.py tests/test_hardware.py tests/test_noc_hw.py tests/test_notify_forget.py
 
   ui:
     name: UI JavaScript
@@ -67,7 +69,7 @@ jobs:
         run: python3 -m json.tool config/config.example.json > /dev/null
       - name: Shell syntax
         run: |
-          for f in deploy/*.sh pihole-ha/*.sh; do sh -n "$f"; dash -n "$f"; echo "ok: $f"; done
+          for f in install.sh deploy/*.sh pihole-ha/*.sh; do sh -n "$f"; dash -n "$f"; echo "ok: $f"; done
       - name: ShellCheck (advisory)
         run: shellcheck -S warning deploy/*.sh pihole-ha/*.sh || true
       - name: No real secrets or private addresses committed

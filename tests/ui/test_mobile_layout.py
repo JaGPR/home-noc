@@ -247,7 +247,7 @@ class MobileNavigation(unittest.TestCase):
 
 
 H_TITLES = {"overview": "Overview", "dns": "DNS", "switch": "Switch", "router": "Router", "interfaces": "Interfaces",
-            "netdevs": "Network devices", "mwan": "MultiWAN", "wifi": "Wi-Fi", "devices": "Devices", "proxmox": "Proxmox",
+            "netdevs": "Network devices", "mwan": "MultiWAN", "speed": "Speed", "wifi": "Wi-Fi", "devices": "Devices", "proxmox": "Proxmox",
             "alerts": "Alerts", "settings": "Settings", "audit": "Audit log"}
 
 
