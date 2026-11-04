@@ -100,13 +100,18 @@ fetch() {
 	elif [ -n "$SOURCE" ]; then
 		cp "$SOURCE" "$PKG"
 	else
-		case "$VERSION" in
-		latest) url="https://github.com/$REPO/releases/latest/download" ;;
-		*) url="https://github.com/$REPO/releases/download/$VERSION" ;;
-		esac
+		# one tag for both files: "latest" could otherwise change between them, and GitHub's latest/download
+		# links answer 404 now and then for a while after a release
+		get="curl -fsSL --retry 4 --retry-delay 2 --retry-all-errors"
+		if [ "$VERSION" = latest ]; then
+			tag="$($get -I -o /dev/null -w '%{url_effective}' "https://github.com/$REPO/releases/latest")" || die "cannot reach GitHub"
+			VERSION="${tag##*/}"
+			case "$VERSION" in v[0-9]*) ;; *) die "no release found on GitHub ($tag)" ;; esac
+		fi
+		url="https://github.com/$REPO/releases/download/$VERSION"
 		say "Downloading $url/home-noc.tar.gz"
-		curl -fsSL -o "$PKG" "$url/home-noc.tar.gz" || die "download failed (is there a release $VERSION?)"
-		curl -fsSL -o "$PKG.sha256" "$url/home-noc.tar.gz.sha256" || die "checksum download failed"
+		$get -o "$PKG" "$url/home-noc.tar.gz" || die "download failed (is there a release $VERSION?)"
+		$get -o "$PKG.sha256" "$url/home-noc.tar.gz.sha256" || die "checksum download failed"
 		(cd "$WORK" && sha256sum -c home-noc.tar.gz.sha256 >/dev/null) || die "checksum mismatch: not installing this download"
 		say "Checksum OK"
 	fi

@@ -59,8 +59,14 @@ esac
     "sleep": 'exit 0\n',
     "curl": STUB + r"""
 out=""
-while [ $# -gt 0 ]; do [ "$1" = -o ] && { out="$2"; shift; }; shift; done
+effective=""
+while [ $# -gt 0 ]; do
+    [ "$1" = -o ] && { out="$2"; shift; }
+    [ "$1" = -w ] && { effective=1; shift; }
+    shift
+done
 [ -n "$CURL_FAIL" ] && exit 22
+if [ -n "$effective" ]; then printf '%s' "${CURL_LATEST:-https://github.com/x/y/releases/tag/v9.9.8}"; exit 0; fi
 case "$out" in
 *.sha256) printf '%s  home-noc.tar.gz\n' "$CURL_SUM" > "$out" ;;
 *) cp "$CURL_PKG" "$out" ;;
@@ -214,7 +220,24 @@ class Install(unittest.TestCase):
         r = self.r()
         self.assertEqual(r.code, 0, r.out)
         self.assertIn("Checksum OK", r.out)
-        self.assertIn("releases/latest/download/home-noc.tar.gz", r.calls("curl")[0])
+
+    def test_latest_is_resolved_once_so_both_files_share_a_tag(self):
+        calls = self.r().calls("curl")
+        self.assertIn("releases/latest", calls[0])
+        self.assertIn("releases/download/v9.9.8/home-noc.tar.gz", calls[1])
+        self.assertIn("releases/download/v9.9.8/home-noc.tar.gz.sha256", calls[2])
+        self.assertFalse([c for c in calls if "latest/download" in c], "these links answer 404 now and then")
+
+    def test_every_request_retries(self):
+        for c in self.r().calls("curl"):
+            self.assertIn("--retry-all-errors", c)
+
+    @data("https://github.com/x/y/releases", "https://github.com/x/y/releases/tag/nightly", "")
+    def test_latest_that_is_not_a_release_installs_nothing(self, where):
+        r = self.r(CURL_LATEST=where or "https://github.com/x/y/")
+        self.assertNotEqual(r.code, 0)
+        self.assertIn("no release found", r.out)
+        self.assertEqual(r.changes(), [])
 
     def test_version_pins_the_release(self):
         self.assertIn("releases/download/v9.9.9/home-noc.tar.gz", self.r("--version", "v9.9.9").calls("curl")[0])
@@ -226,9 +249,15 @@ class Install(unittest.TestCase):
         self.assertEqual(r.changes(), [])
 
     def test_download_failure(self):
-        r = self.r(CURL_FAIL="1")
+        r = self.r("--version", "v9.9.9", CURL_FAIL="1")
         self.assertNotEqual(r.code, 0)
         self.assertIn("download failed", r.out)
+        self.assertEqual(r.changes(), [])
+
+    def test_github_unreachable(self):
+        r = self.r(CURL_FAIL="1")
+        self.assertNotEqual(r.code, 0)
+        self.assertIn("cannot reach GitHub", r.out)
         self.assertEqual(r.changes(), [])
 
     def test_source_folder_skips_download(self):
