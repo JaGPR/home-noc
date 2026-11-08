@@ -166,6 +166,56 @@ class Cluster(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "main unreachable"):
                 w.tasks()
 
+    @data("unknown", "offline")
+    def test_configured_node_always_asked(self, status):
+        """Proxmox calls a node "unknown" while its pvestatd is down; its backups still count."""
+        w, pve = watcher()
+        nightly(pve, NOW - 2 * H)
+        pve.status["main"] = status
+        self.assertEqual(w.nodes(), ["main", "laptop"])
+        self.assertEqual(set(w.coverage_readings({"backup_max_age_h": 36}, now=NOW)),
+                         {"backup:guest:100", "backup:guest:101", "backup:guest:102", "backup:guest:103"})
+        self.assertTrue(all(ok for ok, _ in w.coverage_readings({"backup_max_age_h": 36}, now=NOW).values()))
+
+    @data(
+        # (node, what happens to it between two polls): no messages on the poll after it is back
+        ("laptop", "offline"),   # laptop not read for a while: its old runs are not sent again
+        ("laptop", "down"),      # laptop online but not answering
+        ("main", "unknown"),     # the configured node with its pvestatd down
+    )
+    @unpack
+    def test_node_back_does_not_resend_old_runs(self, node, how):
+        w, pve = watcher()
+        cfg = {"backup_long_h": 6, "backup_success": True}
+        for h in (50, 26, 2):
+            nightly(pve, B.time.time() - h * H)
+        self.assertEqual(len(w.poll(cfg, "Home")), 2)       # first poll: the 2 h old runs once, older ones not
+        if how == "down":
+            pve.down.add(node)
+        else:
+            pve.status[node] = how
+        w.last_poll = 0
+        w.poll(cfg, "Home")
+        pve.down.clear()
+        pve.status[node] = "online"
+        w.last_poll = 0
+        self.assertEqual(w.poll(cfg, "Home"), [])
+
+    def test_new_run_on_a_node_that_was_away_is_sent(self):
+        w, pve = watcher()
+        cfg = {"backup_long_h": 6, "backup_success": True}
+        nightly(pve, B.time.time() - 26 * H)
+        w.poll(cfg, "Home")
+        pve.status["laptop"] = "offline"
+        w.last_poll = 0
+        w.poll(cfg, "Home")
+        pve.status["laptop"] = "online"
+        nightly(pve, B.time.time() - 60, main=False)
+        w.last_poll = 0
+        got = w.poll(cfg, "Home")
+        self.assertEqual(len(got), 1)
+        self.assertIn("101 ctl", got[0])
+
     def test_offline_node_not_asked(self):
         w, pve = watcher()
         pve.status["laptop"] = "offline"

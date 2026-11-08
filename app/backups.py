@@ -74,6 +74,7 @@ class Watcher:
         self.due = []           # [(job id, scheduled ts)] waiting for a task to start
         self.last_poll = 0.0
         self.parsed = {}        # finished UPID -> parse_log() result (a finished log never changes)
+        self.answered = set()   # nodes whose tasks the last tasks() call read
         self.state_path = noc.VAR / "backup_watch.json"
 
     @property
@@ -81,22 +82,25 @@ class Watcher:
         return self.noc.PVE.get("node")
 
     def nodes(self):
-        """The online cluster nodes (just the configured node when the cluster can't be read)."""
+        """The online cluster nodes, always with the configured node: Proxmox calls a node "unknown" while
+        its pvestatd is down, but it still answers (just the configured node when the cluster can't be read)."""
         try:
-            names = [n["node"] for n in self.noc.pve("/nodes") if n.get("status") == "online"]
+            names = {n["node"] for n in self.noc.pve("/nodes") if n.get("status") == "online"}
         except Exception:
-            names = []
-        return sorted(names, key=lambda n: n != self.node) or [self.node]
+            names = set()
+        return sorted(names | {self.node}, key=lambda n: (n != self.node, n))
 
     def tasks(self):
         """vzdump tasks of every online node. The configured node must answer; another one may not."""
-        out = []
+        out, answered = [], set()
         for n in self.nodes():
             try:
                 out += self.noc.pve(f"/nodes/{n}/tasks?typefilter=vzdump&limit=30")
+                answered.add(n)
             except Exception:
                 if n == self.node:
                     raise
+        self.answered = answered
         return out
 
     def task_node(self, upid):
@@ -193,7 +197,9 @@ class Watcher:
                 out.append(msg)
         if finished:
             self._save_last_end(max(t["endtime"] for t in finished))
-        self.seen &= {t["upid"] for t in tasks}  # forget tasks that dropped out of the list
+        # forget tasks that dropped out of a node's list; a node that wasn't read keeps its tasks, or they
+        # would all be reported again when it comes back
+        self.seen &= {t["upid"] for t in tasks} | {u for u in self.seen if self.task_node(u) not in self.answered}
 
         long_s = float(cfg["backup_long_h"]) * 3600
         for t in tasks:
