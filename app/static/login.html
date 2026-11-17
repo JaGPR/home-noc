@@ -68,6 +68,33 @@ const post = async (url, body) => {
   if (!r.ok) throw new Error(d.error || r.statusText);
   return d;
 };
+login.onsubmit = async ev => {
+  ev.preventDefault();
+  $('#err').style.display = 'none';
+  const btn = login.querySelector('button[type="submit"]');
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch('/login', {
+      method: 'POST',
+      body: new URLSearchParams(new FormData(login)),
+      redirect: 'follow'
+    });
+    if (res.redirected && res.url.includes('bad=1')) {
+      $('#err').style.display = 'block';
+      if (btn) btn.disabled = false;
+      return;
+    }
+    if (res.ok || res.redirected) {
+      location.href = '/';
+      return;
+    }
+    $('#err').style.display = 'block';
+  } catch (e) {
+    login.submit();
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+};
 $('#forgot').onclick = ev => { ev.preventDefault(); login.hidden = true; reset.hidden = false; fail(''); };
 $('#back').onclick = ev => { ev.preventDefault(); reset.hidden = true; login.hidden = false; };
 $('#r-send').onclick = async () => {

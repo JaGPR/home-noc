@@ -21,16 +21,8 @@ DEFAULTS = {"test_bytes": 100_000_000, "test_timeout_s": 12}
 NAME = re.compile(r"[A-Za-z0-9_.-]{1,32}$")
 MAX_GAP_S = 15    # samples further apart than this are not compared: new connections would all look fresh
 
-# router: "<proto> <src> <dst> <sport> <dport> <orig bytes> <reply dst> <reply bytes>" per connection
-LOAD_SCRIPT = r"""awk '{ s=d=r=p=q=""; a=b=0; c=e=0
-  for (i = 1; i <= NF; i++) { f = $i
-    if (f ~ /^src=/) { if (!s) s = substr(f, 5) }
-    else if (f ~ /^dst=/) { if (!c++) d = substr(f, 5); else r = substr(f, 5) }
-    else if (f ~ /^sport=/) { if (!p) p = substr(f, 7) }
-    else if (f ~ /^dport=/) { if (!q) q = substr(f, 7) }
-    else if (f ~ /^bytes=/) { if (!e++) a = substr(f, 7); else b = substr(f, 7) } }
-  if (r) print $3, s, d, p, q, a, r, b }' /proc/net/nf_conntrack
-"""
+# router: raw /proc/net/nf_conntrack; parsing on the host is ~15x faster than busybox awk on the router
+LOAD_SCRIPT = "cat /proc/net/nf_conntrack\n"
 
 
 def natural(name):
@@ -69,12 +61,46 @@ def parse_flows(text):
     """LOAD_SCRIPT output -> {connection: (router-side address, original direction bytes, reply bytes, dst)}."""
     out = {}
     for line in text.splitlines():
-        p = line.split()
-        if len(p) == 8:
+        parts = line.split()
+        if len(parts) == 8:
             try:
-                out[" ".join(p[:5])] = (p[6], int(p[5]), int(p[7]), p[2])
+                out[" ".join(parts[:5])] = (parts[6], int(parts[5]), int(parts[7]), parts[2])
             except ValueError:
                 pass
+            continue
+        if len(parts) < 8:
+            continue
+        proto = parts[2]
+        s = d = r_dst = p = q = None
+        orig_b = reply_b = 0
+        c = e = 0
+        for tok in parts:
+            if tok.startswith("src=") and s is None:
+                s = tok[4:]
+            elif tok.startswith("dst="):
+                if c == 0:
+                    d = tok[4:]
+                    c = 1
+                else:
+                    r_dst = tok[4:]
+            elif tok.startswith("sport=") and p is None:
+                p = tok[6:]
+            elif tok.startswith("dport=") and q is None:
+                q = tok[6:]
+            elif tok.startswith("bytes="):
+                if e == 0:
+                    try:
+                        orig_b = int(tok[6:])
+                    except ValueError:
+                        pass
+                    e = 1
+                else:
+                    try:
+                        reply_b = int(tok[6:])
+                    except ValueError:
+                        pass
+        if r_dst and s and d and p and q:
+            out[f"{proto} {s} {d} {p} {q}"] = (r_dst, orig_b, reply_b, d)
     return out
 
 
@@ -208,7 +234,7 @@ def view(noc, tests, load):
     rows, addrs = wan_rows(r.get("interfaces", []), noc.wan_ifaces())
     rates, load_error = {}, None
     try:
-        rates = noc.cached("wanload", 2, lambda: load.update(parse_flows(noc.ssh(noc.ROUTER_HOST, LOAD_SCRIPT, timeout=8)), addrs, time.time()))
+        rates = noc.cached("wanload", 2, lambda: load.update(parse_flows(noc.ssh(noc.ROUTER_HOST, LOAD_SCRIPT, timeout=18)), addrs, time.time()))
         if isinstance(rates, dict) and "error" in rates:
             load_error, rates = rates["error"], {}
     except Exception as ex:
