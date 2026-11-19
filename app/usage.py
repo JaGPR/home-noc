@@ -13,8 +13,17 @@ Closed TCP connections stay in the table for about 2 minutes (TIME_WAIT) and UDP
 every 30 s see nearly all of them. When the NOC was stopped, nothing is counted for that time (the page says
 since when it has been counting).
 
+Per device too: each connection's LAN device (its MAC where the router knows it, so its IPv4 and IPv6 add up),
+per WAN per month, and per day for the daily summary.
+
+Alerts on Telegram (config "usage"): a cap per ISP group or WAN (caps_gb) sends a message when 80% and 100% of it
+are used, once each a month; a daily summary (daily_summary, at summary_hour) tells yesterday's data per ISP, its
+top devices and the month so far.
+
 Stored in VAR/usage.json: {"since": unix time, "months": {"YYYY-MM": {wan: [down bytes, up bytes]}},
-"days": {"YYYY-MM-DD": {wan: [down, up]}}}, days kept for DAYS_KEPT days, months for good.
+"days": {"YYYY-MM-DD": {wan: [down, up]}}, "devices": {"YYYY-MM": {device: {"ips": [...], "w": {wan: [down, up]}}}},
+"device_days": {"YYYY-MM-DD": {device: [down, up]}}, "sent": what the alerts have sent}; days kept for DAYS_KEPT
+days (devices: DEVICE_DAYS_KEPT), months for good.
 """
 import json
 import os
@@ -35,10 +44,13 @@ class Counter:
 
     def __init__(self):
         self.prev, self.ts, self.warm = None, None, False
+        self.hosts = {}    # the last read's new bytes per LAN address: {address: {wan: [down, up]}}
 
     def update(self, flows, addrs, now):
         """-> {wan: [down bytes, up bytes]} since the last read; {} for the first two reads after a gap (the
-        first has nothing to compare, the second only builds a baseline of two reads)."""
+        first has nothing to compare, the second only builds a baseline of two reads). The same bytes by the
+        LAN device behind each connection go to self.hosts."""
+        hosts = {}
         # The router restarted (its uptime went back): its table is new, so every connection in it began since the
         # boot and all of its bytes are new. Count them in full instead of building a baseline, so nothing is lost.
         if self.ts is not None and now < self.ts and now <= REBOOT_WINDOW_S:
@@ -50,9 +62,9 @@ class Counter:
         for key, flow in flows.items():
             reply_dst, orig, reply, dst = flow[:4]
             if reply_dst in addrs:          # started here: the reply direction is the download
-                wan, up, down = addrs[reply_dst], orig, reply
-            elif dst in addrs:              # started outside (a forwarded port)
-                wan, up, down = addrs[dst], reply, orig
+                wan, up, down, lan = addrs[reply_dst], orig, reply, flow[4] if len(flow) > 4 else None
+            elif dst in addrs:              # started outside (a forwarded port): the LAN device is the reply source
+                wan, up, down, lan = addrs[dst], reply, orig, flow[5] if len(flow) > 5 else None
             else:
                 continue
             cur[key] = (up, down, now)
@@ -62,13 +74,19 @@ class Counter:
             if was is None and up + down > new_cap:
                 continue                    # not new: earlier reads missed it; its bytes become the baseline
             was_up, was_down = (was or (0, 0, 0))[:2]
+            d, u = max(0, down - was_down), max(0, up - was_up)
             w = out.setdefault(wan, [0, 0])
-            w[0] += max(0, down - was_down)
-            w[1] += max(0, up - was_up)
+            w[0] += d
+            w[1] += u
+            if lan and (d or u):
+                h = hosts.setdefault(lan, {}).setdefault(wan, [0, 0])
+                h[0] += d
+                h[1] += u
         if fresh:
             cur.update({k: v for k, v in self.prev.items() if k not in cur and now - v[2] <= RETAIN_S})
         self.prev, self.ts = cur, now
         warm, self.warm = self.warm, fresh
+        self.hosts = hosts if fresh and warm else {}
         return out if fresh and warm else {}
 
 
@@ -103,9 +121,85 @@ def save(path, store):
     os.replace(tmp, path)
 
 
-def view(store, rows, groups, month=None):
+
+
+# ---------------------------------------------------------------- devices
+DEVICE_DAYS_KEPT = 8   # per-device days are only for the daily summary
+DEVICES_SHOWN = 50
+ROUTER_ID = "router"
+
+
+def identity_maps(router, neigh):
+    """-> ({address: MAC}, the router's own addresses) from DHCP leases, ARP and the IPv6 neighbour table."""
+    r = router if isinstance(router, dict) else {}
+    mac_of = {l["ip"]: l["mac"] for l in r.get("leases") or []}
+    mac_of.update({ip: mac for mac, ip in (r.get("_arp") or {}).items()})
+    mac_of.update(neigh or {})
+    own = {speedtab.exploded(x) for i in r.get("interfaces") or [] for x in (i.get("ip"), i.get("ip6"))} - {None}
+    return mac_of, own
+
+
+def identity(addr, mac_of, own):
+    """A device's key: its MAC where the router knows it (so its IPv4 and IPv6 add up), else its address."""
+    a = speedtab.exploded(addr) or addr
+    if a in own:
+        return ROUTER_ID
+    return mac_of.get(addr) or mac_of.get(a) or a
+
+
+def add_devices(store, hosts, mac_of, own, when):
+    """Add the last read's {address: {wan: [down, up]}} to each device's month (per WAN) and day (total)."""
+    if not hosts:
+        return store
+    t = time.localtime(when)
+    month, day = time.strftime("%Y-%m", t), time.strftime("%Y-%m-%d", t)
+    mon = store.setdefault("devices", {}).setdefault(month, {})
+    dd = store.setdefault("device_days", {}).setdefault(day, {})
+    for addr, per in hosts.items():
+        key = identity(addr, mac_of, own)
+        d = mon.setdefault(key, {"ips": [], "w": {}})
+        if addr not in d["ips"]:
+            d["ips"] = (d["ips"] + [addr])[-4:]
+        tot = dd.setdefault(key, [0, 0])
+        for wan, (down, up) in per.items():
+            v = d["w"].setdefault(wan, [0, 0])
+            v[0] += int(down)
+            v[1] += int(up)
+            tot[0] += int(down)
+            tot[1] += int(up)
+    for old in sorted(store["device_days"])[:-DEVICE_DAYS_KEPT]:
+        del store["device_days"][old]
+    return store
+
+
+def namer(router, devices):
+    """-> name(key, ips): the NOC's device list first (by MAC, then address), then the DHCP lease's hostname."""
+    r = router if isinstance(router, dict) else {}
+    lease = {l["mac"]: l.get("name") for l in r.get("leases") or [] if l.get("name")}
+    by_mac = {d["mac"].lower(): d["name"] for d in devices or [] if d.get("mac")}
+    by_ip = {}
+    for d in devices or []:
+        t = d.get("target") or ""
+        t = t.rsplit(":", 1)[0] if t.count(":") == 1 else t      # "192.0.2.5:80" -> "192.0.2.5"; IPv6 stays whole
+        if speedtab.exploded(t):
+            by_ip[speedtab.exploded(t)] = d["name"]
+
+    def name(key, ips):
+        if key == ROUTER_ID:
+            return "Router (its own traffic)"
+        return by_mac.get(key) or next((by_ip[speedtab.exploded(i)] for i in ips if speedtab.exploded(i) in by_ip), "") \
+            or lease.get(key, "")
+    return name
+
+
+def is_mac(key):
+    return len(key) == 17 and key.count(":") == 5
+
+
+# ---------------------------------------------------------------- the page
+def view(store, rows, groups, month=None, router=None, devices=None):
     """The /api/usage answer for one month (default: the newest): every WAN with its data used, totals per ISP,
-    the month's days, and the months there are."""
+    the month's days, its busiest devices, and the months there are."""
     months = sorted((store.get("months") or {}), reverse=True)
     month = month if month in months else (months[0] if months else time.strftime("%Y-%m"))
     data = (store.get("months") or {}).get(month, {})
@@ -121,37 +215,138 @@ def view(store, rows, groups, month=None):
         t["up_bytes"] += w["up_bytes"]
     days = [{"day": d, "down_bytes": sum(v[0] for v in per.values()), "up_bytes": sum(v[1] for v in per.values())}
             for d, per in sorted((store.get("days") or {}).items()) if d.startswith(month)]
+    name = namer(router, devices)
+    devs = []
+    for key, d in ((store.get("devices") or {}).get(month) or {}).items():
+        via = sorted(({"wan": w, "isp": isp_of.get(w), "device": dev_of.get(w), "down_bytes": v[0], "up_bytes": v[1]}
+                      for w, v in d.get("w", {}).items()), key=lambda x: -(x["down_bytes"] + x["up_bytes"]))
+        devs.append({"key": key, "name": name(key, d.get("ips", [])), "mac": key if is_mac(key) else None,
+                     "ips": d.get("ips", []), "router": key == ROUTER_ID, "via": via,
+                     "down_bytes": sum(x["down_bytes"] for x in via), "up_bytes": sum(x["up_bytes"] for x in via)})
+    devs.sort(key=lambda x: -(x["down_bytes"] + x["up_bytes"]))
     return {"month": month, "months": months, "since": store.get("since"), "interval_s": INTERVAL_S,
-            "wans": wans, "isps": list(isps.values()), "days": days,
+            "wans": wans, "isps": list(isps.values()), "days": days, "devices": devs[:DEVICES_SHOWN],
+            "devices_total": len(devs),
             "total_down_bytes": sum(w["down_bytes"] for w in wans), "total_up_bytes": sum(w["up_bytes"] for w in wans)}
 
 
+# ---------------------------------------------------------------- alerts
+DEFAULT_SETTINGS = {"caps_gb": {}, "daily_summary": True, "summary_hour": 9}
+CAP_STEPS = (80, 100)   # % of a cap that sends a message, once each per month
+
+
+def settings(cfg):
+    s = {**DEFAULT_SETTINGS, **(cfg or {})}
+    s["caps_gb"] = {str(k): float(v) for k, v in (s.get("caps_gb") or {}).items() if float(v) > 0}
+    return s
+
+
+def human(b):
+    return f"{b / 1e12:.2f} TB" if b >= 1e12 else f"{b / 1e9:.1f} GB" if b >= 1e9 else f"{b / 1e6:.0f} MB"
+
+
+def used_by(month_data, name, groups):
+    """Bytes (down + up) a cap's name used: an ISP group's WANs added up, or one WAN."""
+    members = (groups or {}).get(name) or [name]
+    return sum(sum(month_data.get(m, [0, 0])) for m in members)
+
+
+def check(store, cfg, groups, site, name_of, now):
+    """Messages due now (cap steps passed this month, the daily summary), each once: what was sent is kept in
+    store["sent"]. Changes store; the caller saves it."""
+    s, msgs = settings(cfg), []
+    t = time.localtime(now)
+    month, today = time.strftime("%Y-%m", t), time.strftime("%Y-%m-%d", t)
+    sent = store.setdefault("sent", {})
+    done = set(sent.get("caps", {}).get(month, []))
+    data = (store.get("months") or {}).get(month, {})
+    for name, gb in sorted(s["caps_gb"].items()):
+        used = used_by(data, name, groups)
+        passed = [x for x in CAP_STEPS if used >= gb * 1e9 * x / 100]
+        if passed and f"{name}:{passed[-1]}" not in done:    # one message for the highest step newly passed
+            icon = "🔴" if passed[-1] >= 100 else "🟠"
+            msgs.append(f"{icon} <b>{site}</b>: <b>{name}</b> has used {human(used)} this month "
+                        f"({100 * used / (gb * 1e9):.0f}% of its {gb:g} GB cap).")
+        done |= {f"{name}:{x}" for x in passed}
+    sent.setdefault("caps", {})[month] = sorted(done)
+    for old in sorted(sent["caps"])[:-3]:
+        del sent["caps"][old]
+    if s["daily_summary"] and t.tm_hour >= int(s["summary_hour"]) and sent.get("summary") != today:
+        sent["summary"] = today
+        yday = time.strftime("%Y-%m-%d", time.localtime(now - 86400))
+        msg = summary(store, yday, groups, site, name_of)
+        if msg:
+            msgs.append(msg)
+    return msgs
+
+
+def summary(store, day, groups, site, name_of):
+    """The daily message: a day's data per ISP and its top 3 devices, and the month so far. None without data."""
+    per = (store.get("days") or {}).get(day)
+    if not per:
+        return None
+    isp_of = {m: g for g, members in (groups or {}).items() for m in members}
+    isps = {}
+    for wan, (d, u) in per.items():
+        x = isps.setdefault(isp_of.get(wan) or wan, [0, 0])
+        x[0] += d
+        x[1] += u
+    lines = [f"📊 <b>{site}</b>: data used on {day}"]
+    lines += [f"• {isp}: {human(d + u)} (↓{human(d)} ↑{human(u)})" for isp, (d, u) in sorted(isps.items(), key=lambda x: -sum(x[1]))]
+    lines.append(f"Total: {human(sum(d + u for d, u in per.values()))}")
+    devs = sorted(((store.get("device_days") or {}).get(day) or {}).items(), key=lambda x: -sum(x[1]))[:3]
+    if devs:
+        month = (store.get("devices") or {}).get(day[:7]) or {}
+        lines.append("Top devices: " + ", ".join(f"{name_of(k, month.get(k, {}).get('ips', [])) or k} {human(sum(v))}"
+                                                 for k, v in devs))
+    mtd = sum(sum(v) for v in ((store.get("months") or {}).get(day[:7]) or {}).values())
+    lines.append(f"Month so far: {human(mtd)}")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------- the thread
 class Collector:
-    """The background thread: reads the router every INTERVAL_S and keeps VAR/usage.json."""
+    """The background thread: reads the router every INTERVAL_S, keeps VAR/usage.json and sends the alerts."""
 
     def __init__(self, noc):
         self.noc, self.counter, self.lock = noc, Counter(), threading.Lock()
         self.path = noc.VAR / "usage.json"
         self.store = load(self.path)
         self.error = None
+        self.rates = {}      # the last read's bits per second per WAN, for /metrics: {wan: [down, up]}
 
     def store_copy(self):
         with self.lock:
             return json.loads(json.dumps(self.store))
 
     def step(self, now=None):
-        """One read of the router; adds what it measured and saves. Returns the deltas."""
+        """One read of the router; adds what it measured, sends what is due and saves. Returns the deltas."""
         r = self.noc.cached("router", 15, self.noc.collect_router)
         if not isinstance(r, dict) or "error" in r:
             raise RuntimeError((r or {}).get("error", "router not readable"))
         _, addrs = speedtab.wan_rows(r.get("interfaces", []), self.noc.wan_ifaces())
         text = self.noc.ssh(self.noc.ROUTER_HOST, speedtab.LOAD_SCRIPT, timeout=25)
         clock = speedtab.router_clock(text)
+        last = self.counter.ts
         deltas = self.counter.update(speedtab.parse_flows(text), addrs, clock if clock is not None else time.time())
+        if deltas and last is not None and self.counter.ts > last:
+            dt = self.counter.ts - last
+            self.rates = {w: [d * 8 / dt, u * 8 / dt] for w, (d, u) in deltas.items()}
+        mac_of, own = identity_maps(r, speedtab.parse_neigh(text))
+        when = now or time.time()
+        groups = self.noc.wan_groups() if hasattr(self.noc, "wan_groups") else {}
+        C = getattr(self.noc, "C", {}) or {}
         with self.lock:
-            self.store.setdefault("since", int(now or time.time()))
-            add(self.store, deltas, now or time.time())
+            self.store.setdefault("since", int(when))
+            add(self.store, deltas, when)
+            add_devices(self.store, self.counter.hosts, mac_of, own, when)
+            msgs = check(self.store, C.get("usage"), groups, getattr(self.noc, "SITE_NAME", "NOC"),
+                         namer(r, C.get("devices")), when)
             save(self.path, self.store)
+        tg = getattr(self.noc, "TG", None)
+        for m in msgs:
+            if tg is not None:
+                tg.queue(m)
         return deltas
 
     def loop(self):

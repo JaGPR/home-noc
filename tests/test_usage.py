@@ -196,5 +196,152 @@ class Collecting(unittest.TestCase):
             U.Collector(noc).step()
 
 
+# ---------------------------------------------------------------- devices, alerts
+WHEN = time.mktime((2026, 11, 19, 12, 0, 0, 0, 0, -1))
+ROUTER = {"leases": [{"ip": "10.0.0.5", "mac": "aa:00:00:00:00:05", "name": "phone"}], "_arp": {"aa:00:00:00:00:06": "10.0.0.6"},
+          "interfaces": [{"name": "wan1", "ip": "192.0.2.1/32", "ip6": ""}]}
+
+
+@ddt
+class Devices(unittest.TestCase):
+    def test_counter_splits_by_device(self):
+        c = U.Counter()
+        lines = [[flow("192.0.2.1", 0, 0), flow("192.0.2.2", 0, 0, src="10.0.0.6", sport=1)]] * 2 + \
+                [[flow("192.0.2.1", 10, 1_000), flow("192.0.2.2", 5, 300, src="10.0.0.6", sport=1)]]
+        for i, s in enumerate(lines):
+            c.update(U.speedtab.parse_flows("\n".join(s)), ADDRS, T0 + i * 30)
+        self.assertEqual(c.hosts, {"10.0.0.5": {"wan1": [1_000, 10]}, "10.0.0.6": {"wan2": [300, 5]}})
+
+    @data(("10.0.0.5", "aa:00:00:00:00:05"), ("10.0.0.6", "aa:00:00:00:00:06"), ("192.0.2.1", "router"), ("10.0.0.77", "10.0.0.77"))
+    @unpack
+    def test_identity(self, addr, key):
+        v6 = U.speedtab.exploded("2001:db8::5")
+        mac_of, own = U.identity_maps(ROUTER, {v6: "aa:00:00:00:00:05"})
+        self.assertEqual(U.identity(addr, mac_of, own), key)
+        self.assertEqual(U.identity(v6, mac_of, own), "aa:00:00:00:00:05", "IPv6 joins the same device")
+
+    def test_add_devices(self):
+        mac_of, own = U.identity_maps(ROUTER, {})
+        s = U.add_devices({}, {"10.0.0.5": {"wan1": [100, 10], "wan2": [50, 5]}, "10.0.0.77": {"wan1": [7, 0]}}, mac_of, own, WHEN)
+        s = U.add_devices(s, {"10.0.0.5": {"wan1": [1, 1]}}, mac_of, own, WHEN)
+        self.assertEqual(s["devices"]["2026-11"]["aa:00:00:00:00:05"], {"ips": ["10.0.0.5"], "w": {"wan1": [101, 11], "wan2": [50, 5]}})
+        self.assertEqual(s["device_days"]["2026-11-19"], {"aa:00:00:00:00:05": [151, 16], "10.0.0.77": [7, 0]})
+
+    def test_device_days_kept_short(self):
+        mac_of, own = U.identity_maps({}, {})
+        s = {}
+        for d in range(1, 13):
+            s = U.add_devices(s, {"10.0.0.5": {"wan1": [1, 0]}}, mac_of, own, time.mktime((2026, 11, d, 12, 0, 0, 0, 0, -1)))
+        self.assertEqual(len(s["device_days"]), U.DEVICE_DAYS_KEPT)
+        self.assertEqual(s["devices"]["2026-11"]["10.0.0.5"]["w"]["wan1"], [12, 0], "the month keeps everything")
+
+    @data(([{"name": "NAS", "target": "10.0.0.6"}], "aa:00:00:00:00:06", ["10.0.0.6"], "NAS"),
+          ([{"name": "TV", "mac": "AA:00:00:00:00:06", "target": "x"}], "aa:00:00:00:00:06", [], "TV"),
+          ([{"name": "Web", "target": "10.0.0.6:8080"}], "aa:00:00:00:00:06", ["10.0.0.6"], "Web"),
+          (None, "aa:00:00:00:00:05", ["10.0.0.5"], "phone"),
+          (None, "router", [], "Router (its own traffic)"),
+          (None, "10.0.0.77", ["10.0.0.77"], ""))
+    @unpack
+    def test_names(self, devices, key, ips, want):
+        self.assertEqual(U.namer(ROUTER, devices)(key, ips), want)
+
+    def test_view_lists_devices_busiest_first(self):
+        store = {"months": {"2026-11": {"wan1": [10, 1]}},
+                 "devices": {"2026-11": {"aa:00:00:00:00:05": {"ips": ["10.0.0.5"], "w": {"wan1": [5, 1], "wan10": [100, 0]}},
+                                         "10.0.0.77": {"ips": ["10.0.0.77"], "w": {"wan1": [7, 0]}}}}}
+        v = U.view(store, ROWS, GROUPS, "2026-11", ROUTER, None)
+        self.assertEqual([(d["key"], d["name"], d["mac"], d["down_bytes"], d["up_bytes"]) for d in v["devices"]],
+                         [("aa:00:00:00:00:05", "phone", "aa:00:00:00:00:05", 105, 1), ("10.0.0.77", "", None, 7, 0)])
+        self.assertEqual([(x["wan"], x["isp"], x["device"]) for x in v["devices"][0]["via"]],
+                         [("wan10", "isp-b", "eth9"), ("wan1", "isp-a", "pppoe-wan1")])
+        self.assertEqual(v["devices_total"], 2)
+
+
+GB = 1_000_000_000
+NAME = U.namer(ROUTER, None)
+
+
+def at(h, d=19):
+    return time.mktime((2026, 11, d, h, 0, 0, 0, 0, -1))
+
+
+@ddt
+class Alerts(unittest.TestCase):
+    def store(self, a_gb, b_gb=0):
+        return {"months": {"2026-11": {"wan1": [int(a_gb * GB * 0.9), int(a_gb * GB * 0.1)], "wan10": [int(b_gb * GB), 0]}}}
+
+    @data((79, []), (80, ["🟠", "80% of its 100 GB cap"]), (99, ["🟠"]), (100, ["🔴", "100% of its 100 GB cap"]), (250, ["🔴", "250%"]))
+    @unpack
+    def test_cap_steps(self, used, want):
+        msgs = U.check(self.store(used), {"caps_gb": {"isp-a": 100}, "daily_summary": False}, GROUPS, "Home", NAME, at(12))
+        self.assertEqual(len(msgs), 1 if want else 0)
+        for w in want:
+            self.assertIn(w, msgs[0])
+
+    def test_each_step_once_a_month(self):
+        s, cfg = self.store(85), {"caps_gb": {"isp-a": 100}, "daily_summary": False}
+        self.assertEqual(len(U.check(s, cfg, GROUPS, "Home", NAME, at(12))), 1)
+        self.assertEqual(U.check(s, cfg, GROUPS, "Home", NAME, at(13)), [], "80% already sent")
+        s["months"]["2026-11"]["wan1"][0] += 20 * GB
+        self.assertIn("🔴", U.check(s, cfg, GROUPS, "Home", NAME, at(14))[0])
+        self.assertEqual(U.check(s, cfg, GROUPS, "Home", NAME, at(15)), [])
+
+    def test_straight_to_100_sends_one_message(self):
+        msgs = U.check(self.store(120), {"caps_gb": {"isp-a": 100}, "daily_summary": False}, GROUPS, "Home", NAME, at(12))
+        self.assertEqual(len(msgs), 1)
+
+    def test_cap_on_one_wan(self):
+        msgs = U.check(self.store(0, 9), {"caps_gb": {"wan10": 10}, "daily_summary": False}, GROUPS, "Home", NAME, at(12))
+        self.assertIn("wan10", msgs[0])
+
+    def test_summary_once_a_day_after_the_hour(self):
+        s = {"days": {"2026-11-18": {"wan1": [40 * GB, 2 * GB], "wan10": [5 * GB, 0]}},
+             "months": {"2026-11": {"wan1": [400 * GB, 20 * GB], "wan10": [5 * GB, 0]}},
+             "device_days": {"2026-11-18": {"aa:00:00:00:00:05": [30 * GB, 1 * GB], "10.0.0.77": [2 * GB, 0], "router": [1, 0], "x": [0, 0]}},
+             "devices": {"2026-11": {"aa:00:00:00:00:05": {"ips": ["10.0.0.5"], "w": {}}}}}
+        cfg = {"summary_hour": 9}
+        self.assertEqual(U.check(s, cfg, GROUPS, "Home", NAME, at(8)), [], "not before the hour")
+        msgs = U.check(s, cfg, GROUPS, "Home", NAME, at(9))
+        self.assertEqual(len(msgs), 1)
+        m = msgs[0]
+        for want in ("data used on 2026-11-18", "isp-a: 42.0 GB (↓40.0 GB ↑2.0 GB)", "isp-b: 5.0 GB", "Total: 47.0 GB",
+                     "Top devices: phone 31.0 GB, 10.0.0.77 2.0 GB", "Month so far: 425.0 GB"):
+            self.assertIn(want, m)
+        self.assertLess(m.index("isp-a"), m.index("isp-b"), "busiest ISP first")
+        self.assertEqual(U.check(s, cfg, GROUPS, "Home", NAME, at(20)), [], "once a day")
+
+    @data(({"daily_summary": False}, {"days": {"2026-11-18": {"wan1": [1, 0]}}}), ({}, {}))
+    @unpack
+    def test_no_summary(self, cfg, store):
+        """Off, or nothing counted yesterday: no message."""
+        self.assertEqual(U.check(store, cfg, GROUPS, "Home", NAME, at(10)), [])
+
+    @data(({}, {"caps_gb": {}, "daily_summary": True, "summary_hour": 9}),
+          ({"caps_gb": {"a": "50", "b": 0}, "summary_hour": 7}, {"caps_gb": {"a": 50.0}, "daily_summary": True, "summary_hour": 7}))
+    @unpack
+    def test_settings(self, cfg, want):
+        self.assertEqual(U.settings(cfg), want)
+
+    @data((12e6, "12 MB"), (3.25e9, "3.2 GB"), (1.5e12, "1.50 TB"))
+    @unpack
+    def test_human(self, b, want):
+        self.assertEqual(U.human(b), want)
+
+
+class Telegram(unittest.TestCase):
+    def test_collector_queues_what_is_due(self):
+        noc = FakeNoc([(100.0, flow("192.0.2.1", 0, 0)), (130.0, flow("192.0.2.1", 0, 0)), (160.0, flow("192.0.2.1", 0, 90 * GB))])
+        noc.C = {"usage": {"caps_gb": {"wan1": 100}, "daily_summary": False}}
+        noc.SITE_NAME = "Home"
+        noc.TG = type("TG", (), {"sent": [], "queue": lambda self, m: self.sent.append(m)})()
+        c = U.Collector(noc)
+        for _ in range(3):
+            c.step(now=WHEN)
+        self.assertEqual(len(noc.TG.sent), 1)
+        self.assertIn("90% of its 100 GB cap", noc.TG.sent[0])
+        self.assertIn("wan1:80", json.loads((noc.VAR / "usage.json").read_text())["sent"]["caps"]["2026-11"], "remembered across restarts")
+        self.assertGreater(c.rates["wan1"][0], 0, "bits per second kept for /metrics")
+
+
 if __name__ == "__main__":
     unittest.main()

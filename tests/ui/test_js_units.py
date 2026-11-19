@@ -420,6 +420,61 @@ class SpeedTab(unittest.TestCase):
         self.assertIn(text, got["text"])
         self.assertEqual(got["rows"], [])
 
+    DEVICES = [{"key": "aa:00:00:00:00:06", "name": "nas", "mac": "aa:00:00:00:00:06", "ips": ["10.0.0.6", "2001:db8::6"], "router": False,
+                "down_bytes": 31_000_000_000, "up_bytes": 402_000_000_000,
+                "via": [{"wan": "wan1", "isp": "isp-a", "device": "pppoe-wan1", "down_bytes": 20_000_000_000, "up_bytes": 300_000_000_000}]},
+               {"key": "10.0.0.77", "name": "", "mac": None, "ips": ["10.0.0.77"], "router": False, "down_bytes": 3_000_000_000, "up_bytes": 0,
+                "via": [{"wan": "<x>", "isp": None, "device": None, "down_bytes": 3_000_000_000, "up_bytes": 0}]}]
+
+    def devices(self, **change):
+        return js("""async ([d, u]) => { const real = api;
+            api = async (p, o) => { if (p === '/api/speed') return JSON.parse(JSON.stringify(d));
+              if (p.startsWith('/api/usage')) return JSON.parse(JSON.stringify(u)); return real(p, o); };
+            try { await VIEWS.speed(); } finally { api = real; }
+            const c = document.querySelector('#sp-usage'), t = c.querySelector('#sp-devices'), caps = c.querySelector('#sp-caps');
+            return {text: c.textContent.replace(/\\s+/g, ' '), html: c.innerHTML, caps: caps ? caps.textContent.replace(/\\s+/g, ' ') : null,
+              rows: t ? [...t.querySelectorAll('tr')].slice(1).map(r => [...r.children].map(x => x.textContent.replace(/\\s+/g, ' ').trim())) : []}; }""",
+                  [SPEED, {**self.USAGE, "devices": self.DEVICES, "devices_total": 7, "groups": ["isp-a", "isp-b"],
+                           "settings": {"caps_gb": {"isp-a": 250, "wan9": 1000}, "daily_summary": True, "summary_hour": 9}, **change}])
+
+    def test_devices_table(self):
+        got = self.devices()
+        self.assertEqual(got["rows"][0], ["nasaa:00:00:00:00:06", "10.0.0.6 +1", "31.0 GB", "402.0 GB", "433.0 GB", "isp-a wan1: 320.0 GB"])
+        self.assertEqual(got["rows"][1][0], "unknown")
+        self.assertIn("5 more devices used less", got["text"])
+        self.assertNotIn("<x>", got["html"])
+
+    def test_caps(self):
+        got = self.devices()
+        self.assertIn("isp-a", got["caps"])
+        self.assertIn("223.0 GB of 250 GB 80%+", got["caps"])
+        self.assertIn("1.60 TB of 1000 GB over", got["caps"], "a cap on one WAN")
+
+    @data(({"month": "2026-10"}, None), ({"settings": {"caps_gb": {}, "daily_summary": True, "summary_hour": 9}}, None))
+    @unpack
+    def test_no_caps_shown(self, change, want):
+        """Caps are for the current month only, and only when there are some."""
+        self.assertEqual(self.devices(**change)["caps"], want)
+
+    def test_caps_dialog_sends_usage_set(self):
+        got = js("""async ([d, u]) => { const real = api, realLoad = load, sent = [];
+            api = async (p, o) => { if (p === '/api/speed') return JSON.parse(JSON.stringify(d));
+              if (p.startsWith('/api/usage')) return JSON.parse(JSON.stringify(u));
+              if (p === '/api/actions/preview') { sent.push(JSON.parse(o.body)); throw new Error('stop here'); } return real(p, o); };
+            load = () => {};
+            try { await VIEWS.speed(); document.querySelector('#sp-caps-edit').click();
+                  const dlg = document.querySelector('#fdlg'), labels = [...dlg.querySelectorAll('label')].map(l => l.textContent);
+                  const a = dlg.querySelector('#f-cap_isp-a'); a.value = '300'; a.dispatchEvent(new Event('input', {bubbles: true}));
+                  const b = dlg.querySelector('#f-cap_isp-b'); b.value = ''; b.dispatchEvent(new Event('input', {bubbles: true}));
+                  dlg.querySelector('#fdlg-ok').click(); await new Promise(r => setTimeout(r, 30));
+                  const err = dlg.querySelector('#fdlg-err').textContent; dlg.close(); return {sent, labels, err}; }
+            finally { api = real; load = realLoad; } }""",
+                 [SPEED, {**self.USAGE, "groups": ["isp-a", "isp-b"], "settings": {"caps_gb": {"isp-a": 250, "wan9": 1000}, "daily_summary": True, "summary_hour": 9}}])
+        self.assertEqual(got["sent"], [{"kind": "usage_set", "params": {"caps_gb": {"isp-a": 300, "isp-b": None, "wan9": 1000},
+                                                                        "daily_summary": True, "summary_hour": 9}}])
+        self.assertEqual(got["labels"][:3], ["isp-a", "isp-b", "wan9"])
+        self.assertIn("stop here", got["err"], "a refused preview shows in the form")
+
     def test_usage_failure_keeps_the_rest_of_the_tab(self):
         self.assertIn("Internet links", js("""async d => { const real = api;
             api = async (p, o) => { if (p === '/api/speed') return JSON.parse(JSON.stringify(d)); if (p.startsWith('/api/usage')) throw new Error('x'); return real(p, o); };

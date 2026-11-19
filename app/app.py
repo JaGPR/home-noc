@@ -32,9 +32,10 @@ import openwrt
 import proxmox
 import settings
 import speedtab
+import metrics
 import usage
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 
 urllib3.disable_warnings()
 
@@ -1477,6 +1478,43 @@ def plan_action(kind, p):
             return {"saved": True}
         return "Update WAN groups", detail, None, run, ["router"]
 
+    if kind == "usage_set":
+        caps, old = p.get("caps_gb", {}), usage.settings(C.get("usage"))
+        if caps is None:
+            caps = {}
+        if not isinstance(caps, dict):
+            raise ValueError("caps_gb must be {ISP group or WAN: GB}")
+        allowed = set(wan_groups()) | {base for base in (speedtab.base(w) for w in wan_ifaces())}
+        clean = {}
+        for k, v in caps.items():
+            if k not in allowed:
+                raise ValueError(f"'{k}' is not an ISP group or WAN")
+            if v in (None, "", 0, "0"):
+                continue
+            try:
+                gb = float(v)
+            except (TypeError, ValueError):
+                raise ValueError(f"{k}: the cap must be a number of GB") from None
+            if not 1 <= gb <= 1_000_000:
+                raise ValueError(f"{k}: the cap must be 1 to 1000000 GB")
+            clean[k] = gb
+        daily = bool(p.get("daily_summary", old["daily_summary"]))
+        hour = int(p.get("summary_hour", old["summary_hour"]))
+        if not 0 <= hour <= 23:
+            raise ValueError("summary_hour must be 0-23")
+        new = {"caps_gb": clean, "daily_summary": daily, "summary_hour": hour}
+        if new == old:
+            raise ValueError("nothing changed")
+        detail = [f"Cap {k}: {v:g} GB a month (Telegram at 80% and 100%)" for k, v in sorted(clean.items())] or ["No caps"]
+        detail += [f"Cap {k}: removed (was {v:g} GB)" for k, v in sorted(old["caps_gb"].items()) if k not in clean]
+        detail.append(f"Daily summary on Telegram at {hour:02d}:00" if daily else "No daily summary")
+
+        def run():
+            C["usage"] = new
+            save_config()
+            return {"saved": True}
+        return "Data used: caps and daily summary", detail, None, run, []
+
     if kind == "wan_restart":
         iface = p.get("iface")
         if iface not in wan_ifaces():
@@ -1530,7 +1568,8 @@ def valid_session(tok):
 
 @app.middleware("http")
 async def require_login(request: Request, call_next):
-    if request.url.path in ("/login", "/login/forgot", "/login/reset", "/healthz") or valid_session(request.cookies.get("noc", "")):
+    # /metrics checks its own bearer token (secrets.env NOC_METRICS_TOKEN): Prometheus has no session
+    if request.url.path in ("/login", "/login/forgot", "/login/reset", "/healthz", "/metrics") or valid_session(request.cookies.get("noc", "")):
         return await call_next(request)
     if request.url.path.startswith("/api/"):
         return JSONResponse({"error": "login required"}, status_code=401)
@@ -1767,9 +1806,29 @@ def api_usage(month: str = ""):
     try:
         r = cached("router", 15, collect_router, VIEW_STALE)
         rows, _ = speedtab.wan_rows(r.get("interfaces", []) if isinstance(r, dict) else [], wan_ifaces())
-        return {**usage.view(USAGE.store_copy(), rows, wan_groups(), month or None), "error": USAGE.error}
+        return {**usage.view(USAGE.store_copy(), rows, wan_groups(), month or None, r, C.get("devices")),
+                "settings": usage.settings(C.get("usage")), "groups": sorted(wan_groups()), "error": USAGE.error}
     except Exception as ex:
         return JSONResponse({"error": str(ex)}, status_code=502)
+
+
+@app.get("/metrics")
+def prometheus_metrics(request: Request):
+    """Network readings for Prometheus (app/metrics.py). 404 unless NOC_METRICS_TOKEN is set; 401 without it."""
+    try:
+        token = load_env(ETC / "secrets.env").get("NOC_METRICS_TOKEN", "")
+    except OSError:
+        token = ""
+    if not token:
+        return JSONResponse({"error": "metrics are off (set NOC_METRICS_TOKEN in secrets.env)"}, status_code=404)
+    given = request.headers.get("authorization", "")
+    if not hmac.compare_digest(given.encode(), f"Bearer {token}".encode()):
+        return JSONResponse({"error": "bad or missing bearer token"}, status_code=401)
+    r = cached("router", 15, collect_router, VIEW_STALE)
+    hist = list(reversed(tail_jsonl(VAR / "speedwatch.jsonl", 48)))
+    body = metrics.render(metrics.samples(USAGE.store_copy(), USAGE.rates, r, wan_groups(), wan_ifaces(), C.get("devices"),
+                                          speedtab.history_rows(hist)))
+    return Response(body, media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
 @app.post("/api/speed/test")

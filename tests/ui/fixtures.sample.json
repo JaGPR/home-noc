@@ -6233,6 +6233,90 @@
    }
   ],
   "total_down_bytes": 1570000000000,
-  "total_up_bytes": 468400000000
+  "total_up_bytes": 468400000000,
+  "settings": {
+   "caps_gb": {
+    "isp-a": 500,
+    "isp-b": 1500
+   },
+   "daily_summary": true,
+   "summary_hour": 9
+  },
+  "groups": [
+   "isp-a",
+   "isp-b",
+   "isp-c"
+  ],
+  "devices": [
+   {
+    "key": "00:00:5e:00:53:b2",
+    "name": "NAS",
+    "mac": "00:00:5e:00:53:b2",
+    "ips": [
+     "192.0.2.178",
+     "2001:db8::b2"
+    ],
+    "router": false,
+    "down_bytes": 31000000000,
+    "up_bytes": 402000000000,
+    "via": [
+     {
+      "wan": "wan1",
+      "isp": "isp-a",
+      "device": "pppoe-wan1",
+      "down_bytes": 20000000000,
+      "up_bytes": 300000000000
+     },
+     {
+      "wan": "wan9",
+      "isp": "isp-b",
+      "device": "bond.30",
+      "down_bytes": 11000000000,
+      "up_bytes": 102000000000
+     }
+    ]
+   },
+   {
+    "key": "00:00:5e:00:53:6a",
+    "name": "Downloads box with a rather long hostname",
+    "mac": "00:00:5e:00:53:6a",
+    "ips": [
+     "192.0.2.106"
+    ],
+    "router": false,
+    "down_bytes": 1100000000000,
+    "up_bytes": 40000000000,
+    "via": [
+     {
+      "wan": "wan9",
+      "isp": "isp-b",
+      "device": "bond.30",
+      "down_bytes": 1100000000000,
+      "up_bytes": 40000000000
+     }
+    ]
+   },
+   {
+    "key": "192.0.2.214",
+    "name": "",
+    "mac": null,
+    "ips": [
+     "192.0.2.214"
+    ],
+    "router": false,
+    "down_bytes": 3000000000,
+    "up_bytes": 0,
+    "via": [
+     {
+      "wan": "wan3",
+      "isp": "isp-a",
+      "device": "pppoe-wan3",
+      "down_bytes": 3000000000,
+      "up_bytes": 0
+     }
+    ]
+   }
+  ],
+  "devices_total": 21
  }
 }

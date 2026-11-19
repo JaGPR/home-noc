@@ -1017,6 +1017,24 @@ function formDialog(spec) {
   };
 }
 
+// ---------- data used: monthly caps per ISP group (or WAN) and the daily Telegram summary (app/usage.py)
+function capsDialog(u) {
+  const st = u.settings || {}, caps = st.caps_gb || {};
+  const names = uniq([...(u.groups || []), ...Object.keys(caps)]);
+  const values = {daily_summary: st.daily_summary !== false, summary_hour: String(st.summary_hour ?? 9)};
+  names.forEach(n => { values['cap_' + n] = caps[n] ?? ''; });
+  formDialog({
+    title: 'Data used: caps and daily summary',
+    intro: 'A cap sends a Telegram message at 80% and at 100% of it, once each a calendar month. Leave a cap empty for none.',
+    values,
+    sections: [{title: 'Monthly caps (GB)', fields: names.map(n => ({key: 'cap_' + n, label: n, type: 'number', min: 1, placeholder: 'no cap'}))},
+      {title: 'Daily summary', fields: [
+        {key: 'daily_summary', label: 'Send it on Telegram', type: 'checkbox', help: "Yesterday's data per ISP, its top 3 devices and the month so far."},
+        {key: 'summary_hour', label: 'At', type: 'select', options: [...Array(24).keys()].map(h => ({value: String(h), label: String(h).padStart(2, '0') + ':00'}))}]}],
+    onSubmit: v => act('usage_set', {caps_gb: Object.fromEntries(names.map(n => [n, v['cap_' + n] === '' ? null : v['cap_' + n]])),
+                                     daily_summary: !!v.daily_summary, summary_hour: +v.summary_hour})});
+}
+
 // ---------- router: devices, interfaces (wizard), mwan3
 const uniq = a => [...new Set(a.filter(Boolean))];
 function deviceDialog(c, dev) {
@@ -1858,6 +1876,24 @@ const VIEWS = {
     const dayBars = uDays.length ? `<svg viewBox="0 0 ${uDays.length * 10} 40" height="48" style="width:100%;max-width:${Math.max(120, uDays.length * 14)}px;display:block" preserveAspectRatio="none" role="img" aria-label="Data used per day in ${esc(u.month || '')}">
         ${uDays.map((x, i) => { const h = Math.max(1, 38 * (x.down_bytes + x.up_bytes) / dMax);
           return `<rect x="${i * 10 + 1}" y="${(40 - h).toFixed(1)}" width="8" height="${h.toFixed(1)}" fill="var(--accent)"><title>${esc(x.day)}: ${bytes(x.down_bytes)} down, ${bytes(x.up_bytes)} up</title></rect>`; }).join('')}</svg>` : '';
+    // this month's caps (Telegram at 80% and 100%) with how much of each is used; only on the current month
+    const st = u.settings || {}, caps = Object.entries(st.caps_gb || {}), current = !(u.months || []).length || u.month === u.months[0];
+    const usedBy = name => { const i = (u.isps || []).find(x => x.isp === name); if (i) return i.down_bytes + i.up_bytes;
+      const w = uw.find(x => x.wan === name); return w ? w.down_bytes + w.up_bytes : 0; };
+    const capsHtml = current && caps.length ? `<div id="sp-caps" style="margin-top:10px"><div class="small">Monthly caps</div>
+      ${caps.map(([name, gb]) => { const pct = 100 * usedBy(name) / (gb * 1e9);
+        return `<div class="row" style="gap:8px;flex-wrap:wrap;align-items:center"><span style="min-width:90px">${esc(name)}</span>
+          <div class="bar" style="flex:1 1 80px"><i style="width:${Math.min(100, pct).toFixed(1)}%"></i></div>
+          <span style="white-space:nowrap">${bytes(usedBy(name))} of ${gb} GB ${pct >= 100 ? '<span class="pill bad">over</span>' : pct >= 80 ? '<span class="pill warn">80%+</span>' : ''}</span></div>`; }).join('')}</div>` : '';
+    // the month's busiest devices, each with the ISPs / WANs it used
+    const devs = (u.devices || []).slice(0, 15), more = (u.devices_total || 0) - devs.length;
+    const devTable = devs.length ? `<div class="small" style="margin-top:12px">Devices this month</div>
+      <div class="scroll"><table id="sp-devices"><tr><th>Device</th><th>Address</th><th>Download</th><th>Upload</th><th>Total</th><th>Through</th></tr>
+      ${devs.map(d => `<tr><td style="overflow-wrap:anywhere">${d.name ? esc(d.name) : '<span class="small">unknown</span>'}${d.mac ? `<div class="small">${esc(d.mac)}</div>` : ''}</td>
+        <td style="overflow-wrap:anywhere">${esc(d.ips[0] || '–')}${d.ips.length > 1 ? ` <span class="small">+${d.ips.length - 1}</span>` : ''}</td>
+        <td>${bytes(d.down_bytes)}</td><td>${bytes(d.up_bytes)}</td><td><b>${bytes(d.down_bytes + d.up_bytes)}</b></td>
+        <td>${d.via.slice(0, 3).map(v => `<div class="small" style="overflow-wrap:anywhere">${v.isp ? `<span class="pill">${esc(v.isp)}</span> ` : ''}${esc(v.wan)}: ${bytes(v.down_bytes + v.up_bytes)}</div>`).join('')}</td></tr>`).join('')}</table></div>
+      ${more > 0 ? `<div class="small">${more} more device${more > 1 ? 's' : ''} used less.</div>` : ''}` : '';
     const usageCard = `<div class="card wide" id="sp-usage"><div class="card-h"><h2>Data used per WAN</h2><span class="spacer"></span>
         ${(u.months || []).length > 1 ? `<select id="sp-month" aria-label="Month">${u.months.map(m => `<option value="${esc(m)}" ${m === u.month ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>`
           : `<span class="small">${esc(u.month || '')}</span>`}</div>
@@ -1868,6 +1904,9 @@ const VIEWS = {
           <td><b>${bytes(w.down_bytes + w.up_bytes)}</b></td><td style="min-width:90px"><div class="bar"><i style="width:${(100 * (w.down_bytes + w.up_bytes) / uMax).toFixed(1)}%"></i></div></td></tr>`).join('')}
         <tr><td><b>Total</b></td><td></td><td></td><td><b>${bytes(u.total_down_bytes || 0)}</b></td><td><b>${bytes(u.total_up_bytes || 0)}</b></td><td><b>${bytes(uTotal)}</b></td><td></td></tr></table></div>
         ${dayBars ? `<div class="small" style="margin-top:8px">Per day</div>${dayBars}` : ''}` : ''}
+      ${capsHtml}
+      ${devTable}
+      <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:10px"><button class="act" id="sp-caps-edit">Caps &amp; daily summary…</button></div>
       <div class="small" style="margin-top:6px">${u.since ? `Counting since ${esc(new Date(u.since * 1000).toLocaleString())}, ` : 'Not counting yet: it starts with the NOC. '}every ${u.interval_s || 30} s from the router's connection table, all the time (hardware offload hides the interfaces' own counters). Calendar months.</div></div>`;
     // the 2-second refresh must not close the month list while someone is choosing
     if (document.activeElement && document.activeElement.id === 'sp-month') return;
@@ -1909,6 +1948,8 @@ const VIEWS = {
     document.querySelectorAll('[data-sptest]').forEach(b => b.onclick = () => go({names: [b.dataset.sptest]}));
     const sel = $('#sp-month');
     if (sel) sel.onchange = () => { VIEWS._usageMonth = sel.value; load(); };
+    const capsBtn = $('#sp-caps-edit');
+    if (capsBtn) capsBtn.onclick = () => capsDialog(u);
   },
 
   async proxmox() {
