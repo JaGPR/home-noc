@@ -32,9 +32,9 @@ def flow(reply_dst, orig, reply, src="10.0.0.5", dst="198.51.100.9", sport=4000,
 
 
 def rates(*samples, gap=2.0):
-    """Feed connection-table samples 2 s apart; -> the last result."""
+    """Feed connection-table samples 2 s apart, after a warm-up read of the first; -> the last result."""
     load, out = S.Load(), None
-    for i, lines in enumerate(samples):
+    for i, lines in enumerate(samples[:1] + samples):
         out = load.update(S.parse_flows("\n".join(lines)), ADDRS, T0 + i * gap)
     return out
 
@@ -43,6 +43,11 @@ def rates(*samples, gap=2.0):
 class LoadMaths(unittest.TestCase):
     def test_first_sample_has_nothing_to_compare(self):
         self.assertEqual(rates([flow("192.0.2.1", 10, 10)]), {})
+
+    def test_first_comparison_only_builds_the_baseline(self):
+        load = S.Load()
+        got = [load.update(S.parse_flows(flow("192.0.2.1", 0, n)), ADDRS, T0 + i) for i, n in enumerate((0, 400_000_000, 401_250_000))]
+        self.assertEqual((got[0], got[1], got[2]["wan1"]["down_mbps"]), ({}, {}, 10.0))
 
     @data(
         # (first sample, second sample, -> per WAN: download Mbps, upload Mbps, connections)
@@ -74,6 +79,20 @@ class LoadMaths(unittest.TestCase):
     def test_long_gap_is_not_compared(self):
         """Every connection would look new, and show its whole lifetime's bytes as a huge spike."""
         self.assertEqual(rates([flow("192.0.2.1", 0, 0)], [flow("192.0.2.1", 0, 9_000_000_000)], gap=S.MAX_GAP_S + 1), {})
+
+    def test_connection_a_read_skipped_is_not_a_spike(self):
+        """Seen live: a read skipped a 573 MB torrent flow, the next listed it, and the tab showed 3.6 Gbit/s."""
+        got = rates([flow("192.0.2.1", 0, 0)], [flow("192.0.2.1", 0, 0), flow("192.0.2.1", 0, 573_000_000, sport=5000)])
+        self.assertEqual((got["wan1"]["down_mbps"], got["wan1"]["flows"]), (0.0, 2))
+
+    def test_connection_skipped_by_one_read_keeps_its_baseline(self):
+        got = rates([flow("192.0.2.1", 0, 500_000_000)], [], [flow("192.0.2.1", 0, 502_500_000)], gap=1.0)
+        self.assertEqual(got["wan1"]["down_mbps"], 20.0)   # 2.5 MB over the 1 s since the last read
+
+    @data(("12345.67\nipv4 ...", 12345.67), ("", None), ("ipv4 2 tcp", None))
+    @unpack
+    def test_router_clock(self, text, want):
+        self.assertEqual(S.router_clock(text), want)
 
     def test_each_sample_compares_with_the_one_before(self):
         got = rates([flow("192.0.2.1", 0, 0)], [flow("192.0.2.1", 0, 5_000_000)], [flow("192.0.2.1", 0, 7_500_000)], gap=2.0)

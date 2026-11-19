@@ -20,9 +20,23 @@ import speedwatch
 DEFAULTS = {"test_bytes": 100_000_000, "test_timeout_s": 12}
 NAME = re.compile(r"[A-Za-z0-9_.-]{1,32}$")
 MAX_GAP_S = 15    # samples further apart than this are not compared: new connections would all look fresh
+# Reading /proc/net/nf_conntrack is not atomic: a busy table can skip a connection in one read and list it in
+# the next, with its whole lifetime's bytes. A connection never seen before only counts if its bytes could have
+# come in this interval at no more than this rate; otherwise it becomes the baseline (seen on a live router:
+# a 573 MB torrent flow reappearing in a 1.3 s window read as 3.6 Gbit/s).
+NEW_FLOW_MAX_MBPS = 1000
 
-# router: raw /proc/net/nf_conntrack; parsing on the host is ~15x faster than busybox awk on the router
-LOAD_SCRIPT = "cat /proc/net/nf_conntrack\n"
+# router: its uptime (the clock the sample was taken by), then the raw table; parsing on the host is ~15x faster
+LOAD_SCRIPT = "cut -d' ' -f1 /proc/uptime\ncat /proc/net/nf_conntrack\n"
+
+
+def router_clock(text):
+    """The router's uptime from LOAD_SCRIPT's first line, or None. The time the table was read: the SSH round
+    trip after it takes 0.3-18 s and varies, so the NOC's own clock would stretch or squeeze the interval."""
+    try:
+        return float(text.split("\n", 1)[0])
+    except ValueError:
+        return None
 
 
 def natural(name):
@@ -108,12 +122,16 @@ class Load:
     """Turns connection-table samples into Mbps per WAN. Only connections of a WAN are kept."""
 
     def __init__(self):
-        self.prev, self.ts = None, None
+        self.prev, self.ts = None, None   # prev: {connection: (up, down, last seen)}, kept MAX_GAP_S after a missed read
+        self.warm = False                 # the first comparison only builds the baseline: one read may have skipped flows
 
     def update(self, flows, addrs, now):
-        """-> {wan: {"down_mbps", "up_mbps", "flows"}}, or {} for the first sample after a gap (nothing to compare)."""
+        """-> {wan: {"down_mbps", "up_mbps", "flows"}}, or {} for the first two samples after a gap: nothing to
+        compare yet, then a baseline made of two reads (a connection one read skipped would look new)."""
         out, cur = {}, {}
         fresh = self.prev is not None and now - self.ts <= MAX_GAP_S and now > self.ts
+        dt = now - self.ts if fresh else 0
+        new_cap = NEW_FLOW_MAX_MBPS * 1e6 / 8 * dt
         for key, (reply_dst, orig, reply, dst) in flows.items():
             if reply_dst in addrs:          # started here: the reply direction is the download
                 wan, up, down = addrs[reply_dst], orig, reply
@@ -121,16 +139,21 @@ class Load:
                 wan, up, down = addrs[dst], reply, orig
             else:
                 continue                    # LAN to LAN, or not on a monitored WAN
-            cur[key] = (up, down)
+            cur[key] = (up, down, now)
             w = out.setdefault(wan, {"down": 0, "up": 0, "flows": 0})
             w["flows"] += 1
             if fresh:
-                was_up, was_down = self.prev.get(key, (0, 0))   # a new connection: all its bytes are from this interval
+                was = self.prev.get(key)
+                if was is None and up + down > new_cap:
+                    continue                # not new: a read missed it before; its bytes become the baseline
+                was_up, was_down = (was or (0, 0, 0))[:2]   # a new connection: all its bytes are from this interval
                 w["up"] += max(0, up - was_up)
                 w["down"] += max(0, down - was_down)
-        dt = now - self.ts if fresh else 0
+        if fresh:                           # remember connections a read skipped, until they are MAX_GAP_S old
+            cur.update({k: v for k, v in self.prev.items() if k not in cur and now - v[2] <= MAX_GAP_S})
         self.prev, self.ts = cur, now
-        if not fresh:
+        warm, self.warm = self.warm, fresh
+        if not (fresh and warm):
             return {}
         return {k: {"down_mbps": round(v["down"] * 8 / 1e6 / dt, 1), "up_mbps": round(v["up"] * 8 / 1e6 / dt, 1), "flows": v["flows"]}
                 for k, v in out.items()}
@@ -234,7 +257,10 @@ def view(noc, tests, load):
     rows, addrs = wan_rows(r.get("interfaces", []), noc.wan_ifaces())
     rates, load_error = {}, None
     try:
-        rates = noc.cached("wanload", 2, lambda: load.update(parse_flows(noc.ssh(noc.ROUTER_HOST, LOAD_SCRIPT, timeout=18)), addrs, time.time()))
+        def sample():
+            text = noc.ssh(noc.ROUTER_HOST, LOAD_SCRIPT, timeout=18)
+            return load.update(parse_flows(text), addrs, router_clock(text) or time.time())
+        rates = noc.cached("wanload", 2, sample)
         if isinstance(rates, dict) and "error" in rates:
             load_error, rates = rates["error"], {}
     except Exception as ex:
