@@ -5,6 +5,9 @@ Hardware flow offload hides forwarded traffic from the WAN devices' own byte cou
 every INTERVAL_S it reads it (speedtab.LOAD_SCRIPT) and adds each connection's new bytes to its WAN, by the
 connection's address on the router's side (a WAN's IPv6 sibling wanN_6 counts as wanN).
 
+A router restart loses nothing: the totals live on the NOC, and the first read after it (the router's uptime went
+back) counts every connection in full, since all of them began after the boot.
+
 What it can miss: a connection that opens and closes between two reads, and is gone from the table by the next.
 Closed TCP connections stay in the table for about 2 minutes (TIME_WAIT) and UDP ones 30 s or more, so reads
 every 30 s see nearly all of them. When the NOC was stopped, nothing is counted for that time (the page says
@@ -23,6 +26,7 @@ import speedtab
 INTERVAL_S = 30
 RETAIN_S = 600         # a connection one read skipped keeps its baseline this long
 MAX_GAP_S = 180        # reads further apart than this are not compared (the NOC or router was away)
+REBOOT_WINDOW_S = 1800 # a router seen back within this uptime: its whole table counts (see Counter.update)
 DAYS_KEPT = 400
 
 
@@ -35,7 +39,11 @@ class Counter:
     def update(self, flows, addrs, now):
         """-> {wan: [down bytes, up bytes]} since the last read; {} for the first two reads after a gap (the
         first has nothing to compare, the second only builds a baseline of two reads)."""
-        fresh = self.prev is not None and 0 < now - self.ts <= MAX_GAP_S
+        # The router restarted (its uptime went back): its table is new, so every connection in it began since the
+        # boot and all of its bytes are new. Count them in full instead of building a baseline, so nothing is lost.
+        if self.ts is not None and now < self.ts and now <= REBOOT_WINDOW_S:
+            self.prev, self.ts, self.warm = {}, 0.0, True
+        fresh = self.prev is not None and 0 < now - self.ts <= (now if self.ts == 0.0 else MAX_GAP_S)
         dt = now - self.ts if fresh else 0
         new_cap = speedtab.NEW_FLOW_MAX_MBPS * 1e6 / 8 * dt
         out, cur = {}, {}

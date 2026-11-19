@@ -57,6 +57,33 @@ class Counting(unittest.TestCase):
         got = count([flow("192.0.2.1", 0, 500_000_000)], [flow("192.0.2.1", 0, 500_000_000)], [], [flow("192.0.2.1", 0, 500_001_000)])
         self.assertEqual(got[-1], {"wan1": [1_000, 0]})
 
+    def read(self, c, uptime, *flows):
+        return c.update(U.speedtab.parse_flows("\n".join(flows)), ADDRS, uptime)
+
+    def test_router_restart_counts_everything_since_the_boot(self):
+        """The table after a restart is all new: the first read counts it whole, then deltas carry on."""
+        c = U.Counter()
+        for up, b in ((50_000, 0), (50_030, 100), (50_060, 300)):
+            self.read(c, up, flow("192.0.2.1", 0, b))
+        self.assertEqual(self.read(c, 90, flow("192.0.2.1", 7, 5_000), flow("192.0.2.2", 1, 2, sport=1)), {"wan1": [5_000, 7], "wan2": [2, 1]})
+        self.assertEqual(self.read(c, 120, flow("192.0.2.1", 7, 6_000), flow("192.0.2.2", 1, 2, sport=1)), {"wan1": [1_000, 0], "wan2": [0, 0]})
+
+    def test_router_restart_noticed_late_builds_a_baseline(self):
+        """Back with an uptime past the window: connections may predate what we saw, so nothing is guessed."""
+        c = U.Counter()
+        for up in (50_000, 50_030, 50_060):
+            self.read(c, up, flow("192.0.2.1", 0, 0))
+        self.assertEqual(self.read(c, U.REBOOT_WINDOW_S + 1, flow("192.0.2.1", 0, 9_000)), {})
+
+    def test_totals_survive_a_router_restart(self):
+        noc = FakeNoc([(50_000.0, flow("192.0.2.1", 0, 0)), (50_030.0, flow("192.0.2.1", 0, 0)), (50_060.0, flow("192.0.2.1", 0, 4_000)),
+                       (60.0, flow("192.0.2.1", 0, 1_500))])
+        c = U.Collector(noc)
+        when = time.mktime((2026, 11, 19, 12, 0, 0, 0, 0, -1))
+        for _ in range(4):
+            c.step(now=when)
+        self.assertEqual(c.store["months"]["2026-11"]["wan1"], [5_500, 0], "added to, never reset")
+
     def test_gap_starts_over(self):
         """The NOC was stopped: nothing is made up for that time."""
         c = U.Counter()
