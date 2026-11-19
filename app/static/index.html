@@ -1839,12 +1839,12 @@ const VIEWS = {
     const hTop = Math.max(1, ...active.map(h => Math.max(h.down_mbps, h.up_mbps)));
     const hMeter = v => `<div class="row" style="gap:6px;flex-wrap:nowrap"><div class="bar" style="flex:1;min-width:60px"><i style="width:${Math.min(100, 100 * v / hTop)}%"></i></div><span style="min-width:74px;text-align:right">${mbps(v)}</span></div>`;
     const via = h => h.via.filter((v, i) => i === 0 || v.down_mbps + v.up_mbps >= 0.1).slice(0, 4).map(v =>
-      `<div class="small" style="white-space:nowrap">${v.isp ? `<span class="pill">${esc(v.isp)}</span> ` : ''}${esc(v.wan)}${v.device ? ` <span class="small">${esc(v.device)}</span>` : ''}: ↓${mbps(v.down_mbps)} ↑${mbps(v.up_mbps)}</div>`).join('');
+      `<div class="small" style="overflow-wrap:anywhere">${v.isp ? `<span class="pill">${esc(v.isp)}</span> ` : ''}${esc(v.wan)}${v.device ? ` <span class="small">${esc(v.device)}</span>` : ''}: ↓${mbps(v.down_mbps)} ↑${mbps(v.up_mbps)}</div>`).join('');
     const whoCard = `<div class="card wide" id="sp-who"><div class="card-h"><h2>Who is using bandwidth</h2><span class="spacer"></span><span class="small">every 2 seconds</span></div>
       ${isps.length ? `<div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">${isps.map(i => `<span class="pill">${esc(i.isp)}: ↓${mbps(i.down_mbps)} ↑${mbps(i.up_mbps)}</span>`).join('')}</div>` : ''}
       ${active.length ? `<div class="scroll"><table><tr><th>Device</th><th>Address</th><th>Download</th><th>Upload</th><th>Connections</th><th>Through (ISP, WAN, interface)</th></tr>
-        ${active.map(h => `<tr><td>${h.name ? esc(h.name) : '<span class="small">unknown</span>'}${h.mac ? `<div class="small">${esc(h.mac)}</div>` : ''}</td>
-          <td title="${esc(h.ips.join(', '))}">${esc(h.ips[0])}${h.ips.length > 1 ? ` <span class="small">+${h.ips.length - 1}</span>` : ''}</td>
+        ${active.map(h => `<tr><td style="overflow-wrap:anywhere">${h.name ? esc(h.name) : '<span class="small">unknown</span>'}${h.mac ? `<div class="small">${esc(h.mac)}</div>` : ''}</td>
+          <td title="${esc(h.ips.join(', '))}" style="overflow-wrap:anywhere">${esc(h.ips[0])}${h.ips.length > 1 ? ` <span class="small">+${h.ips.length - 1}</span>` : ''}</td>
           <td style="min-width:150px">${hMeter(h.down_mbps)}</td><td style="min-width:150px">${hMeter(h.up_mbps)}</td><td>${h.flows}</td><td>${via(h)}</td></tr>`).join('')}</table></div>`
         : `<div class="small">${d.total_down_mbps == null ? 'Waiting for two readings of the connection table…' : 'No device is using the internet right now.'}</div>`}
       <div class="small" style="margin-top:6px">${idle ? `${idle} more device${idle > 1 ? 's' : ''} connected but idle. ` : ''}From the router's connection table: a device's IPv4 and IPv6 add up when the router knows its MAC.</div></div>`;

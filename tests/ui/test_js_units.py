@@ -395,7 +395,7 @@ class SpeedTab(unittest.TestCase):
 
     HOSTS = [{"name": "nas", "mac": "aa:00:00:00:00:06", "ips": ["10.0.0.6", "2001:db8::6"], "down_mbps": 11.0, "up_mbps": 623.2, "flows": 61,
               "router": False, "via": [{"wan": "wan1", "isp": "isp-a", "device": "pppoe-wan1", "down_mbps": 4.2, "up_mbps": 300.0, "flows": 30},
-                                       {"wan": "jio", "isp": "isp-b", "device": "bond.15", "down_mbps": 0.0, "up_mbps": 0.0, "flows": 1}]},
+                                       {"wan": "wan9", "isp": "isp-b", "device": "bond.15", "down_mbps": 0.0, "up_mbps": 0.0, "flows": 1}]},
              {"name": "", "mac": None, "ips": ["10.0.0.77"], "down_mbps": 2.5, "up_mbps": 0.1, "flows": 3, "router": False,
               "via": [{"wan": "wan1", "isp": "isp-a", "device": "pppoe-wan1", "down_mbps": 2.5, "up_mbps": 0.1, "flows": 3}]},
              {"name": "<idle>", "mac": None, "ips": ["10.0.0.9"], "down_mbps": 0.0, "up_mbps": 0.0, "flows": 2, "router": False, "via": []}]

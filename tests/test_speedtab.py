@@ -139,10 +139,10 @@ class LoadMaths(unittest.TestCase):
 
 @ddt
 class Who(unittest.TestCase):
-    ROWS = [{"name": "wan1", "device": "pppoe-wan1"}, {"name": "jio", "device": "bond.15"}]
+    ROWS = [{"name": "wan1", "device": "pppoe-wan1"}, {"name": "wan9", "device": "bond.15"}]
     ROUTER = {"leases": [{"ip": "10.0.0.5", "mac": "aa:00:00:00:00:05", "name": "phone"}],
               "_arp": {"aa:00:00:00:00:06": "10.0.0.6"}}
-    GROUPS = {"isp-a": ["wan1"], "isp-a-v6": ["wan1_6"], "isp-b": ["jio"]}
+    GROUPS = {"isp-a": ["wan1"], "isp-a-v6": ["wan1_6"], "isp-b": ["wan9"]}
     HOST = staticmethod(lambda d, u=0.0, n=1: {"down_mbps": d, "up_mbps": u, "flows": n})
 
     def who(self, hosts, neigh=None, devices=None):
@@ -158,7 +158,7 @@ class Who(unittest.TestCase):
         self.assertEqual(d["via"], [{"wan": "wan1", "isp": "isp-a", "device": "pppoe-wan1", "down_mbps": 15.0, "up_mbps": 1.0, "flows": 2}])
 
     def test_busiest_first_and_split_by_isp(self):
-        got = self.who({"10.0.0.5": {"wan1": self.HOST(1.0)}, "10.0.0.6": {"wan1": self.HOST(3.0), "jio": self.HOST(40.0)}})
+        got = self.who({"10.0.0.5": {"wan1": self.HOST(1.0)}, "10.0.0.6": {"wan1": self.HOST(3.0), "wan9": self.HOST(40.0)}})
         self.assertEqual([d["ips"][0] for d in got], ["10.0.0.6", "10.0.0.5"])
         self.assertEqual([(v["isp"], v["device"], v["down_mbps"]) for v in got[0]["via"]], [("isp-b", "bond.15", 40.0), ("isp-a", "pppoe-wan1", 3.0)])
         self.assertEqual(got[0]["mac"], "aa:00:00:00:00:06", "MAC from ARP")
@@ -170,8 +170,8 @@ class Who(unittest.TestCase):
         self.assertEqual(self.who({"10.0.0.6": {"wan1": self.HOST(1.0)}}, devices=devices)[0]["name"], name)
 
     def test_router_own_traffic_is_one_row(self):
-        router = {**self.ROUTER, "interfaces": [{"name": "jio", "ip": "100.64.0.9/22", "ip6": ""}, {"name": "wan1", "ip": "192.0.2.1/32", "ip6": "2001:db8::1/64"}]}
-        got = S.who({"100.64.0.9": {"jio": self.HOST(0.1)}, S.exploded("2001:db8::1"): {"wan1": self.HOST(0.2)}}, {}, self.ROWS, router, None, self.GROUPS)
+        router = {**self.ROUTER, "interfaces": [{"name": "wan9", "ip": "100.64.0.9/22", "ip6": ""}, {"name": "wan1", "ip": "192.0.2.1/32", "ip6": "2001:db8::1/64"}]}
+        got = S.who({"100.64.0.9": {"wan9": self.HOST(0.1)}, S.exploded("2001:db8::1"): {"wan1": self.HOST(0.2)}}, {}, self.ROWS, router, None, self.GROUPS)
         self.assertEqual([(d["name"], d["router"], d["mac"], len(d["ips"])) for d in got], [("Router (its own traffic)", True, None, 2)])
 
     def test_unknown_device_is_its_address(self):
@@ -183,8 +183,8 @@ class Who(unittest.TestCase):
 
     def test_isp_totals(self):
         rows = [{"name": "wan1", "down_mbps": 10.0, "up_mbps": 1.0}, {"name": "wan2", "down_mbps": 5.0, "up_mbps": 0.5},
-                {"name": "jio", "down_mbps": 2.0, "up_mbps": 0.0}, {"name": "x", "down_mbps": None, "up_mbps": None}]
-        self.assertEqual(S.isp_totals(rows, {"isp-a": ["wan1", "wan2"], "isp-b": ["jio"]}),
+                {"name": "wan9", "down_mbps": 2.0, "up_mbps": 0.0}, {"name": "x", "down_mbps": None, "up_mbps": None}]
+        self.assertEqual(S.isp_totals(rows, {"isp-a": ["wan1", "wan2"], "isp-b": ["wan9"]}),
                          [{"isp": "isp-a", "down_mbps": 15.0, "up_mbps": 1.5}, {"isp": "isp-b", "down_mbps": 2.0, "up_mbps": 0.0}])
 
     def test_load_script_on_a_real_table(self):
