@@ -6071,5 +6071,168 @@
     "via": []
    }
   ]
+ },
+ "usage": {
+  "month": "2026-11",
+  "months": [
+   "2026-11",
+   "2026-10"
+  ],
+  "since": 1793500000,
+  "interval_s": 30,
+  "error": null,
+  "wans": [
+   {
+    "wan": "wan1",
+    "device": "pppoe-wan1",
+    "isp": "isp-a",
+    "down_bytes": 182000000000,
+    "up_bytes": 41000000000
+   },
+   {
+    "wan": "wan2",
+    "device": "pppoe-wan2",
+    "isp": "isp-a",
+    "down_bytes": 175000000000,
+    "up_bytes": 39000000000
+   },
+   {
+    "wan": "wan3",
+    "device": "pppoe-wan3",
+    "isp": "isp-a",
+    "down_bytes": 0,
+    "up_bytes": 0
+   },
+   {
+    "wan": "wan9",
+    "device": "bond.30",
+    "isp": "isp-b",
+    "down_bytes": 1210000000000,
+    "up_bytes": 388000000000
+   },
+   {
+    "wan": "wan10",
+    "device": "bond.15",
+    "isp": "isp-c",
+    "down_bytes": 3000000000,
+    "up_bytes": 400000000
+   }
+  ],
+  "isps": [
+   {
+    "isp": "isp-a",
+    "down_bytes": 357000000000,
+    "up_bytes": 80000000000
+   },
+   {
+    "isp": "isp-b",
+    "down_bytes": 1210000000000,
+    "up_bytes": 388000000000
+   },
+   {
+    "isp": "isp-c",
+    "down_bytes": 3000000000,
+    "up_bytes": 400000000
+   }
+  ],
+  "days": [
+   {
+    "day": "2026-11-01",
+    "down_bytes": 43000000000,
+    "up_bytes": 10000000000
+   },
+   {
+    "day": "2026-11-02",
+    "down_bytes": 46000000000,
+    "up_bytes": 11000000000
+   },
+   {
+    "day": "2026-11-03",
+    "down_bytes": 49000000000,
+    "up_bytes": 12000000000
+   },
+   {
+    "day": "2026-11-04",
+    "down_bytes": 52000000000,
+    "up_bytes": 13000000000
+   },
+   {
+    "day": "2026-11-05",
+    "down_bytes": 55000000000,
+    "up_bytes": 14000000000
+   },
+   {
+    "day": "2026-11-06",
+    "down_bytes": 58000000000,
+    "up_bytes": 15000000000
+   },
+   {
+    "day": "2026-11-07",
+    "down_bytes": 61000000000,
+    "up_bytes": 16000000000
+   },
+   {
+    "day": "2026-11-08",
+    "down_bytes": 64000000000,
+    "up_bytes": 17000000000
+   },
+   {
+    "day": "2026-11-09",
+    "down_bytes": 67000000000,
+    "up_bytes": 18000000000
+   },
+   {
+    "day": "2026-11-10",
+    "down_bytes": 70000000000,
+    "up_bytes": 19000000000
+   },
+   {
+    "day": "2026-11-11",
+    "down_bytes": 73000000000,
+    "up_bytes": 20000000000
+   },
+   {
+    "day": "2026-11-12",
+    "down_bytes": 76000000000,
+    "up_bytes": 21000000000
+   },
+   {
+    "day": "2026-11-13",
+    "down_bytes": 79000000000,
+    "up_bytes": 22000000000
+   },
+   {
+    "day": "2026-11-14",
+    "down_bytes": 82000000000,
+    "up_bytes": 23000000000
+   },
+   {
+    "day": "2026-11-15",
+    "down_bytes": 85000000000,
+    "up_bytes": 24000000000
+   },
+   {
+    "day": "2026-11-16",
+    "down_bytes": 88000000000,
+    "up_bytes": 25000000000
+   },
+   {
+    "day": "2026-11-17",
+    "down_bytes": 91000000000,
+    "up_bytes": 26000000000
+   },
+   {
+    "day": "2026-11-18",
+    "down_bytes": 94000000000,
+    "up_bytes": 27000000000
+   },
+   {
+    "day": "2026-11-19",
+    "down_bytes": 97000000000,
+    "up_bytes": 28000000000
+   }
+  ],
+  "total_down_bytes": 1570000000000,
+  "total_up_bytes": 468400000000
  }
 }

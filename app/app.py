@@ -32,6 +32,7 @@ import openwrt
 import proxmox
 import settings
 import speedtab
+import usage
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 
@@ -1494,6 +1495,7 @@ app = FastAPI(title="NOC", docs_url=None, redoc_url=None)
 app.add_middleware(GZipMiddleware, minimum_size=1024)  # the page is ~160 KB, ~35 KB gzipped
 TG = notify.Telegram(sys.modules[__name__])
 SPEED_TESTS, SPEED_LOAD = speedtab.Tests(sys.modules[__name__]), speedtab.Load()
+USAGE = usage.Collector(sys.modules[__name__])
 
 
 @app.on_event("startup")
@@ -1502,6 +1504,7 @@ def start_workers():
     # NOC_NO_WORKERS=1 keeps them off, e.g. in offline tests.
     if os.environ.get("NOC_NO_WORKERS") != "1":
         TG.start()
+        USAGE.start()
 SESSION_KEY = E["NOC_SESSION_KEY"].encode()
 SESSION_HOURS = 12
 
@@ -1754,6 +1757,17 @@ def api_speed():
     """The Speed tab: live load per WAN, the running test, recent results (app/speedtab.py)."""
     try:
         return speedtab.view(sys.modules[__name__], SPEED_TESTS, SPEED_LOAD)
+    except Exception as ex:
+        return JSONResponse({"error": str(ex)}, status_code=502)
+
+
+@app.get("/api/usage")
+def api_usage(month: str = ""):
+    """Data used per WAN in one month (default: the newest), counted all the time (app/usage.py)."""
+    try:
+        r = cached("router", 15, collect_router, VIEW_STALE)
+        rows, _ = speedtab.wan_rows(r.get("interfaces", []) if isinstance(r, dict) else [], wan_ifaces())
+        return {**usage.view(USAGE.store_copy(), rows, wan_groups(), month or None), "error": USAGE.error}
     except Exception as ex:
         return JSONResponse({"error": str(ex)}, status_code=502)
 

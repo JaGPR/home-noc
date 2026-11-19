@@ -382,6 +382,49 @@ SPEED = {"configured": True, "url": "http://192.0.2.80/f.bin", "test_mb": 100, "
 
 @ddt
 class SpeedTab(unittest.TestCase):
+    USAGE = {"month": "2026-11", "months": ["2026-11", "2026-10"], "since": 1793500000, "interval_s": 30, "error": None,
+             "wans": [{"wan": "wan1", "device": "pppoe-wan1", "isp": "isp-a", "down_bytes": 182_000_000_000, "up_bytes": 41_000_000_000},
+                      {"wan": "wan9", "device": "bond.30", "isp": "isp-b", "down_bytes": 1_210_000_000_000, "up_bytes": 388_000_000_000},
+                      {"wan": "<w>", "device": None, "isp": None, "down_bytes": 5_000_000, "up_bytes": 0}],
+             "isps": [{"isp": "isp-a", "down_bytes": 182_000_000_000, "up_bytes": 41_000_000_000}],
+             "days": [{"day": "2026-11-01", "down_bytes": 10, "up_bytes": 1}, {"day": "2026-11-02", "down_bytes": 30, "up_bytes": 3}],
+             "total_down_bytes": 1_392_005_000_000, "total_up_bytes": 429_000_000_000}
+
+    def usage(self, u):
+        return js("""async ([d, u]) => { const real = api;
+            api = async (p, o) => { if (p === '/api/speed') return JSON.parse(JSON.stringify(d));
+              if (p.startsWith('/api/usage')) { if (u.throw) throw new Error(u.throw); return JSON.parse(JSON.stringify(u)); } return real(p, o); };
+            try { await VIEWS.speed(); } finally { api = real; }
+            const c = document.querySelector('#sp-usage'), t = c.querySelector('table');
+            return {text: c.textContent.replace(/\\s+/g, ' '), html: c.innerHTML, bars: c.querySelectorAll('svg rect').length,
+              months: [...c.querySelectorAll('#sp-month option')].map(o => [o.value, o.selected]),
+              rows: t ? [...t.querySelectorAll('tr')].slice(1).map(r => [...r.children].map(x => x.textContent.trim())) : []}; }""",
+                  [SPEED, u])
+
+    def test_usage_rows(self):
+        got = self.usage(self.USAGE)
+        self.assertEqual(got["rows"][0], ["wan1", "pppoe-wan1", "isp-a", "182.0 GB", "41.0 GB", "223.0 GB", ""])
+        self.assertEqual(got["rows"][1][:6], ["wan9", "bond.30", "isp-b", "1.21 TB", "388.0 GB", "1.60 TB"])
+        self.assertEqual(got["rows"][2][:6], ["<w>", "–", "–", "5 MB", "0 MB", "5 MB"])
+        self.assertEqual(got["rows"][-1][:6], ["Total", "", "", "1.39 TB", "429.0 GB", "1.82 TB"])
+        self.assertIn("isp-a: 223.0 GB", got["text"])
+        self.assertEqual(got["months"], [["2026-11", True], ["2026-10", False]])
+        self.assertEqual(got["bars"], 2, "one bar per day")
+        self.assertIn("Counting since", got["text"])
+        self.assertNotIn("<w>", got["html"])
+
+    @data(({"throw": "502 boom"}, "502 boom"), ({**USAGE, "wans": [], "months": [], "since": None}, "Not counting yet"))
+    @unpack
+    def test_usage_missing(self, u, text):
+        got = self.usage(u)
+        self.assertIn(text, got["text"])
+        self.assertEqual(got["rows"], [])
+
+    def test_usage_failure_keeps_the_rest_of_the_tab(self):
+        self.assertIn("Internet links", js("""async d => { const real = api;
+            api = async (p, o) => { if (p === '/api/speed') return JSON.parse(JSON.stringify(d)); if (p.startsWith('/api/usage')) throw new Error('x'); return real(p, o); };
+            try { await VIEWS.speed(); } finally { api = real; } return document.querySelector('#view').textContent; }""", SPEED))
+
     def render(self, **change):
         return js("""async d => { const real = api;
             api = async (p, o) => p === '/api/speed' ? JSON.parse(JSON.stringify(d)) : real(p, o);

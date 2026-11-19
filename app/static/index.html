@@ -1807,7 +1807,10 @@ const VIEWS = {
   },
 
   async speed() {
-    const d = await api('/api/speed'), t = d.test || {}, res = t.results || {}, busy = !!t.running;
+    const month = VIEWS._usageMonth || '';
+    const [d, u] = await Promise.all([api('/api/speed'),
+      api('/api/usage' + (month ? '?month=' + encodeURIComponent(month) : ''), {noseq: true}).catch(e => ({error: e.message}))]);
+    const t = d.test || {}, res = t.results || {}, busy = !!t.running;
     const mbps = v => v == null ? '–' : `${v >= 100 ? Math.round(v) : v} Mbps`;
     // load and results share one scale, so a bar is comparable across WANs
     const hist = d.history || [], top = Math.max(100, ...d.wans.map(w => Math.max(w.down_mbps || 0, w.last_mbps || 0, res[w.name]?.mbps || 0)));
@@ -1848,6 +1851,26 @@ const VIEWS = {
           <td style="min-width:150px">${hMeter(h.down_mbps)}</td><td style="min-width:150px">${hMeter(h.up_mbps)}</td><td>${h.flows}</td><td>${via(h)}</td></tr>`).join('')}</table></div>`
         : `<div class="small">${d.total_down_mbps == null ? 'Waiting for two readings of the connection table…' : 'No device is using the internet right now.'}</div>`}
       <div class="small" style="margin-top:6px">${idle ? `${idle} more device${idle > 1 ? 's' : ''} connected but idle. ` : ''}From the router's connection table: a device's IPv4 and IPv6 add up when the router knows its MAC.</div></div>`;
+    // data used per WAN this month (or a chosen one), counted all the time by the NOC (app/usage.py)
+    const bytes = b => b >= 1e12 ? `${(b / 1e12).toFixed(2)} TB` : b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${Math.round(b / 1e6)} MB`;
+    const uw = u.wans || [], uTotal = (u.total_down_bytes || 0) + (u.total_up_bytes || 0), uMax = Math.max(1, ...uw.map(w => w.down_bytes + w.up_bytes));
+    const uDays = u.days || [], dMax = Math.max(1, ...uDays.map(x => x.down_bytes + x.up_bytes));
+    const dayBars = uDays.length ? `<svg viewBox="0 0 ${uDays.length * 10} 40" height="48" style="width:100%;max-width:${Math.max(120, uDays.length * 14)}px;display:block" preserveAspectRatio="none" role="img" aria-label="Data used per day in ${esc(u.month || '')}">
+        ${uDays.map((x, i) => { const h = Math.max(1, 38 * (x.down_bytes + x.up_bytes) / dMax);
+          return `<rect x="${i * 10 + 1}" y="${(40 - h).toFixed(1)}" width="8" height="${h.toFixed(1)}" fill="var(--accent)"><title>${esc(x.day)}: ${bytes(x.down_bytes)} down, ${bytes(x.up_bytes)} up</title></rect>`; }).join('')}</svg>` : '';
+    const usageCard = `<div class="card wide" id="sp-usage"><div class="card-h"><h2>Data used per WAN</h2><span class="spacer"></span>
+        ${(u.months || []).length > 1 ? `<select id="sp-month" aria-label="Month">${u.months.map(m => `<option value="${esc(m)}" ${m === u.month ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>`
+          : `<span class="small">${esc(u.month || '')}</span>`}</div>
+      ${u.error ? `<div class="err small">${uw.length ? 'Counting: ' : ''}${esc(u.error)}</div>` : ''}
+      ${uw.length ? `${(u.isps || []).length ? `<div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">${u.isps.map(i => `<span class="pill">${esc(i.isp)}: ${bytes(i.down_bytes + i.up_bytes)}</span>`).join('')}</div>` : ''}
+        <div class="scroll"><table><tr><th>WAN</th><th>Interface</th><th>ISP</th><th>Download</th><th>Upload</th><th>Total</th><th>Share</th></tr>
+        ${uw.map(w => `<tr><td>${esc(w.wan)}</td><td>${esc(w.device || '–')}</td><td>${esc(w.isp || '–')}</td><td>${bytes(w.down_bytes)}</td><td>${bytes(w.up_bytes)}</td>
+          <td><b>${bytes(w.down_bytes + w.up_bytes)}</b></td><td style="min-width:90px"><div class="bar"><i style="width:${(100 * (w.down_bytes + w.up_bytes) / uMax).toFixed(1)}%"></i></div></td></tr>`).join('')}
+        <tr><td><b>Total</b></td><td></td><td></td><td><b>${bytes(u.total_down_bytes || 0)}</b></td><td><b>${bytes(u.total_up_bytes || 0)}</b></td><td><b>${bytes(uTotal)}</b></td><td></td></tr></table></div>
+        ${dayBars ? `<div class="small" style="margin-top:8px">Per day</div>${dayBars}` : ''}` : ''}
+      <div class="small" style="margin-top:6px">${u.since ? `Counting since ${esc(new Date(u.since * 1000).toLocaleString())}, ` : 'Not counting yet: it starts with the NOC. '}every ${u.interval_s || 30} s from the router's connection table, all the time (hardware offload hides the interfaces' own counters). Calendar months.</div></div>`;
+    // the 2-second refresh must not close the month list while someone is choosing
+    if (document.activeElement && document.activeElement.id === 'sp-month') return;
     const use = d.utilisation_pct, cap = d.capacity_mbps;
     const useCell = cap == null ? '<span class="small">run a speed test to know the capacity</span>'
       : `<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"><div class="bar" style="flex:1 1 80px"><i style="width:${use ?? 0}%"></i></div><span style="white-space:nowrap"><b>${use == null ? '–' : use + '%'}</b> <span class="small">of ~${mbps(cap)}</span></span></div>`;
@@ -1871,6 +1894,7 @@ const VIEWS = {
           <td style="min-width:150px">${meter(w.down_mbps)}</td><td style="min-width:150px">${meter(w.up_mbps)}</td><td>${w.flows ?? '–'}</td>
           <td>${result(w)}</td><td>${spark(w.name)}</td><td><button class="act" data-sptest="${esc(w.name)}" ${busy || !d.configured || !w.up ? 'disabled' : ''}>Test</button></td></tr>`).join('')}</table></div></div>
       ${whoCard}
+      ${usageCard}
       <div class="card wide"><h2>Recent tests</h2>${recent.length ? `<div class="scroll"><table><tr><th>When</th><th>Type</th>${names.map(n => `<th>${esc(n)}</th>`).join('')}</tr>
         ${recent.map(h => `<tr><td>${esc(h.ts)}</td><td>${h.source === 'manual' ? 'by hand' : 'hourly'}</td>${names.map(n => `<td>${h.mbps[n] ?? '–'}</td>`).join('')}</tr>`).join('')}</table></div>
         <div class="small" style="margin-top:6px">Mbps. Runs of all links together aren't listed: the line is shared, so they say nothing about one link.</div>` : '<div class="small">No tests yet.</div>'}</div>
@@ -1883,6 +1907,8 @@ const VIEWS = {
     $('#sp-each').onclick = () => go({});
     $('#sp-all').onclick = () => go({together: true});
     document.querySelectorAll('[data-sptest]').forEach(b => b.onclick = () => go({names: [b.dataset.sptest]}));
+    const sel = $('#sp-month');
+    if (sel) sel.onchange = () => { VIEWS._usageMonth = sel.value; load(); };
   },
 
   async proxmox() {
