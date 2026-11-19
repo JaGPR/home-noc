@@ -193,7 +193,9 @@ class Run(unittest.TestCase):
     def test_dry_run_saves_and_sends_nothing(self):
         noc = FakeNoc(["wan1 41250000 1 206\nwan2 4875000 1 206"] * 2, self.var)
         msgs = S.run(noc, dry_run=True, now=T0)
-        self.assertEqual((len(msgs), noc.sent, list(self.var.iterdir())), (1, [], []))
+        # The lock file is the shared one-test-at-a-time lock (Linux only), not saved state.
+        saved = [p for p in self.var.iterdir() if p.name != "speedwatch.lock"]
+        self.assertEqual((len(msgs), noc.sent, saved), (1, [], []))
 
     def test_no_url(self):
         noc = FakeNoc([], self.var)
