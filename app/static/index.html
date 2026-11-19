@@ -1826,9 +1826,20 @@ const VIEWS = {
       return w.last_mbps != null ? `${w.last_mbps} Mbps <span class="small">${esc((w.last_ts || '').slice(5, 16))}</span>` : '–'; };
     const slow = w => { const v = t.mode === 'together' ? w.last_mbps : (res[w.name]?.mbps ?? w.last_mbps); return v != null && v < d.slow_mbps; };
     const recent = hist.slice(-8).reverse(), names = d.wans.map(w => w.name);
+    // total download over the last 2 minutes, kept in the page between refreshes (every 2 s)
+    const trend = VIEWS._spTrend = (VIEWS._spTrend || []).concat(d.total_down_mbps != null ? [d.total_down_mbps] : []).slice(-60);
+    const trendSvg = () => {
+      if (trend.length < 2) return '';
+      const m = Math.max(...trend, 1), pts = trend.map((x, i) => `${(i * 100 / (trend.length - 1)).toFixed(1)},${(22 - x * 20 / m).toFixed(1)}`).join(' ');
+      return `<svg class="sp-trend" viewBox="0 0 100 24" width="160" height="24" preserveAspectRatio="none" role="img" aria-label="Total download, last ${trend.length} readings, up to ${Math.round(m)} Mbps"><polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>`;
+    };
+    const use = d.utilisation_pct, cap = d.capacity_mbps;
+    const useCell = cap == null ? '<span class="small">run a speed test to know the capacity</span>'
+      : `<div class="row" style="gap:6px;flex-wrap:nowrap"><div class="bar" style="flex:1;min-width:120px"><i style="width:${use ?? 0}%"></i></div><b>${use == null ? '–' : use + '%'}</b><span class="small">of ~${mbps(cap)}</span></div>`;
     $('#view').innerHTML = `<div class="grid">
       <div class="card wide"><div class="card-h"><h2>Load right now</h2><span class="spacer"></span><span class="small">every 2 seconds</span></div>
-        <div class="kv"><dt>Download</dt><dd><b>${mbps(d.total_down_mbps)}</b></dd><dt>Upload</dt><dd><b>${mbps(d.total_up_mbps)}</b></dd></div>
+        <div class="kv"><dt>Download</dt><dd><b>${mbps(d.total_down_mbps)}</b> ${trendSvg()}</dd><dt>Upload</dt><dd><b>${mbps(d.total_up_mbps)}</b></dd>
+          <dt>Utilisation</dt><dd id="sp-use" title="Download now, as a share of the links' last speed tests added up (an estimate)">${useCell}</dd></div>
         ${d.load_error ? `<div class="err small">Load: ${esc(d.load_error)}</div>` : ''}
         <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:10px">
           <button class="act primary" id="sp-each" ${busy || !d.configured ? 'disabled' : ''}>Test all, one by one</button>

@@ -390,7 +390,16 @@ class SpeedTab(unittest.TestCase):
             return {text: v.textContent, html: v.innerHTML,
               rows: [...rows].slice(1).map(r => [...r.children].map(c => c.textContent.trim())),
               disabled: [...v.querySelectorAll('button')].map(b => [b.dataset.sptest || b.id, b.disabled]),
-              sparks: v.querySelectorAll('svg polyline').length}; }""", {**SPEED, **change})
+              use: v.querySelector('#sp-use').textContent.replace(/\\s+/g, ' ').trim(),
+              sparks: v.querySelectorAll('table svg polyline').length}; }""", {**SPEED, **change})
+
+    @data(({"capacity_mbps": 360, "utilisation_pct": 100}, "100% of ~360 Mbps"),
+          ({"capacity_mbps": 2800, "utilisation_pct": 15}, "15% of ~2800 Mbps"),
+          ({"capacity_mbps": 2800, "utilisation_pct": None}, "– of ~2800 Mbps"),
+          ({"capacity_mbps": None, "utilisation_pct": None}, "run a speed test"))
+    @unpack
+    def test_utilisation(self, change, text):
+        self.assertIn(text, self.render(**change)["use"])
 
     def test_rows(self):
         got = self.render()

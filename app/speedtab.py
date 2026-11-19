@@ -248,6 +248,16 @@ def history_rows(lines, limit=48):
     return [x for x in lines if x.get("source") != "together" and isinstance(x.get("mbps"), dict)][-limit:]
 
 
+def utilisation(rows, total_down):
+    """-> (capacity Mbps, % of it in use now). Capacity is the sum of each WAN's last speed test, for WANs that are
+    up: what the links carried on their own, so an estimate (tests one by one can add up to more than the line)."""
+    tested = [w["last_mbps"] for w in rows if w["up"] and isinstance(w.get("last_mbps"), int) and w["last_mbps"] > 0]
+    capacity = sum(tested) if tested else None
+    if capacity is None or total_down is None:
+        return capacity, None
+    return capacity, min(100, round(100 * total_down / capacity))
+
+
 def view(noc, tests, load):
     """The /api/speed answer: every WAN with its load and last result, the running test, the history."""
     cfg = tests.cfg()
@@ -272,10 +282,13 @@ def view(noc, tests, load):
         w["last_mbps"], w["last_ts"] = next(((h["mbps"][w["name"]], h["ts"]) for h in reversed(hist)
                                              if isinstance(h["mbps"].get(w["name"]), int)), (None, None))
     up = [w for w in rows if w["down_mbps"] is not None]
+    total_down = round(sum(w["down_mbps"] for w in up), 1) if up else None
+    capacity, use = utilisation(rows, total_down)
     return {"configured": bool(cfg.get("url")), "url": cfg.get("url"), "test_mb": round(int(cfg["test_bytes"]) / 1e6),
             "slow_mbps": cfg["slow_mbps"], "wans": rows, "test": state, "load_error": load_error,
-            "total_down_mbps": round(sum(w["down_mbps"] for w in up), 1) if up else None,
+            "total_down_mbps": total_down,
             "total_up_mbps": round(sum(w["up_mbps"] for w in up), 1) if up else None,
+            "capacity_mbps": capacity, "utilisation_pct": use,
             "history": [{"ts": h["ts"], "mbps": h["mbps"], "source": h.get("source", "hourly")} for h in hist]}
 
 

@@ -317,6 +317,20 @@ class View(unittest.TestCase):
         noc.ssh = lambda host, script, timeout=20: table if "nf_conntrack" in script else orig(host, script, timeout)
         return S.view(noc, S.Tests(noc), S.Load()), noc
 
+    @data(
+        # (WANs as (up, last test Mbps), download now -> capacity, %)
+        ([(True, 300), (True, 340)], 64.0, (640, 10)),
+        ([(True, 300), (False, 340)], 150.0, (300, 50)),          # a WAN that is down adds nothing
+        ([(True, 300), (True, None)], 90.0, (300, 30)),           # nor one never tested
+        ([(True, 100)], 250.0, (100, 100)),                       # above the estimate: capped, not 250%
+        ([(True, 300)], None, (300, None)),                       # load unknown: no %
+        ([(True, None), (False, 300)], 10.0, (None, None)),       # no capacity known
+    )
+    @unpack
+    def test_utilisation(self, wans, down, want):
+        rows = [{"up": u, "last_mbps": m} for u, m in wans]
+        self.assertEqual(S.utilisation(rows, down), want)
+
     def test_shape(self):
         v, _ = self.view()
         self.assertEqual([w["name"] for w in v["wans"]], ["wan1", "wan2"])
