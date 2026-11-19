@@ -491,40 +491,6 @@ class SpeedTab(unittest.TestCase):
               use: v.querySelector('#sp-use').textContent.replace(/\\s+/g, ' ').trim(),
               sparks: v.querySelectorAll('table svg polyline').length}; }""", {**SPEED, **change})
 
-    HOSTS = [{"name": "nas", "mac": "aa:00:00:00:00:06", "ips": ["10.0.0.6", "2001:db8::6"], "down_mbps": 11.0, "up_mbps": 623.2, "flows": 61,
-              "router": False, "via": [{"wan": "wan1", "isp": "isp-a", "device": "pppoe-wan1", "down_mbps": 4.2, "up_mbps": 300.0, "flows": 30},
-                                       {"wan": "wan9", "isp": "isp-b", "device": "bond.15", "down_mbps": 0.0, "up_mbps": 0.0, "flows": 1}]},
-             {"name": "", "mac": None, "ips": ["10.0.0.77"], "down_mbps": 2.5, "up_mbps": 0.1, "flows": 3, "router": False,
-              "via": [{"wan": "wan1", "isp": "isp-a", "device": "pppoe-wan1", "down_mbps": 2.5, "up_mbps": 0.1, "flows": 3}]},
-             {"name": "<idle>", "mac": None, "ips": ["10.0.0.9"], "down_mbps": 0.0, "up_mbps": 0.0, "flows": 2, "router": False, "via": []}]
-
-    def who(self, **change):
-        return js("""async d => { const real = api;
-            api = async (p, o) => p === '/api/speed' ? JSON.parse(JSON.stringify(d)) : real(p, o);
-            try { await VIEWS.speed(); } finally { api = real; }
-            const c = document.querySelector('#sp-who'), t = c.querySelector('table');
-            return {text: c.textContent.replace(/\\s+/g, ' '), html: c.innerHTML,
-              rows: t ? [...t.querySelectorAll('tr')].slice(1).map(r => [...r.children].map(x => x.textContent.replace(/\\s+/g, ' ').trim())) : []}; }""",
-                  {**SPEED, "hosts": self.HOSTS, "isps": [{"isp": "isp-a", "down_mbps": 13.5, "up_mbps": 623.3}], **change})
-
-    def test_who_rows(self):
-        got = self.who()
-        # the MAC is on its own line under the name, so their text joins without a space
-        self.assertEqual([r[0] for r in got["rows"]], ["nasaa:00:00:00:00:06", "unknown"], "busiest first, idle devices not listed")
-        nas = got["rows"][0]
-        self.assertEqual(nas[1], "10.0.0.6 +1")
-        self.assertIn("623 Mbps", nas[3])
-        self.assertIn("isp-a wan1 pppoe-wan1: ↓4.2 Mbps ↑300 Mbps", nas[5])
-        self.assertNotIn("bond.15", nas[5], "a WAN the device barely uses is left out")
-        self.assertIn("1 more device connected but idle", got["text"])
-        self.assertIn("isp-a: ↓13.5 Mbps ↑623 Mbps", got["text"])
-        self.assertNotIn("<idle>", got["html"])
-
-    @data(({"hosts": [], "total_down_mbps": None}, "Waiting for two readings"), ({"hosts": [], "total_down_mbps": 0.0}, "No device is using"))
-    @unpack
-    def test_who_empty(self, change, text):
-        self.assertIn(text, self.who(**change)["text"])
-
     @data(({"capacity_mbps": 360, "utilisation_pct": 100}, "100% of ~360 Mbps"),
           ({"capacity_mbps": 2800, "utilisation_pct": 15}, "15% of ~2800 Mbps"),
           ({"capacity_mbps": 2800, "utilisation_pct": None}, "– of ~2800 Mbps"),

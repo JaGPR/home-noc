@@ -1854,21 +1854,6 @@ const VIEWS = {
       const m = Math.max(...trend, 1), pts = trend.map((x, i) => `${(i * 100 / (trend.length - 1)).toFixed(1)},${(22 - x * 20 / m).toFixed(1)}`).join(' ');
       return `<svg class="sp-trend" viewBox="0 0 100 24" height="24" style="width:100%;max-width:160px;display:block" preserveAspectRatio="none" role="img" aria-label="Total download, last ${trend.length} readings, up to ${Math.round(m)} Mbps"><polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>`;
     };
-    // who is using it: devices busiest first, each with the ISP / WAN / interface its traffic goes through
-    const hosts = d.hosts || [], isps = d.isps || [];
-    const active = hosts.filter(h => h.down_mbps + h.up_mbps >= 0.1), idle = hosts.length - active.length;
-    const hTop = Math.max(1, ...active.map(h => Math.max(h.down_mbps, h.up_mbps)));
-    const hMeter = v => `<div class="row" style="gap:6px;flex-wrap:nowrap"><div class="bar" style="flex:1;min-width:60px"><i style="width:${Math.min(100, 100 * v / hTop)}%"></i></div><span style="min-width:74px;text-align:right">${mbps(v)}</span></div>`;
-    const via = h => h.via.filter((v, i) => i === 0 || v.down_mbps + v.up_mbps >= 0.1).slice(0, 4).map(v =>
-      `<div class="small" style="overflow-wrap:anywhere">${v.isp ? `<span class="pill">${esc(v.isp)}</span> ` : ''}${esc(v.wan)}${v.device ? ` <span class="small">${esc(v.device)}</span>` : ''}: ↓${mbps(v.down_mbps)} ↑${mbps(v.up_mbps)}</div>`).join('');
-    const whoCard = `<div class="card wide" id="sp-who"><div class="card-h"><h2>Who is using bandwidth</h2><span class="spacer"></span><span class="small">every 2 seconds</span></div>
-      ${isps.length ? `<div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">${isps.map(i => `<span class="pill">${esc(i.isp)}: ↓${mbps(i.down_mbps)} ↑${mbps(i.up_mbps)}</span>`).join('')}</div>` : ''}
-      ${active.length ? `<div class="scroll"><table><tr><th>Device</th><th>Address</th><th>Download</th><th>Upload</th><th>Connections</th><th>Through (ISP, WAN, interface)</th></tr>
-        ${active.map(h => `<tr><td style="overflow-wrap:anywhere">${h.name ? esc(h.name) : '<span class="small">unknown</span>'}${h.mac ? `<div class="small">${esc(h.mac)}</div>` : ''}</td>
-          <td title="${esc(h.ips.join(', '))}" style="overflow-wrap:anywhere">${esc(h.ips[0])}${h.ips.length > 1 ? ` <span class="small">+${h.ips.length - 1}</span>` : ''}</td>
-          <td style="min-width:150px">${hMeter(h.down_mbps)}</td><td style="min-width:150px">${hMeter(h.up_mbps)}</td><td>${h.flows}</td><td>${via(h)}</td></tr>`).join('')}</table></div>`
-        : `<div class="small">${d.total_down_mbps == null ? 'Waiting for two readings of the connection table…' : 'No device is using the internet right now.'}</div>`}
-      <div class="small" style="margin-top:6px">${idle ? `${idle} more device${idle > 1 ? 's' : ''} connected but idle. ` : ''}From the router's connection table: a device's IPv4 and IPv6 add up when the router knows its MAC.</div></div>`;
     // data used per WAN this month (or a chosen one), counted all the time by the NOC (app/usage.py)
     const bytes = b => b >= 1e12 ? `${(b / 1e12).toFixed(2)} TB` : b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${Math.round(b / 1e6)} MB`;
     const uw = u.wans || [], uTotal = (u.total_down_bytes || 0) + (u.total_up_bytes || 0), uMax = Math.max(1, ...uw.map(w => w.down_bytes + w.up_bytes));
@@ -1932,7 +1917,6 @@ const VIEWS = {
         ${d.wans.map(w => `<tr><td>${esc(w.name)}${w.device ? ` <span class="small">${esc(w.device)}</span>` : ''}</td><td>${pill(w.up, 'up', 'down')}${slow(w) ? ' <span class="pill warn">slow</span>' : ''}</td>
           <td style="min-width:150px">${meter(w.down_mbps)}</td><td style="min-width:150px">${meter(w.up_mbps)}</td><td>${w.flows ?? '–'}</td>
           <td>${result(w)}</td><td>${spark(w.name)}</td><td><button class="act" data-sptest="${esc(w.name)}" ${busy || !d.configured || !w.up ? 'disabled' : ''}>Test</button></td></tr>`).join('')}</table></div></div>
-      ${whoCard}
       ${usageCard}
       <div class="card wide"><h2>Recent tests</h2>${recent.length ? `<div class="scroll"><table><tr><th>When</th><th>Type</th>${names.map(n => `<th>${esc(n)}</th>`).join('')}</tr>
         ${recent.map(h => `<tr><td>${esc(h.ts)}</td><td>${h.source === 'manual' ? 'by hand' : 'hourly'}</td>${names.map(n => `<td>${h.mbps[n] ?? '–'}</td>`).join('')}</tr>`).join('')}</table></div>
