@@ -4,6 +4,8 @@ Load: hardware flow offload hides forwarded traffic from the WAN devices' own co
 while gigabits pass. The connection table still counts it (nf_conntrack_acct), and a connection's address on
 the router's side says which WAN it uses. Load is the change in each connection's bytes between two samples,
 added up per WAN (a WAN's IPv6 sibling wanN_6 counts as wanN). It reads the table only while the tab is open.
+The same connections, added up by their LAN address, say which device uses how much through which WAN (and so
+which ISP); the router's IPv6 neighbour table ties a device's IPv6 addresses to its MAC, so they join its IPv4.
 
 Tests: a download from speedwatch.url through one WAN with `mwan3 use <iface>` (binding curl to the device
 works only for PPPoE; DHCP links have no route of their own). One by one measures each WAN alone; together
@@ -26,8 +28,11 @@ MAX_GAP_S = 15    # samples further apart than this are not compared: new connec
 # a 573 MB torrent flow reappearing in a 1.3 s window read as 3.6 Gbit/s).
 NEW_FLOW_MAX_MBPS = 1000
 
-# router: its uptime (the clock the sample was taken by), then the raw table; parsing on the host is ~15x faster
-LOAD_SCRIPT = "cut -d' ' -f1 /proc/uptime\ncat /proc/net/nf_conntrack\n"
+# router: its uptime (the clock the sample was taken by), its IPv6 neighbours (address -> MAC), then the raw
+# table; parsing on the host is ~15x faster
+LOAD_SCRIPT = ("cut -d' ' -f1 /proc/uptime\necho @@NEIGH\nip -6 neigh show 2>/dev/null\n"
+               "echo @@CT\ncat /proc/net/nf_conntrack\n")
+HOSTS_SHOWN = 40   # devices listed, busiest first
 
 
 def router_clock(text):
@@ -37,6 +42,19 @@ def router_clock(text):
         return float(text.split("\n", 1)[0])
     except ValueError:
         return None
+
+
+def parse_neigh(text):
+    """LOAD_SCRIPT output -> {IPv6 address as the table writes it: MAC} from `ip -6 neigh` (link-local skipped)."""
+    out = {}
+    part = text.split("@@NEIGH", 1)[1].split("@@CT", 1)[0] if "@@NEIGH" in text else ""
+    for line in part.splitlines():
+        p = line.split()
+        if "lladdr" in p and p.index("lladdr") + 1 < len(p) and not p[0].lower().startswith("fe80"):
+            a = exploded(p[0])
+            if a:
+                out[a] = p[p.index("lladdr") + 1].lower()
+    return out
 
 
 def natural(name):
@@ -72,25 +90,31 @@ def wan_rows(interfaces, monitored):
 
 
 def parse_flows(text):
-    """LOAD_SCRIPT output -> {connection: (router-side address, original direction bytes, reply bytes, dst)}."""
+    """LOAD_SCRIPT output -> {connection: (router-side address, original direction bytes, reply bytes, dst,
+    src, reply src)}. src is the LAN device of a connection started inside; reply src, of a forwarded port."""
     out = {}
+    if "@@CT" in text:
+        text = text.split("@@CT", 1)[1]
     for line in text.splitlines():
         parts = line.split()
         if len(parts) == 8:
             try:
-                out[" ".join(parts[:5])] = (parts[6], int(parts[5]), int(parts[7]), parts[2])
+                out[" ".join(parts[:5])] = (parts[6], int(parts[5]), int(parts[7]), parts[2], parts[1], parts[2])
             except ValueError:
                 pass
             continue
         if len(parts) < 8:
             continue
         proto = parts[2]
-        s = d = r_dst = p = q = None
+        s = d = r_src = r_dst = p = q = None
         orig_b = reply_b = 0
         c = e = 0
         for tok in parts:
-            if tok.startswith("src=") and s is None:
-                s = tok[4:]
+            if tok.startswith("src="):
+                if s is None:
+                    s = tok[4:]
+                elif r_src is None:
+                    r_src = tok[4:]
             elif tok.startswith("dst="):
                 if c == 0:
                     d = tok[4:]
@@ -114,7 +138,7 @@ def parse_flows(text):
                     except ValueError:
                         pass
         if r_dst and s and d and p and q:
-            out[f"{proto} {s} {d} {p} {q}"] = (r_dst, orig_b, reply_b, d)
+            out[f"{proto} {s} {d} {p} {q}"] = (r_dst, orig_b, reply_b, d, s, r_src or d)
     return out
 
 
@@ -124,37 +148,45 @@ class Load:
     def __init__(self):
         self.prev, self.ts = None, None   # prev: {connection: (up, down, last seen)}, kept MAX_GAP_S after a missed read
         self.warm = False                 # the first comparison only builds the baseline: one read may have skipped flows
+        self.hosts = {}                   # the last result per LAN address: {address: {wan: {"down_mbps", "up_mbps", "flows"}}}
 
     def update(self, flows, addrs, now):
         """-> {wan: {"down_mbps", "up_mbps", "flows"}}, or {} for the first two samples after a gap: nothing to
         compare yet, then a baseline made of two reads (a connection one read skipped would look new)."""
-        out, cur = {}, {}
+        out, cur, hosts = {}, {}, {}
         fresh = self.prev is not None and now - self.ts <= MAX_GAP_S and now > self.ts
         dt = now - self.ts if fresh else 0
         new_cap = NEW_FLOW_MAX_MBPS * 1e6 / 8 * dt
-        for key, (reply_dst, orig, reply, dst) in flows.items():
+        for key, flow in flows.items():
+            reply_dst, orig, reply, dst = flow[:4]
             if reply_dst in addrs:          # started here: the reply direction is the download
-                wan, up, down = addrs[reply_dst], orig, reply
+                wan, up, down, lan = addrs[reply_dst], orig, reply, flow[4] if len(flow) > 4 else None
             elif dst in addrs:              # started outside (a forwarded port): the original direction is the download
-                wan, up, down = addrs[dst], reply, orig
+                wan, up, down, lan = addrs[dst], reply, orig, flow[5] if len(flow) > 5 else None
             else:
                 continue                    # LAN to LAN, or not on a monitored WAN
             cur[key] = (up, down, now)
             w = out.setdefault(wan, {"down": 0, "up": 0, "flows": 0})
+            h = hosts.setdefault(lan, {}).setdefault(wan, {"down": 0, "up": 0, "flows": 0}) if lan else {"down": 0, "up": 0, "flows": 0}
             w["flows"] += 1
+            h["flows"] += 1
             if fresh:
                 was = self.prev.get(key)
                 if was is None and up + down > new_cap:
                     continue                # not new: a read missed it before; its bytes become the baseline
                 was_up, was_down = (was or (0, 0, 0))[:2]   # a new connection: all its bytes are from this interval
-                w["up"] += max(0, up - was_up)
-                w["down"] += max(0, down - was_down)
+                for x in (w, h):
+                    x["up"] += max(0, up - was_up)
+                    x["down"] += max(0, down - was_down)
         if fresh:                           # remember connections a read skipped, until they are MAX_GAP_S old
             cur.update({k: v for k, v in self.prev.items() if k not in cur and now - v[2] <= MAX_GAP_S})
         self.prev, self.ts = cur, now
         warm, self.warm = self.warm, fresh
         if not (fresh and warm):
+            self.hosts = {}
             return {}
+        self.hosts = {lan: {wan: {"down_mbps": round(v["down"] * 8 / 1e6 / dt, 2), "up_mbps": round(v["up"] * 8 / 1e6 / dt, 2),
+                                  "flows": v["flows"]} for wan, v in per.items()} for lan, per in hosts.items()}
         return {k: {"down_mbps": round(v["down"] * 8 / 1e6 / dt, 1), "up_mbps": round(v["up"] * 8 / 1e6 / dt, 1), "flows": v["flows"]}
                 for k, v in out.items()}
 
@@ -248,6 +280,62 @@ def history_rows(lines, limit=48):
     return [x for x in lines if x.get("source") != "together" and isinstance(x.get("mbps"), dict)][-limit:]
 
 
+def who(hosts, neigh, rows, router, devices, groups):
+    """Load per LAN address -> one row per device, busiest first: {name, mac, ips, down_mbps, up_mbps, flows,
+    via: [{wan, isp, device, down_mbps, up_mbps, flows}]}. A device is its MAC where the router knows it (DHCP lease,
+    ARP, IPv6 neighbours), so its IPv4 and IPv6 traffic add up; else its address. Names: the NOC's own device list,
+    then the DHCP lease's hostname."""
+    leases = router.get("leases") or [] if isinstance(router, dict) else []
+    mac_of = {l["ip"]: l["mac"] for l in leases}
+    mac_of.update({ip: mac for mac, ip in ((router.get("_arp") or {}) if isinstance(router, dict) else {}).items()})
+    mac_of.update(neigh or {})
+    lease_name = {l["mac"]: l["name"] for l in leases if l.get("name")}
+    dev_by_mac = {d["mac"].lower(): d["name"] for d in devices or [] if d.get("mac")}
+    dev_by_ip = {exploded((d.get("target") or "").rsplit(":", 1)[0] if (d.get("target") or "").count(":") == 1 else d.get("target")): d["name"]
+                 for d in devices or [] if d.get("target")}
+    isp_of = {m: g for g, members in (groups or {}).items() for m in members}
+    dev_of = {w["name"]: w.get("device") for w in rows}
+    # the router's own addresses: its own traffic (mwan3 health pings, DNS, updates) is one row
+    own = {exploded(x) for i in ((router.get("interfaces") or []) if isinstance(router, dict) else []) for x in (i.get("ip"), i.get("ip6"))} - {None}
+    out = {}
+    for addr, per in (hosts or {}).items():
+        a = exploded(addr) or addr
+        mac = None if a in own else mac_of.get(addr) or mac_of.get(a)
+        d = out.setdefault("router" if a in own else mac or a,
+                           {"name": "", "mac": mac, "ips": [], "down_mbps": 0.0, "up_mbps": 0.0, "flows": 0, "_via": {}, "router": a in own})
+        d["ips"].append(addr)
+        d["name"] = d["name"] or ("Router (its own traffic)" if a in own else "") or dev_by_mac.get(mac or "") or dev_by_ip.get(a) \
+            or lease_name.get(mac or "", "")
+        for wan, v in per.items():
+            x = d["_via"].setdefault(wan, {"wan": wan, "isp": isp_of.get(wan), "device": dev_of.get(wan), "down_mbps": 0.0, "up_mbps": 0.0, "flows": 0})
+            for k in ("down_mbps", "up_mbps", "flows"):
+                x[k] += v[k]
+                d[k] += v[k]
+    rows_out = []
+    for d in out.values():
+        via = sorted(d.pop("_via").values(), key=lambda x: -(x["down_mbps"] + x["up_mbps"]))
+        for x in via:
+            x["down_mbps"], x["up_mbps"] = round(x["down_mbps"], 1), round(x["up_mbps"], 1)
+        d.update(down_mbps=round(d["down_mbps"], 1), up_mbps=round(d["up_mbps"], 1), via=via,
+                 ips=sorted(d["ips"], key=lambda ip: (":" in ip, ip)))
+        rows_out.append(d)
+    rows_out.sort(key=lambda d: (-(d["down_mbps"] + d["up_mbps"]), -d["flows"], d["name"] or "~", d["ips"][0]))
+    return rows_out[:HOSTS_SHOWN]
+
+
+def isp_totals(rows, groups):
+    """WAN rows with their load -> [{isp, down_mbps, up_mbps}] per WAN group (IPv6 siblings already merged)."""
+    isp_of = {m: g for g, members in (groups or {}).items() for m in members}
+    out = {}
+    for w in rows:
+        if w.get("down_mbps") is None:
+            continue
+        t = out.setdefault(isp_of.get(w["name"]) or w["name"], {"isp": isp_of.get(w["name"]) or w["name"], "down_mbps": 0.0, "up_mbps": 0.0})
+        t["down_mbps"] += w["down_mbps"]
+        t["up_mbps"] += w["up_mbps"]
+    return [{**t, "down_mbps": round(t["down_mbps"], 1), "up_mbps": round(t["up_mbps"], 1)} for t in out.values()]
+
+
 def utilisation(rows, total_down):
     """-> (capacity Mbps, % of it in use now). Capacity is the sum of each WAN's last speed test, for WANs that are
     up: what the links carried on their own, so an estimate (tests one by one can add up to more than the line)."""
@@ -269,6 +357,7 @@ def view(noc, tests, load):
     try:
         def sample():
             text = noc.ssh(noc.ROUTER_HOST, LOAD_SCRIPT, timeout=18)
+            load.neigh = parse_neigh(text)
             return load.update(parse_flows(text), addrs, router_clock(text) or time.time())
         rates = noc.cached("wanload", 2, sample)
         if isinstance(rates, dict) and "error" in rates:
@@ -284,7 +373,9 @@ def view(noc, tests, load):
     up = [w for w in rows if w["down_mbps"] is not None]
     total_down = round(sum(w["down_mbps"] for w in up), 1) if up else None
     capacity, use = utilisation(rows, total_down)
-    return {"configured": bool(cfg.get("url")), "url": cfg.get("url"), "test_mb": round(int(cfg["test_bytes"]) / 1e6),
+    groups = noc.wan_groups() if hasattr(noc, "wan_groups") else {}
+    hosts = who(load.hosts if rates else {}, getattr(load, "neigh", {}), rows, r, (getattr(noc, "C", {}) or {}).get("devices"), groups)
+    return {"hosts": hosts, "isps": isp_totals(rows, groups),"configured": bool(cfg.get("url")), "url": cfg.get("url"), "test_mb": round(int(cfg["test_bytes"]) / 1e6),
             "slow_mbps": cfg["slow_mbps"], "wans": rows, "test": state, "load_error": load_error,
             "total_down_mbps": total_down,
             "total_up_mbps": round(sum(w["up_mbps"] for w in up), 1) if up else None,

@@ -100,7 +100,92 @@ class LoadMaths(unittest.TestCase):
 
     def test_parse_skips_bad_lines(self):
         self.assertEqual(S.parse_flows("rubbish\ntcp a b 1 2 x r 3\n\n" + flow("192.0.2.1", 1, 2)),
-                         {"tcp 10.0.0.5 198.51.100.9 4000 443": ("192.0.2.1", 1, 2, "198.51.100.9")})
+                         {"tcp 10.0.0.5 198.51.100.9 4000 443": ("192.0.2.1", 1, 2, "198.51.100.9", "10.0.0.5", "198.51.100.9")})
+
+    def test_parse_kernel_line_keeps_both_sources(self):
+        """A forwarded port: the LAN device is the reply direction's source (after DNAT), not the outside caller."""
+        line = ("ipv4     2 tcp      6 7393 ESTABLISHED src=203.0.113.7 dst=192.0.2.2 sport=5000 dport=8080 packets=1 bytes=10 "
+                "src=10.0.0.9 dst=203.0.113.7 sport=80 dport=5000 packets=1 bytes=20 [ASSURED] mark=0 zone=0 use=2")
+        self.assertEqual(list(S.parse_flows("@@CT\n" + line).values()), [("203.0.113.7", 10, 20, "192.0.2.2", "203.0.113.7", "10.0.0.9")])
+
+    @data(
+        # (first, second sample) -> {LAN address: {wan: (down, up, connections)}}
+        ([flow("192.0.2.1", 0, 0), flow("192.0.2.2", 0, 0, src="10.0.0.6", sport=4001)],
+         [flow("192.0.2.1", 0, 2_500_000), flow("192.0.2.2", 500_000, 5_000_000, src="10.0.0.6", sport=4001)],
+         {"10.0.0.5": {"wan1": (10.0, 0.0, 1)}, "10.0.0.6": {"wan2": (20.0, 2.0, 1)}}),
+        # one device over two WANs
+        ([flow("192.0.2.1", 0, 0), flow("192.0.2.2", 0, 0, sport=4001)],
+         [flow("192.0.2.1", 0, 2_500_000), flow("192.0.2.2", 0, 1_250_000, sport=4001)],
+         {"10.0.0.5": {"wan1": (10.0, 0.0, 1), "wan2": (5.0, 0.0, 1)}}),
+        # a forwarded port counts for the LAN device behind it
+        ([flow("10.0.0.9", 0, 0, src="203.0.113.7", dst="192.0.2.2")], [flow("10.0.0.9", 2_500_000, 0, src="203.0.113.7", dst="192.0.2.2")],
+         {"10.0.0.9": {"wan2": (10.0, 0.0, 1)}}),
+    )
+    @unpack
+    def test_per_device(self, first, second, want):
+        load = S.Load()
+        for i, lines in enumerate([first, first, second]):
+            flows = S.parse_flows("\n".join(lines))
+            if any("10.0.0.9" in l for l in lines):   # the fast-path line has no reply source: give it the kernel's
+                flows = {k: v[:5] + ("10.0.0.9",) for k, v in flows.items()}
+            load.update(flows, ADDRS, T0 + i * 2.0)
+        self.assertEqual({h: {w: (v["down_mbps"], v["up_mbps"], v["flows"]) for w, v in per.items()} for h, per in load.hosts.items()}, want)
+
+    def test_neighbours(self):
+        text = ("1.0\n@@NEIGH\n2001:db8::5 dev br-lan lladdr AA:bb:cc:00:00:01 REACHABLE\nfe80::1 dev br-lan lladdr aa:bb:cc:00:00:09 STALE\n"
+                "2001:db8::7 dev br-lan  FAILED\n@@CT\n")
+        self.assertEqual(S.parse_neigh(text), {S.exploded("2001:db8::5"): "aa:bb:cc:00:00:01"})
+
+
+@ddt
+class Who(unittest.TestCase):
+    ROWS = [{"name": "wan1", "device": "pppoe-wan1"}, {"name": "jio", "device": "bond.15"}]
+    ROUTER = {"leases": [{"ip": "10.0.0.5", "mac": "aa:00:00:00:00:05", "name": "phone"}],
+              "_arp": {"aa:00:00:00:00:06": "10.0.0.6"}}
+    GROUPS = {"isp-a": ["wan1"], "isp-a-v6": ["wan1_6"], "isp-b": ["jio"]}
+    HOST = staticmethod(lambda d, u=0.0, n=1: {"down_mbps": d, "up_mbps": u, "flows": n})
+
+    def who(self, hosts, neigh=None, devices=None):
+        return S.who(hosts, neigh or {}, self.ROWS, self.ROUTER, devices, self.GROUPS)
+
+    def test_ipv4_and_ipv6_of_one_device_add_up(self):
+        v6 = S.exploded("2001:db8::5")
+        got = self.who({"10.0.0.5": {"wan1": self.HOST(10.0)}, v6: {"wan1": self.HOST(5.0, 1.0)}}, neigh={v6: "aa:00:00:00:00:05"})
+        self.assertEqual(len(got), 1)
+        d = got[0]
+        self.assertEqual((d["name"], d["mac"], d["down_mbps"], d["up_mbps"], d["flows"], d["ips"]),
+                         ("phone", "aa:00:00:00:00:05", 15.0, 1.0, 2, ["10.0.0.5", v6]))
+        self.assertEqual(d["via"], [{"wan": "wan1", "isp": "isp-a", "device": "pppoe-wan1", "down_mbps": 15.0, "up_mbps": 1.0, "flows": 2}])
+
+    def test_busiest_first_and_split_by_isp(self):
+        got = self.who({"10.0.0.5": {"wan1": self.HOST(1.0)}, "10.0.0.6": {"wan1": self.HOST(3.0), "jio": self.HOST(40.0)}})
+        self.assertEqual([d["ips"][0] for d in got], ["10.0.0.6", "10.0.0.5"])
+        self.assertEqual([(v["isp"], v["device"], v["down_mbps"]) for v in got[0]["via"]], [("isp-b", "bond.15", 40.0), ("isp-a", "pppoe-wan1", 3.0)])
+        self.assertEqual(got[0]["mac"], "aa:00:00:00:00:06", "MAC from ARP")
+
+    @data(([{"name": "NAS", "target": "10.0.0.6"}], "NAS"), ([{"name": "TV", "target": "10.0.0.6:80"}], "TV"),
+          ([{"name": "Box", "target": "x", "mac": "AA:00:00:00:00:06"}], "Box"), (None, ""))
+    @unpack
+    def test_names_from_the_noc_device_list(self, devices, name):
+        self.assertEqual(self.who({"10.0.0.6": {"wan1": self.HOST(1.0)}}, devices=devices)[0]["name"], name)
+
+    def test_router_own_traffic_is_one_row(self):
+        router = {**self.ROUTER, "interfaces": [{"name": "jio", "ip": "100.64.0.9/22", "ip6": ""}, {"name": "wan1", "ip": "192.0.2.1/32", "ip6": "2001:db8::1/64"}]}
+        got = S.who({"100.64.0.9": {"jio": self.HOST(0.1)}, S.exploded("2001:db8::1"): {"wan1": self.HOST(0.2)}}, {}, self.ROWS, router, None, self.GROUPS)
+        self.assertEqual([(d["name"], d["router"], d["mac"], len(d["ips"])) for d in got], [("Router (its own traffic)", True, None, 2)])
+
+    def test_unknown_device_is_its_address(self):
+        d = self.who({"10.0.0.77": {"wan1": self.HOST(1.0)}})[0]
+        self.assertEqual((d["name"], d["mac"], d["ips"]), ("", None, ["10.0.0.77"]))
+
+    def test_at_most_hosts_shown(self):
+        self.assertEqual(len(self.who({f"10.0.1.{i}": {"wan1": self.HOST(1.0)} for i in range(S.HOSTS_SHOWN + 5)})), S.HOSTS_SHOWN)
+
+    def test_isp_totals(self):
+        rows = [{"name": "wan1", "down_mbps": 10.0, "up_mbps": 1.0}, {"name": "wan2", "down_mbps": 5.0, "up_mbps": 0.5},
+                {"name": "jio", "down_mbps": 2.0, "up_mbps": 0.0}, {"name": "x", "down_mbps": None, "up_mbps": None}]
+        self.assertEqual(S.isp_totals(rows, {"isp-a": ["wan1", "wan2"], "isp-b": ["jio"]}),
+                         [{"isp": "isp-a", "down_mbps": 15.0, "up_mbps": 1.5}, {"isp": "isp-b", "down_mbps": 2.0, "up_mbps": 0.0}])
 
     def test_load_script_on_a_real_table(self):
         """The awk itself, on lines as the kernel writes them: established, offloaded and IPv6 ones."""
