@@ -1831,7 +1831,7 @@ const VIEWS = {
     const trendSvg = () => {
       if (trend.length < 2) return '';
       const m = Math.max(...trend, 1), pts = trend.map((x, i) => `${(i * 100 / (trend.length - 1)).toFixed(1)},${(22 - x * 20 / m).toFixed(1)}`).join(' ');
-      return `<svg class="sp-trend" viewBox="0 0 100 24" width="160" height="24" preserveAspectRatio="none" role="img" aria-label="Total download, last ${trend.length} readings, up to ${Math.round(m)} Mbps"><polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>`;
+      return `<svg class="sp-trend" viewBox="0 0 100 24" height="24" style="width:100%;max-width:160px;display:block" preserveAspectRatio="none" role="img" aria-label="Total download, last ${trend.length} readings, up to ${Math.round(m)} Mbps"><polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>`;
     };
     // who is using it: devices busiest first, each with the ISP / WAN / interface its traffic goes through
     const hosts = d.hosts || [], isps = d.isps || [];
@@ -1850,7 +1850,7 @@ const VIEWS = {
       <div class="small" style="margin-top:6px">${idle ? `${idle} more device${idle > 1 ? 's' : ''} connected but idle. ` : ''}From the router's connection table: a device's IPv4 and IPv6 add up when the router knows its MAC.</div></div>`;
     const use = d.utilisation_pct, cap = d.capacity_mbps;
     const useCell = cap == null ? '<span class="small">run a speed test to know the capacity</span>'
-      : `<div class="row" style="gap:6px;flex-wrap:nowrap"><div class="bar" style="flex:1;min-width:120px"><i style="width:${use ?? 0}%"></i></div><b>${use == null ? '–' : use + '%'}</b> <span class="small">of ~${mbps(cap)}</span></div>`;
+      : `<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"><div class="bar" style="flex:1 1 80px"><i style="width:${use ?? 0}%"></i></div><span style="white-space:nowrap"><b>${use == null ? '–' : use + '%'}</b> <span class="small">of ~${mbps(cap)}</span></span></div>`;
     $('#view').innerHTML = `<div class="grid">
       <div class="card wide"><div class="card-h"><h2>Load right now</h2><span class="spacer"></span><span class="small">every 2 seconds</span></div>
         <div class="kv"><dt>Download</dt><dd><b>${mbps(d.total_down_mbps)}</b> ${trendSvg()}</dd><dt>Upload</dt><dd><b>${mbps(d.total_up_mbps)}</b></dd>
