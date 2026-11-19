@@ -1835,7 +1835,7 @@ const VIEWS = {
     };
     const use = d.utilisation_pct, cap = d.capacity_mbps;
     const useCell = cap == null ? '<span class="small">run a speed test to know the capacity</span>'
-      : `<div class="row" style="gap:6px;flex-wrap:nowrap"><div class="bar" style="flex:1;min-width:120px"><i style="width:${use ?? 0}%"></i></div><b>${use == null ? '–' : use + '%'}</b><span class="small">of ~${mbps(cap)}</span></div>`;
+      : `<div class="row" style="gap:6px;flex-wrap:nowrap"><div class="bar" style="flex:1;min-width:120px"><i style="width:${use ?? 0}%"></i></div><b>${use == null ? '–' : use + '%'}</b> <span class="small">of ~${mbps(cap)}</span></div>`;
     $('#view').innerHTML = `<div class="grid">
       <div class="card wide"><div class="card-h"><h2>Load right now</h2><span class="spacer"></span><span class="small">every 2 seconds</span></div>
         <div class="kv"><dt>Download</dt><dd><b>${mbps(d.total_down_mbps)}</b> ${trendSvg()}</dd><dt>Upload</dt><dd><b>${mbps(d.total_up_mbps)}</b></dd>
