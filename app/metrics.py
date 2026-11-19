@@ -52,8 +52,14 @@ def render(samples):
         out += [f"# HELP {name} {text}", f"# TYPE {name} {kind}"]
         for labels, value in by[name]:
             lab = ",".join(f'{k}="{esc(v)}"' for k, v in labels.items() if v is not None)
-            out.append(f"{name}{{{lab}}} {float(value):g}" if lab else f"{name} {float(value):g}")
+            out.append(f"{name}{{{lab}}} {number(value)}" if lab else f"{name} {number(value)}")
     return "\n".join(out) + "\n"
+
+
+def number(v):
+    """Exact: whole numbers as integers (byte counters must not lose digits), others as Python writes floats."""
+    f = float(v)
+    return str(int(f)) if f.is_integer() and abs(f) < 2 ** 63 else repr(f)
 
 
 def samples(store, rates, router, groups, monitored, devices, hist, now=None):

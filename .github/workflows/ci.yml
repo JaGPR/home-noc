@@ -71,7 +71,7 @@ jobs:
         run: python3 -m json.tool config/config.example.json > /dev/null
       - name: Shell syntax
         run: |
-          for f in install.sh deploy/*.sh pihole-ha/*.sh; do sh -n "$f"; dash -n "$f"; echo "ok: $f"; done
+          for f in install.sh deploy/*.sh deploy/monitoring/*.sh pihole-ha/*.sh; do sh -n "$f"; dash -n "$f"; echo "ok: $f"; done
       - name: ShellCheck (advisory)
         run: shellcheck -S warning deploy/*.sh pihole-ha/*.sh || true
       - name: No real secrets or private addresses committed

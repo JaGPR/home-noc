@@ -52,8 +52,8 @@ class Render(unittest.TestCase):
                                        [{"mbps": {"wan1": 300, "wan2": 39}}, {"mbps": {"wan1": 320}}], NOW))
 
     @data(("noc_wan_up", ['noc_wan_up{wan="wan1",isp="isp-a",device="pppoe-wan1"} 1', 'noc_wan_up{wan="wan2",isp="isp-a",device="pppoe-wan2"} 0']),
-          ("noc_wan_rate_bits", ['noc_wan_rate_bits{wan="wan1",isp="isp-a",direction="down"} 8e+06',
-                                 'noc_wan_rate_bits{wan="wan1",isp="isp-a",direction="up"} 1e+06']),
+          ("noc_wan_rate_bits", ['noc_wan_rate_bits{wan="wan1",isp="isp-a",direction="down"} 8000000',
+                                 'noc_wan_rate_bits{wan="wan1",isp="isp-a",direction="up"} 1000000']),
           ("noc_wan_bytes_total", ['noc_wan_bytes_total{wan="wan1",isp="isp-a",direction="down"} 305',
                                    'noc_wan_bytes_total{wan="wan1",isp="isp-a",direction="up"} 31',
                                    'noc_wan_bytes_total{wan="wan2",isp="isp-a",direction="down"} 100',
@@ -68,7 +68,7 @@ class Render(unittest.TestCase):
           ("noc_wan_loss_percent", ['noc_wan_loss_percent{wan="wan1"} 0', 'noc_wan_loss_percent{wan="wan2"} 100']),
           ("noc_wan_speedtest_mbps", ['noc_wan_speedtest_mbps{wan="wan1",isp="isp-a"} 320', 'noc_wan_speedtest_mbps{wan="wan2",isp="isp-a"} 39']),
           ("noc_ont_rx_dbm", ['noc_ont_rx_dbm{ont="ONT \\"a\\""} -18.27']),
-          ("noc_usage_since_seconds", ["noc_usage_since_seconds 1.795e+09"]))
+          ("noc_usage_since_seconds", ["noc_usage_since_seconds 1795000000"]))
     @unpack
     def test_metric(self, name, want):
         self.assertEqual(lines(self.text, name), want)
@@ -81,6 +81,11 @@ class Render(unittest.TestCase):
     def test_missing_values_are_left_out(self):
         self.assertNotIn('wan="wan2"} None', self.text)
         self.assertEqual(lines(self.text, "noc_ont_tx_dbm"), ['noc_ont_tx_dbm{ont="ONT \\"a\\""} 2.43'], "the dead ONT has no reading")
+
+    @data((5, "5"), (5.0, "5"), (19_191_700_000_123, "19191700000123"), (-18.27, "-18.27"), (0.1, "0.1"), (2.5e300, "2.5e+300"))
+    @unpack
+    def test_number_is_exact(self, v, want):
+        self.assertEqual(M.number(v), want)
 
     def test_empty_store(self):
         text = M.render(M.samples({}, {}, {}, {}, set(), None, []))

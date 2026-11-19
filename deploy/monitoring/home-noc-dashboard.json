@@ -1,0 +1,734 @@
+{
+ "uid": "home-noc",
+ "title": "Home NOC",
+ "tags": [
+  "home-noc"
+ ],
+ "timezone": "browser",
+ "schemaVersion": 39,
+ "version": 1,
+ "refresh": "30s",
+ "time": {
+  "from": "now-24h",
+  "to": "now"
+ },
+ "editable": true,
+ "graphTooltip": 1,
+ "templating": {
+  "list": [
+   {
+    "name": "isp",
+    "label": "ISP",
+    "type": "query",
+    "datasource": {
+     "type": "prometheus",
+     "uid": "noc-prom"
+    },
+    "query": "label_values(noc_wan_up, isp)",
+    "refresh": 2,
+    "multi": true,
+    "includeAll": true,
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    },
+    "allValue": ".*"
+   }
+  ]
+ },
+ "panels": [
+  {
+   "id": 1,
+   "type": "row",
+   "title": "Right now",
+   "collapsed": false,
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 1
+   },
+   "panels": []
+  },
+  {
+   "id": 2,
+   "type": "stat",
+   "title": "Download now",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "noc-prom"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 1,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "noc-prom"
+     },
+     "refId": "A",
+     "expr": "sum(noc_wan_rate_bits{direction=\"down\",isp=~\"$isp\"})",
+     "legendFormat": ""
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bps"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 3,
+   "type": "stat",
+   "title": "Upload now",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "noc-prom"
+   },
+   "gridPos": {
+    "x": 4,
+    "y": 1,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "noc-prom"
+     },
+     "refId": "A",
+     "expr": "sum(noc_wan_rate_bits{direction=\"up\",isp=~\"$isp\"})",
+     "legendFormat": ""
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bps"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 4,
+   "type": "stat",
+   "title": "Data used this month",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "noc-prom"
+   },
+   "gridPos": {
+    "x": 8,
+    "y": 1,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "noc-prom"
+     },
+     "refId": "A",
+     "expr": "sum(noc_wan_month_bytes{isp=~\"$isp\"})",
+     "legendFormat": ""
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "decbytes"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 5,
+   "type": "stat",
+   "title": "WANs up",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "noc-prom"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 1,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "noc-prom"
+     },
+     "refId": "A",
+     "expr": "sum(noc_wan_up{isp=~\"$isp\"})",
+     "legendFormat": "up"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "noc-prom"
+     },
+     "refId": "B",
+     "expr": "count(noc_wan_up{isp=~\"$isp\"})",
+     "legendFormat": "of"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {},
+    "overrides": []
+   },
+   "options": {
+    "textMode": "value_and_name",
+    "colorMode": "none"
+   }
+  },
+  {
+   "id": 6,
+   "type": "state-timeline",
+   "title": "WAN up / down",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "noc-prom"
+   },
+   "gridPos": {
+    "x": 16,
+    "y": 1,
+    "w": 8,
+    "h": 8
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "noc-prom"
+     },
+     "refId": "A",
+     "expr": "noc_wan_up{isp=~\"$isp\"}",
+     "legendFormat": "{{wan}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "mappings": [
+      {
+       "type": "value",
+       "options": {
+        "0": {
+         "text": "down",
+         "color": "red"
+        },
+        "1": {
+         "text": "up",
+         "color": "green"
+        }
+       }
+      }
+     ],
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 7,
+   "type": "timeseries",
+   "title": "Download per WAN",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "noc-prom"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 5,
+    "w": 8,
+    "h": 8
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "noc-prom"
+     },
+     "refId": "A",
+     "expr": "noc_wan_rate_bits{direction=\"down\",isp=~\"$isp\"}",
+     "legendFormat": "{{wan}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bps",
+     "custom": {
+      "stacking": {
+       "mode": "normal",
+       "group": "A"
+      },
+      "fillOpacity": 25,
+      "lineWidth": 1
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 8,
+   "type": "timeseries",
+   "title": "Upload per WAN",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "noc-prom"
+   },
+   "gridPos": {
+    "x": 8,
+    "y": 5,
+    "w": 8,
+    "h": 8
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "noc-prom"
+     },
+     "refId": "A",
+     "expr": "noc_wan_rate_bits{direction=\"up\",isp=~\"$isp\"}",
+     "legendFormat": "{{wan}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bps",
+     "custom": {
+      "stacking": {
+       "mode": "normal",
+       "group": "A"
+      },
+      "fillOpacity": 25,
+      "lineWidth": 1
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 9,
+   "type": "row",
+   "title": "Data used",
+   "collapsed": false,
+   "gridPos": {
+    "x": 0,
+    "y": 13,
+    "w": 24,
+    "h": 1
+   },
+   "panels": []
+  },
+  {
+   "id": 10,
+   "type": "bargauge",
+   "title": "This month per ISP",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "noc-prom"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 14,
+    "w": 8,
+    "h": 8
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "noc-prom"
+     },
+     "refId": "A",
+     "expr": "sum by (isp) (noc_wan_month_bytes{isp=~\"$isp\"})",
+     "legendFormat": "{{isp}}",
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "decbytes"
+    },
+    "overrides": []
+   },
+   "options": {
+    "orientation": "horizontal",
+    "displayMode": "gradient",
+    "showUnfilled": true
+   }
+  },
+  {
+   "id": 11,
+   "type": "bargauge",
+   "title": "This month per WAN",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "noc-prom"
+   },
+   "gridPos": {
+    "x": 8,
+    "y": 14,
+    "w": 8,
+    "h": 8
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "noc-prom"
+     },
+     "refId": "A",
+     "expr": "sum by (wan) (noc_wan_month_bytes{isp=~\"$isp\"})",
+     "legendFormat": "{{wan}}",
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "decbytes"
+    },
+    "overrides": []
+   },
+   "options": {
+    "orientation": "horizontal",
+    "displayMode": "gradient",
+    "showUnfilled": true
+   }
+  },
+  {
+   "id": 12,
+   "type": "bargauge",
+   "title": "Top devices this month",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "noc-prom"
+   },
+   "gridPos": {
+    "x": 16,
+    "y": 14,
+    "w": 8,
+    "h": 8
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "noc-prom"
+     },
+     "refId": "A",
+     "expr": "topk(15, sum by (name) (noc_device_month_bytes))",
+     "legendFormat": "{{name}}",
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "decbytes"
+    },
+    "overrides": []
+   },
+   "options": {
+    "orientation": "horizontal",
+    "displayMode": "gradient",
+    "showUnfilled": true
+   }
+  },
+  {
+   "id": 13,
+   "type": "timeseries",
+   "title": "Data per day per ISP",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "noc-prom"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 22,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "noc-prom"
+     },
+     "refId": "A",
+     "expr": "sum by (isp) (increase(noc_wan_bytes_total{isp=~\"$isp\"}[1d]))",
+     "legendFormat": "{{isp}}",
+     "interval": "1d"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "decbytes",
+     "custom": {
+      "drawStyle": "bars",
+      "fillOpacity": 80,
+      "stacking": {
+       "mode": "normal",
+       "group": "A"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 14,
+   "type": "timeseries",
+   "title": "Data per hour per WAN",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "noc-prom"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 22,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "noc-prom"
+     },
+     "refId": "A",
+     "expr": "sum by (wan) (increase(noc_wan_bytes_total{isp=~\"$isp\"}[1h]))",
+     "legendFormat": "{{wan}}",
+     "interval": "1h"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "decbytes",
+     "custom": {
+      "drawStyle": "bars",
+      "fillOpacity": 80,
+      "stacking": {
+       "mode": "normal",
+       "group": "A"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 15,
+   "type": "row",
+   "title": "Link quality",
+   "collapsed": false,
+   "gridPos": {
+    "x": 0,
+    "y": 30,
+    "w": 24,
+    "h": 1
+   },
+   "panels": []
+  },
+  {
+   "id": 16,
+   "type": "timeseries",
+   "title": "Latency per WAN (mwan3 check)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "noc-prom"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 31,
+    "w": 8,
+    "h": 8
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "noc-prom"
+     },
+     "refId": "A",
+     "expr": "noc_wan_latency_ms",
+     "legendFormat": "{{wan}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "ms"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 17,
+   "type": "timeseries",
+   "title": "Packet loss per WAN",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "noc-prom"
+   },
+   "gridPos": {
+    "x": 8,
+    "y": 31,
+    "w": 8,
+    "h": 8
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "noc-prom"
+     },
+     "refId": "A",
+     "expr": "noc_wan_loss_percent",
+     "legendFormat": "{{wan}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 18,
+   "type": "timeseries",
+   "title": "Hourly speed test",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "noc-prom"
+   },
+   "gridPos": {
+    "x": 16,
+    "y": 31,
+    "w": 8,
+    "h": 8
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "noc-prom"
+     },
+     "refId": "A",
+     "expr": "noc_wan_speedtest_mbps{isp=~\"$isp\"}",
+     "legendFormat": "{{wan}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "Mbits",
+     "custom": {
+      "drawStyle": "points",
+      "pointSize": 6
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 19,
+   "type": "timeseries",
+   "title": "Fibre received power",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "noc-prom"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 39,
+    "w": 12,
+    "h": 7
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "noc-prom"
+     },
+     "refId": "A",
+     "expr": "noc_ont_rx_dbm",
+     "legendFormat": "{{ont}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "dBm"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 20,
+   "type": "timeseries",
+   "title": "Fibre module temperature",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "noc-prom"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 39,
+    "w": 12,
+    "h": 7
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "noc-prom"
+     },
+     "refId": "A",
+     "expr": "noc_ont_temp_celsius",
+     "legendFormat": "{{ont}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "celsius"
+    },
+    "overrides": []
+   },
+   "options": {}
+  }
+ ]
+}
