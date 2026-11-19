@@ -62,6 +62,9 @@ good backup, taken from the backup task logs (an auditor token can't list backup
 |---|---|
 | `/status` | Internet links, devices, DNS, fibre at a glance |
 | `/wan` | Every monitored WAN with status, IP, latency; the WAN groups |
+| `/speed` | Download and upload on each WAN and ISP right now (the data counter's last 30 s read), with each WAN's last hourly speed test and how much of the tested total is in use |
+| `/usage [YYYY-MM]` | Data used this month (or another) per ISP and WAN, how much of each cap is used, and the 5 busiest devices |
+| `/today [yesterday]` | Data used today so far (or yesterday) per ISP, the top 3 devices and the month so far |
 | `/dns` | Each Pi-hole, blocking state, VIP owner |
 | `/optics` | Each ONT: RX/TX power vs its limits, temperature, reading age |
 | `/devices` | Devices that are down (`/devices all` lists every device) |

@@ -304,7 +304,7 @@ class Alerts(unittest.TestCase):
         msgs = U.check(s, cfg, GROUPS, "Home", NAME, at(9))
         self.assertEqual(len(msgs), 1)
         m = msgs[0]
-        for want in ("data used on 2026-11-18", "isp-a: 42.0 GB (↓40.0 GB ↑2.0 GB)", "isp-b: 5.0 GB", "Total: 47.0 GB",
+        for want in ("data used on 2026-11-18", "<b>isp-a</b>: 42.0 GB (↓40.0 GB ↑2.0 GB)", "<b>isp-b</b>: 5.0 GB", "Total: 47.0 GB",
                      "Top devices: phone 31.0 GB, 10.0.0.77 2.0 GB", "Month so far: 425.0 GB"):
             self.assertIn(want, m)
         self.assertLess(m.index("isp-a"), m.index("isp-b"), "busiest ISP first")
@@ -341,6 +341,64 @@ class Telegram(unittest.TestCase):
         self.assertIn("90% of its 100 GB cap", noc.TG.sent[0])
         self.assertIn("wan1:80", json.loads((noc.VAR / "usage.json").read_text())["sent"]["caps"]["2026-11"], "remembered across restarts")
         self.assertGreater(c.rates["wan1"][0], 0, "bits per second kept for /metrics")
+
+
+
+MONTH = {"since": 1795000000,
+         "months": {"2026-10": {"wan1": [5 * GB, 0]},
+                    "2026-11": {"wan1": [60 * GB, 5 * GB], "wan2": [20 * GB, 1 * GB], "wan10": [9 * GB, 0]}},
+         "days": {"2026-11-19": {"wan1": [3 * GB, 0]}},
+         "device_days": {"2026-11-19": {"aa:00:00:00:00:05": [2 * GB, 0]}},
+         "devices": {"2026-11": {"aa:00:00:00:00:05": {"ips": ["10.0.0.5"], "w": {"wan1": [50 * GB, 2 * GB]}},
+                                 "10.0.0.77": {"ips": ["10.0.0.77"], "w": {"wan10": [4 * GB, 0]}},
+                                 "aa:00:00:00:00:09": {"ips": [], "w": {"wan2": [1 * GB, 0]}}}}}
+
+
+@ddt
+class BotText(unittest.TestCase):
+    """What the Telegram bot's /usage, /today and /speed reply (month_text, summary, speed_text)."""
+
+    def test_month(self):
+        m = U.month_text(MONTH, GROUPS, "Home", NAME, {"caps_gb": {"isp-a": 100}}, "2026-11", now=WHEN)
+        for want in ("data used in 2026-11 so far", "• <b>isp-a</b>: 86.0 GB (↓80.0 GB ↑6.0 GB)", "   wan1 65.0 GB · wan2 21.0 GB",
+                     "• <b>isp-b</b>: 9.0 GB", "<b>Total</b>: 95.0 GB", "🟠 isp-a: 86.0 GB of 100 GB (86%)",
+                     "<b>Top 3 devices</b> (of 3)", "• phone: 52.0 GB", "• 10.0.0.77: 4.0 GB", "• aa:00:00:00:00:09: 1.0 GB",
+                     "Counting since"):
+            self.assertIn(want, m)
+        self.assertLess(m.index("phone"), m.index("10.0.0.77"), "busiest device first")
+        self.assertNotIn("wan10 9.0 GB", m, "an ISP with one WAN does not list it again")
+
+    def test_past_month_has_no_caps_and_no_so_far(self):
+        m = U.month_text(MONTH, GROUPS, "Home", NAME, {"caps_gb": {"isp-a": 1}}, "2026-10", now=WHEN)
+        self.assertIn("data used in 2026-10\n", m)
+        self.assertNotIn("Caps", m)
+
+    def test_month_without_data(self):
+        self.assertEqual(U.month_text(MONTH, GROUPS, "Home", NAME, {}, "2025-01", now=WHEN),
+                         "No data counted for 2025-01. Months there are: 2026-11, 2026-10")
+
+    def test_names_are_escaped(self):
+        m = U.month_text(MONTH, GROUPS, "<Home>", lambda k, ips: "Bob's <TV>" if k == "10.0.0.77" else "", {}, "2026-11", now=WHEN)
+        self.assertIn("&lt;Home&gt;", m)
+        self.assertIn("Bob&#x27;s &lt;TV&gt;", m)
+
+    def test_today_label(self):
+        m = U.summary(MONTH, "2026-11-19", GROUPS, "Home", NAME, "today so far")
+        self.assertTrue(m.startswith("📊 <b>Home</b>: data used today so far"), m)
+        self.assertIn("Top devices: phone 2.0 GB", m)
+
+    def test_speed(self):
+        rates = {"wan1": [300e6, 20e6], "wan2": [50e6, 1e6], "wan10": [1.2e9, 4e4]}
+        m = U.speed_text(rates, GROUPS, "Home", {"wan1": 500, "wan2": 300, "wan10": 1000, "wan9": 100}, 12.4)
+        for want in ("traffic right now <i>(read 12 s ago)</i>", "<b>isp-b</b>: ↓1.20 Gbps ↑40 kbps", "<b>isp-a</b>: ↓350.0 Mbps ↑21.0 Mbps",
+                     "   wan1: ↓300.0 Mbps ↑20.0 Mbps · tested 500 Mbps", "<b>Total</b>: ↓1.55 Gbps ↑21.0 Mbps · 86% of the tested 1800 Mbps"):
+            self.assertIn(want, m)
+        self.assertLess(m.index("isp-b"), m.index("isp-a"), "busiest ISP first")
+
+    @data(({}, "No reading yet"), ({"wan1": [0, 0]}, "<b>Total</b>: ↓0 kbps ↑0 kbps"))
+    @unpack
+    def test_speed_edge(self, rates, want):
+        self.assertIn(want, U.speed_text(rates, GROUPS, "Home"))
 
 
 if __name__ == "__main__":

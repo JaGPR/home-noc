@@ -18,13 +18,15 @@ per WAN per month, and per day for the daily summary.
 
 Alerts on Telegram (config "usage"): a cap per ISP group or WAN (caps_gb) sends a message when 80% and 100% of it
 are used, once each a month; a daily summary (daily_summary, at summary_hour) tells yesterday's data per ISP, its
-top devices and the month so far.
+top devices and the month so far. The Telegram bot's /usage, /today and /speed use month_text, summary and
+speed_text.
 
 Stored in VAR/usage.json: {"since": unix time, "months": {"YYYY-MM": {wan: [down bytes, up bytes]}},
 "days": {"YYYY-MM-DD": {wan: [down, up]}}, "devices": {"YYYY-MM": {device: {"ips": [...], "w": {wan: [down, up]}}}},
 "device_days": {"YYYY-MM-DD": {device: [down, up]}}, "sent": what the alerts have sent}; days kept for DAYS_KEPT
 days (devices: DEVICE_DAYS_KEPT), months for good.
 """
+import html
 import json
 import os
 import threading
@@ -280,27 +282,101 @@ def check(store, cfg, groups, site, name_of, now):
     return msgs
 
 
-def summary(store, day, groups, site, name_of):
-    """The daily message: a day's data per ISP and its top 3 devices, and the month so far. None without data."""
+e = html.escape
+
+
+def by_isp(per, groups):
+    """{wan: [down, up]} -> {isp group (or the WAN when in none): {wan: [down, up]}}."""
+    isp_of = {m: g for g, members in (groups or {}).items() for m in members}
+    out = {}
+    for wan, v in per.items():
+        out.setdefault(isp_of.get(wan) or wan, {})[wan] = v
+    return out
+
+
+def isp_lines(per, groups, wans=False):
+    """One line per ISP, busiest first: data used, down and up (and its WANs when `wans` and it has several)."""
+    lines = []
+    for isp, ws in sorted(by_isp(per, groups).items(), key=lambda x: -sum(sum(v) for v in x[1].values())):
+        d, u = sum(v[0] for v in ws.values()), sum(v[1] for v in ws.values())
+        lines.append(f"• <b>{e(isp)}</b>: {human(d + u)} (↓{human(d)} ↑{human(u)})")
+        if wans and len(ws) > 1:
+            lines.append("   " + " · ".join(f"{e(w)} {human(sum(v))}"
+                                            for w, v in sorted(ws.items(), key=lambda x: speedtab.natural(x[0]))))
+    return lines
+
+
+def summary(store, day, groups, site, name_of, label=None):
+    """The daily message: a day's data per ISP and its top 3 devices, and the month so far. None without data.
+    `label` replaces "on <day>" in the title (the bot's /today says "today so far")."""
     per = (store.get("days") or {}).get(day)
     if not per:
         return None
-    isp_of = {m: g for g, members in (groups or {}).items() for m in members}
-    isps = {}
-    for wan, (d, u) in per.items():
-        x = isps.setdefault(isp_of.get(wan) or wan, [0, 0])
-        x[0] += d
-        x[1] += u
-    lines = [f"📊 <b>{site}</b>: data used on {day}"]
-    lines += [f"• {isp}: {human(d + u)} (↓{human(d)} ↑{human(u)})" for isp, (d, u) in sorted(isps.items(), key=lambda x: -sum(x[1]))]
+    lines = [f"📊 <b>{e(site)}</b>: data used {e(label or 'on ' + day)}"]
+    lines += isp_lines(per, groups)
     lines.append(f"Total: {human(sum(d + u for d, u in per.values()))}")
     devs = sorted(((store.get("device_days") or {}).get(day) or {}).items(), key=lambda x: -sum(x[1]))[:3]
     if devs:
         month = (store.get("devices") or {}).get(day[:7]) or {}
-        lines.append("Top devices: " + ", ".join(f"{name_of(k, month.get(k, {}).get('ips', [])) or k} {human(sum(v))}"
+        lines.append("Top devices: " + ", ".join(f"{e(name_of(k, month.get(k, {}).get('ips', [])) or k)} {human(sum(v))}"
                                                  for k, v in devs))
     mtd = sum(sum(v) for v in ((store.get("months") or {}).get(day[:7]) or {}).values())
     lines.append(f"Month so far: {human(mtd)}")
+    return "\n".join(lines)
+
+
+def month_text(store, groups, site, name_of, cfg, month, top=5, now=None):
+    """The bot's /usage: a month's data per ISP and WAN, how much of each cap is used, and its busiest devices."""
+    per = (store.get("months") or {}).get(month)
+    if not per:
+        have = ", ".join(sorted(store.get("months") or {}, reverse=True)[:6])
+        return f"No data counted for {e(month)}." + (f" Months there are: {e(have)}" if have else "")
+    current = month == time.strftime("%Y-%m", time.localtime(now or time.time()))
+    lines = [f"📊 <b>{e(site)}</b>: data used in {e(month)}" + (" so far" if current else "")]
+    lines += isp_lines(per, groups, wans=True)
+    d, u = sum(v[0] for v in per.values()), sum(v[1] for v in per.values())
+    lines.append(f"<b>Total</b>: {human(d + u)} (↓{human(d)} ↑{human(u)})")
+    caps = settings(cfg)["caps_gb"]
+    if caps and current:
+        lines.append("\n<b>Caps</b>")
+        for name, gb in sorted(caps.items()):
+            used = used_by(per, name, groups)
+            pct = 100 * used / (gb * 1e9)
+            icon = "🔴" if pct >= 100 else "🟠" if pct >= CAP_STEPS[0] else "🟢"
+            lines.append(f"{icon} {e(name)}: {human(used)} of {gb:g} GB ({pct:.0f}%)")
+    devs = (store.get("devices") or {}).get(month) or {}
+    size = lambda dv: sum(sum(v) for v in dv.get("w", {}).values())
+    busiest = sorted(devs.items(), key=lambda x: -size(x[1]))[:top]
+    if busiest:
+        lines.append(f"\n<b>Top {len(busiest)} devices</b> (of {len(devs)})")
+        for key, dv in busiest:
+            name = name_of(key, dv.get("ips", [])) or (dv.get("ips") or [key])[0]
+            lines.append(f"• {e(name)}: {human(size(dv))}")
+    if store.get("since"):
+        lines.append(f"\n<i>Counting since {time.strftime('%Y-%m-%d %H:%M', time.localtime(store['since']))}</i>")
+    return "\n".join(lines)
+
+
+def mbps(bits):
+    return f"{bits / 1e9:.2f} Gbps" if bits >= 1e9 else f"{bits / 1e6:.1f} Mbps" if bits >= 1e5 else f"{bits / 1e3:.0f} kbps"
+
+
+def speed_text(rates, groups, site, tested=None, age_s=None):
+    """The bot's /speed: each WAN's download and upload over the collector's last read (about 30 s), per ISP, with
+    each WAN's last hourly speed test (tested: {wan: Mbps})."""
+    if not rates:
+        return "No reading yet: the data counter reads the router every 30 s. Try again in a minute."
+    tested = tested or {}
+    lines = [f"⚡ <b>{e(site)}</b>: traffic right now" + (f" <i>(read {int(age_s)} s ago)</i>" if age_s is not None else "")]
+    for isp, ws in sorted(by_isp(rates, groups).items(), key=lambda x: -sum(v[0] for v in x[1].values())):
+        lines.append(f"<b>{e(isp)}</b>: ↓{mbps(sum(v[0] for v in ws.values()))} ↑{mbps(sum(v[1] for v in ws.values()))}")
+        for w, (d, u) in sorted(ws.items(), key=lambda x: speedtab.natural(x[0])):
+            t = tested.get(w)
+            lines.append(f"   {e(w)}: ↓{mbps(d)} ↑{mbps(u)}" + (f" · tested {t:g} Mbps" if isinstance(t, (int, float)) else ""))
+    d, u = sum(v[0] for v in rates.values()), sum(v[1] for v in rates.values())
+    cap = sum(t for w, t in tested.items() if w in rates and isinstance(t, (int, float)) and t > 0)
+    lines.append(f"<b>Total</b>: ↓{mbps(d)} ↑{mbps(u)}"
+                 + (f" · {min(100, round(100 * d / (cap * 1e6)))}% of the tested {cap:g} Mbps" if cap else ""))
     return "\n".join(lines)
 
 
@@ -313,7 +389,8 @@ class Collector:
         self.path = noc.VAR / "usage.json"
         self.store = load(self.path)
         self.error = None
-        self.rates = {}      # the last read's bits per second per WAN, for /metrics: {wan: [down, up]}
+        self.rates = {}      # the last read's bits per second per WAN, for /metrics and /speed: {wan: [down, up]}
+        self.rates_at = None  # when self.rates was read (unix time)
 
     def store_copy(self):
         with self.lock:
@@ -332,6 +409,7 @@ class Collector:
         if deltas and last is not None and self.counter.ts > last:
             dt = self.counter.ts - last
             self.rates = {w: [d * 8 / dt, u * 8 / dt] for w, (d, u) in deltas.items()}
+            self.rates_at = time.time()
         mac_of, own = identity_maps(r, speedtab.parse_neigh(text))
         when = now or time.time()
         groups = self.noc.wan_groups() if hasattr(self.noc, "wan_groups") else {}

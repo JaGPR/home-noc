@@ -26,7 +26,7 @@ jobs:
       - name: Prometheus metrics and data-used settings (data-driven, offline)
         run: python -m unittest tests/test_metrics.py -v
       - name: Installer, Speed tab, data used, backups, cluster, fans (data-driven, offline)
-        run: python -m unittest tests/test_install.py tests/test_speedtab.py tests/test_usage.py tests/test_speedwatch.py tests/test_backups.py tests/test_proxmox.py tests/test_hardware.py tests/test_noc_hw.py tests/test_notify_forget.py
+        run: python -m unittest tests/test_install.py tests/test_speedtab.py tests/test_usage.py tests/test_speedwatch.py tests/test_backups.py tests/test_proxmox.py tests/test_hardware.py tests/test_noc_hw.py tests/test_notify_forget.py tests/test_notify_bot.py
 
   ui:
     name: UI JavaScript

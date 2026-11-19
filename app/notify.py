@@ -23,6 +23,7 @@ import requests
 import backups
 import diagnose
 import proxmox
+import usage
 
 DEFAULTS = {"check_every_s": 30, "confirm_checks": 2, "ont_stale_s": 180,
             "backup_alerts": True, "backup_success": True, "backup_store_warn_pct": 85, "backup_long_h": 4,
@@ -33,6 +34,9 @@ ACTION_TTL = 120
 HELP = """<b>NOC bot</b>
 /status – everything at a glance
 /wan – internet links and groups
+/speed – download and upload on each link right now
+/usage – data used this month per ISP and link, caps, top devices (/usage 2026-10 for another month)
+/today – data used today so far (/today yesterday)
 /dns – Pi-holes, ad-blocking, VIP
 /optics – fibre ONT readings
 /devices – devices that are down (/devices all)
@@ -44,6 +48,16 @@ HELP = """<b>NOC bot</b>
 /restart &lt;link|group&gt; – e.g. /restart wan3, or a group name from /wan
 /pause &lt;minutes&gt; – pause ad-blocking (0 = until /resume)
 /resume – resume ad-blocking"""
+
+# The menu Telegram shows when you type "/" (setMyCommands): (command, description)
+COMMANDS = [("status", "Everything at a glance"), ("problems", "What is currently not OK"),
+            ("wan", "Internet links and groups"), ("speed", "Download and upload on each link right now"),
+            ("usage", "Data used this month, caps and top devices"), ("today", "Data used today so far"),
+            ("dns", "Pi-holes, ad-blocking, VIP"), ("optics", "Fibre ONT readings"),
+            ("devices", "Devices that are down"), ("backups", "Proxmox backups"),
+            ("diagnose", "Why a link is down: /diagnose <link|group>"),
+            ("restart", "Restart a link or group (asks to confirm)"),
+            ("pause", "Pause ad-blocking: /pause <minutes>"), ("resume", "Resume ad-blocking"), ("help", "All commands")]
 
 e = html.escape
 
@@ -478,6 +492,10 @@ class Telegram:
             try:
                 if not self.bot_name:
                     self.bot_name = self.api("getMe").get("username")
+                    try:    # the "/" menu in Telegram; harmless to repeat after a restart
+                        self.api("setMyCommands", commands=[{"command": c, "description": d} for c, d in COMMANDS])
+                    except Exception:
+                        pass
                 updates = self.api("getUpdates", http_timeout=40, offset=offset, timeout=25,
                                    allowed_updates=["message", "callback_query"])
                 self.bot_error = None
@@ -507,6 +525,7 @@ class Telegram:
         handlers = {"/start": lambda a: HELP, "/help": lambda a: HELP, "/status": self.cmd_status,
                     "/wan": self.cmd_wan, "/dns": self.cmd_dns, "/optics": self.cmd_optics,
                     "/devices": self.cmd_devices, "/problems": self.cmd_problems,
+                    "/usage": self.cmd_usage, "/today": self.cmd_today, "/speed": self.cmd_speed,
                     "/backups": lambda a: self.backups.overview(self.noc.SITE_NAME)}
         if cmd == "/restart":
             return self.cmd_restart(chat, arg)
@@ -589,6 +608,39 @@ class Telegram:
             lines.append("\n<b>Groups</b> (/restart &lt;group&gt;)")
             lines += [f"• {e(g)}: {e(', '.join(m))}" for g, m in groups.items()]
         return "\n".join(lines)
+
+    # data used and traffic now (app/usage.py's collector)
+    def name_of(self):
+        noc = self.noc
+        return usage.namer(self.overview(), (noc.C or {}).get("devices"))
+
+    def cmd_usage(self, arg):
+        noc, a = self.noc, arg.strip()
+        month = a or time.strftime("%Y-%m")
+        if len(month) != 7 or month[4] != "-" or not (month[:4] + month[5:]).isdigit():
+            return "Usage: /usage, or /usage YYYY-MM for another month (e.g. /usage 2026-10)"
+        return usage.month_text(noc.USAGE.store_copy(), noc.wan_groups(), noc.SITE_NAME, self.name_of(),
+                                (noc.C or {}).get("usage"), month)
+
+    def cmd_today(self, arg):
+        noc = self.noc
+        yday = arg.strip().lower() in ("yesterday", "y", "-1")
+        when = time.time() - (86400 if yday else 0)
+        day = time.strftime("%Y-%m-%d", time.localtime(when))
+        text = usage.summary(noc.USAGE.store_copy(), day, noc.wan_groups(), noc.SITE_NAME, self.name_of(),
+                             None if yday else "today so far")
+        return text or f"No data counted on {day} yet."
+
+    def cmd_speed(self, _):
+        noc, col = self.noc, self.noc.USAGE
+        hist = noc.speedtab.history_rows(list(reversed(noc.tail_jsonl(noc.VAR / "speedwatch.jsonl", 48))))
+        tested = {}
+        for h in hist:
+            tested.update({w: v for w, v in h["mbps"].items() if isinstance(v, (int, float))})
+        age = time.time() - col.rates_at if getattr(col, "rates_at", None) else None
+        if age is not None and age > 180:
+            return f"The data counter's last reading is {ago(age)} old, so there is no current figure. {e(str(col.error or ''))}"
+        return usage.speed_text(col.rates, noc.wan_groups(), noc.SITE_NAME, tested, age)
 
     def cmd_dns(self, _):
         d = self.noc.cached("dns", 10, self.noc.collect_dns)
