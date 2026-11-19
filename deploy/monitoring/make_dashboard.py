@@ -78,5 +78,5 @@ dashboard = {
     "panels": panels,
 }
 out = Path(__file__).with_name("home-noc-dashboard.json")
-out.write_text(json.dumps(dashboard, indent=1) + "\n", encoding="utf-8")
+out.write_text(json.dumps(dashboard, indent=1) + "\n", encoding="utf-8", newline="\n")
 print(f"wrote {out} ({len(panels)} panels)")
